@@ -58,6 +58,7 @@ Use this exact format in each update:
 | 15   | 2026-02-14 | P3-008 | - | - | Hard-limit token/cost quota enforcement delivered with quota-blocked audit records; tests green | 96% |
 | 16   | 2026-02-14 | P3-009 | - | - | Guardrail validation layer delivered with pre-publish gating and structured violations; tests green | 99% |
 | 17   | 2026-02-14 | P3-010 | - | - | Memory layer integration delivered with Redis short-term slots and Postgres long-term summary persistence; tests green | 100% |
+| 18   | 2026-02-14 | P3-011 | - | - | Replay service delivered with deterministic decision graph reconstruction and digest validation; tests green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -212,6 +213,15 @@ Use this exact format in each update:
 - Next Task IDs: [P3-011, P3-012, P4-001]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 15:06
+
+- Completed Task IDs: [P3-011]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-012, P4-001, P4-002]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -350,7 +360,7 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 | P3-008 | P0  | Token quota enforcement     | Enforce per-agent/per-strategy daily token + monthly cost hard limits             | P1-006,P3-006        | Quota guardrails                         | DONE |
 | P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | DONE |
 | P3-010 | P1  | Memory layer integration    | Implement short-term Redis memory and long-term Postgres memory writes/reads      | P1-005,P1-010        | Shared memory system                     | DONE |
-| P3-011 | P1  | Replay service              | Reconstruct decision graph and payloads from persisted traces                     | P3-007,P1-005        | Deterministic replay API/service         | NOT_STARTED |
+| P3-011 | P1  | Replay service              | Reconstruct decision graph and payloads from persisted traces                     | P3-007,P1-005        | Deterministic replay API/service         | DONE |
 | P3-012 | P1  | Agent metrics/tracing       | Instrument agent latencies, failure rates, token consumption                      | P3-001               | Observability for agent runtime          | NOT_STARTED |
 
 ---
@@ -523,7 +533,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 1. P0-001 -> P1-001 -> P1-002 -> P1-003/P1-004/P1-008
 2. P2-001 -> P2-003/P2-004 -> P2-006
-3. P3-001 -> P3-006 -> P3-007/P3-008/P3-009/P3-010
+3. P3-001 -> P3-006 -> P3-007/P3-008/P3-009/P3-010/P3-011
 4. P4-001 -> P4-002 and P4-004 -> P5-001/P5-002
 5. P5-005/P5-006 -> P7-003 -> P9-001/P9-002
 6. P8-004/P8-005 spans all operational readiness gates
@@ -638,6 +648,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P3-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -649,6 +660,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P3-011` replay service for deterministic decision reconstruction.
-2. Start `P3-012` agent metrics and tracing baseline.
-3. Start `P4-001` strict mode routing policy for `execution.intent.mock` vs `execution.intent.real`.
+1. Start `P3-012` agent metrics and tracing baseline.
+2. Start `P4-001` strict mode routing policy for `execution.intent.mock` vs `execution.intent.real`.
+3. Start `P4-002` simulation execution engine core.
