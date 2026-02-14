@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P4-003)
+# Agent Runtime Baseline (P3-001..P5-004)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -26,6 +26,11 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/simulation_execution/engine.py` (`P4-002`)
 - `services/simulation_execution/safety_guard.py` (`P4-003`)
 - `services/simulation_execution/worker.py` (`P4-002`/`P4-003`)
+- `services/simulation_execution/metrics_tracing.py` (`P4-007`)
+- `services/oms/state_machine.py` (`P5-001`)
+- `services/oms/fill_reconciliation.py` (`P5-002`)
+- `services/oms/position_engine.py` (`P5-003`)
+- `services/oms/portfolio_snapshot.py` (`P5-004`)
 
 ## Component Boundaries
 
@@ -120,6 +125,17 @@ This document defines the first Phase 3 decision runtime modules:
 - `simulation_execution/engine.py` provides deterministic mock fill engine with slippage and fee model.
 - `simulation_execution/safety_guard.py` blocks live-order endpoint usage in MOCK-mode paths.
 - `simulation_execution/worker.py` consumes mock intents and publishes OMS order events.
+- `simulation_execution/metrics_tracing.py` tracks worker success/failure counters, latency aggregates, and recent trace spans for mock execution stages.
+
+16. P5 OMS lifecycle state machine module
+- `oms/state_machine.py` provides explicit allowed transition matrix for `NEW -> ... -> terminal` states.
+- Transition application is deterministic and supports idempotent same-state replay handling.
+- Invalid transitions are rejected with structured `OMSStateTransitionError` exceptions.
+
+17. P5 OMS reconciliation, position, and portfolio modules
+- `oms/fill_reconciliation.py` reconciles queue lifecycle events with exchange snapshot fallback and fill-level dedupe.
+- `oms/position_engine.py` applies normalized fill events into netted position state with realized PnL handling.
+- `oms/portfolio_snapshot.py` computes mode-tagged NAV and unrealized/realized PnL snapshots from balances + marked positions.
 
 ## Decision Lifecycle
 
@@ -184,6 +200,12 @@ Metrics/tracing notes:
   - Stage metrics: `record_stage_success(...)`, `record_stage_failure(...)`.
   - LLM usage metrics: `record_llm_call(...)`.
   - Snapshot: consolidated stage and LLM telemetry payload for observability surfaces.
+- OMS contract:
+  - `OMSStateMachine.apply(next_state)` validates lifecycle transitions for `NEW`, `SUBMITTED`, `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELED`, `REJECTED`, `EXPIRED`.
+  - Same-state replay is an idempotent no-op; illegal transitions fail fast.
+  - `FillReconciliationEngine.reconcile(...)` produces canonical order status/fill convergence using queue events first with exchange fallback.
+  - `PositionEngine.apply_fill(...)` updates signed position quantity, average entry price, and realized PnL from each normalized fill.
+  - `PortfolioSnapshotEngine.build_snapshot(...)` emits `portfolio_snapshots`-compatible records (`total_balance_usd`, `available_balance_usd`, `locked_balance_usd`, `unrealized_pnl`, `realized_pnl_today`).
 
 ## Usage Flow
 
