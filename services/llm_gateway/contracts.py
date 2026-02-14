@@ -11,6 +11,8 @@ class ProviderSettings:
     timeout_ms: int
     max_retries: int
     enabled: bool = True
+    prompt_cost_per_1k_tokens: float = 0.0
+    completion_cost_per_1k_tokens: float = 0.0
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -56,3 +58,6 @@ class ProviderNotConfiguredError(LLMGatewayError):
 class LLMRetryExhaustedError(LLMGatewayError):
     """Raised when all retries and fallback providers are exhausted."""
 
+
+class LLMQuotaExceededError(LLMGatewayError):
+    """Raised when hard-limit quota policy blocks a request before dispatch."""
