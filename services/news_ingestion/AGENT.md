@@ -7,6 +7,8 @@ Collects and normalizes external news/social content for downstream summarizatio
 ## Architectural Boundaries
 
 - Owns source connector logic and dedup normalization.
+- Owns ingestion normalization + dedupe persistence contracts for `news_items`.
+- Owns tagging/relevance scoring contracts for `news_tags`.
 - Must not implement strategy decisioning.
 - Connector failures must be isolated so one source outage does not block other sources.
 
@@ -14,10 +16,12 @@ Collects and normalizes external news/social content for downstream summarizatio
 
 - Preserve source metadata and dedupe fingerprints.
 - Keep connector identity (`connector_id`, `connector_kind`) explicit in normalized outputs.
+- Keep dedupe reasons explicit (`duplicate_source_item`, `duplicate_hash`) for observability.
 
 ## Dependency Rules
 
 - Source adapters should be pluggable and isolated.
+- Persistence must flow through store protocols, not hard-coded DB clients in core logic.
 
 ## Extension Rules
 
@@ -27,6 +31,8 @@ Collects and normalizes external news/social content for downstream summarizatio
 
 - Emits normalized news records for persistence/tagging/summarization.
 - `source_connectors.py` provides protocol, registry, and cycle runner contracts for RSS/API/social sources.
+- `ingestion_service.py` provides normalized item contracts and dedupe-aware ingest workflow.
+- `tagging_relevance.py` provides symbol/topic/relevance/sentiment tagging contracts.
 
 ## Testing Expectations
 
