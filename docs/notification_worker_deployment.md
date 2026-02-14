@@ -49,3 +49,12 @@ Startup validation rejects placeholder or empty Telegram secrets when notificati
 - `docker compose --profile notification up -d notification_worker rabbitmq`
 
 The `notification_worker` service depends on RabbitMQ health and reads runtime values from `.env`.
+
+## Observability Baseline
+
+- Worker logs are JSON-structured with correlation keys (`trace_id`, `decision_id`, `order_id`, `strategy_id`, `mode`).
+- Worker runtime records Prometheus-style metrics internally:
+  - `open_trader_notification_worker_polls_total`
+  - `open_trader_notification_worker_process_duration_seconds`
+  - `open_trader_notification_delivery_results_total`
+- API `/metrics` endpoint exposes control-plane request metrics for scraping during `P8-002` baseline validation.

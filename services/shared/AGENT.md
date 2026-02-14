@@ -26,6 +26,7 @@ Holds shared contracts and utility types used across service modules.
 ## Integration Contracts
 
 - Message envelope validator is authoritative for base event metadata.
+- Runtime observability helpers under `services/shared/runtime/` define the baseline contracts for structured logs, Prometheus text metrics, and trace context propagation.
 
 ## Testing Expectations
 

@@ -24,6 +24,7 @@ Hosts background worker entrypoints and job processors for queue-driven tasks.
 
 - Queue consumer groups and routing keys must match topology declarations.
 - Worker startup must validate env/config contracts before entering processing loops.
+- Worker entrypoints should emit structured logs plus scrape-friendly metrics aligned with shared observability runtime contracts.
 
 ## Testing Expectations
 

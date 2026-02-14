@@ -7,6 +7,8 @@ import (
 
 type TraceSpan struct {
 	QueueName  string
+	TraceID    string
+	DecisionID string
 	Status     string
 	LatencyMs  float64
 	ErrorType  string
@@ -61,7 +63,7 @@ func (c *Collector) RecordNack(queueName string) {
 	c.totals.NackTotal++
 }
 
-func (c *Collector) RecordRunSuccess(queueName string, latency time.Duration) {
+func (c *Collector) RecordRunSuccess(queueName string, latency time.Duration, traceID string, decisionID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -71,6 +73,8 @@ func (c *Collector) RecordRunSuccess(queueName string, latency time.Duration) {
 	c.latencies = append(c.latencies, latencyMs)
 	c.spans = append(c.spans, TraceSpan{
 		QueueName:  queueName,
+		TraceID:    traceID,
+		DecisionID: decisionID,
 		Status:     "succeeded",
 		LatencyMs:  latencyMs,
 		ErrorType:  "",
@@ -78,7 +82,7 @@ func (c *Collector) RecordRunSuccess(queueName string, latency time.Duration) {
 	})
 }
 
-func (c *Collector) RecordRunFailure(queueName string, latency time.Duration, errorType string) {
+func (c *Collector) RecordRunFailure(queueName string, latency time.Duration, errorType string, traceID string, decisionID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -88,6 +92,8 @@ func (c *Collector) RecordRunFailure(queueName string, latency time.Duration, er
 	c.latencies = append(c.latencies, latencyMs)
 	c.spans = append(c.spans, TraceSpan{
 		QueueName:  queueName,
+		TraceID:    traceID,
+		DecisionID: decisionID,
 		Status:     "failed",
 		LatencyMs:  latencyMs,
 		ErrorType:  errorType,

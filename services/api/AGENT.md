@@ -33,6 +33,7 @@ Hosts control-plane APIs for strategy, risk, replay, governance, and operations.
 - `auth.py` owns JWT bearer parsing and `viewer/operator/admin` dependency gates.
 - `state.py` owns in-memory control-plane/trading-ops adapters, governance aggregates, replay request cache, and risk-control action wiring.
 - `routers/system.py` exposes liveness/readiness/metadata.
+- `routers/system.py` also exposes `/metrics` Prometheus scrape output.
 - `routers/control.py` exposes mode and strategy state controls plus mode history audit endpoint.
 - `routers/ops.py` exposes orders, positions, portfolio, risk status, kill-switch/circuit-breaker actions, and news panel read APIs.
 - `routers/ops.py` also exposes notification preference control APIs with role-gated read/write access.
@@ -53,3 +54,4 @@ Hosts control-plane APIs for strategy, risk, replay, governance, and operations.
 ## Operational Notes
 
 - Include health/readiness endpoints and clear error observability.
+- Preserve structured request logging and trace-context response headers from `app.py` middleware for every endpoint.
