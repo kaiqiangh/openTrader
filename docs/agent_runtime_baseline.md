@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-009)
+# Agent Runtime Baseline (P3-001..P3-010)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -12,6 +12,7 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/llm_gateway/persistence.py` (`P3-007`)
 - `services/llm_gateway/quota.py` (`P3-008`)
 - `services/agent_orchestrator/guardrail_validation.py` (`P3-009`)
+- `services/agent_orchestrator/memory_layer.py` (`P3-010`)
 
 ## Component Boundaries
 
@@ -76,6 +77,11 @@ This document defines the first Phase 3 decision runtime modules:
   - notional/position/leverage bounds.
 - Returns structured `GuardrailValidationResult` with explicit violation codes and details.
 
+11. `memory_layer.py`
+- Defines short-term (`Redis`) and long-term (`Postgres`) decision memory contracts.
+- Hydrates per-decision memory from short-term slots first, then long-term summary fallback.
+- Writes decision-stage slots (`context`, `plan`, `risk`, `execution_decision`, `guardrail`, `status`) and persists final summary records for replay/audit workflows.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -99,6 +105,11 @@ This document defines the first Phase 3 decision runtime modules:
 7. `agent.decision.intent_published` (approved + executable path only)
 - Execution intent is emitted to mode-specific queue.
 
+Memory handling notes:
+- On cycle start, orchestrator reads decision memory (`redis` preferred, `postgres` fallback).
+- During cycle execution, orchestrator writes stage outputs into short-term decision slots.
+- On cycle completion, orchestrator persists a long-term decision summary and re-caches summary in short-term memory.
+
 ## Contract Notes
 
 - Envelope contract:
@@ -115,6 +126,9 @@ This document defines the first Phase 3 decision runtime modules:
 - Market context contract:
   - Inputs: canonical market payload + optional embedded news context.
   - Outputs: `MarketContextOutput(context, microstructure, news, quality, notes)`.
+- Memory contract:
+  - Short-term store: `write_slot(...)`, `read_slots(...)` for `mem:decision:{mode}:{strategy_id}:{decision_id}:{slot}`.
+  - Long-term store: `persist_decision_summary(record)`, `read_decision_summary(decision_id)` for durable decision summaries.
 
 ## Usage Flow
 
