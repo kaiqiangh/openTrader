@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 
 REQUIRED_KEYS = [
@@ -66,6 +67,10 @@ def main() -> int:
     if notify_enabled and consumer_backend == "rabbitmq_http" and not os.getenv("NOTIFY_RABBITMQ_HTTP_API_URL"):
         print("NOTIFY_RABBITMQ_HTTP_API_URL is required when NOTIFY_ENABLED=true and rabbitmq_http backend is selected")
         return 1
+
+    if not _is_valid_aes256_key(os.getenv("ENCRYPTION_KEY_BASE64", "")):
+        print("ENCRYPTION_KEY_BASE64 must be a valid base64 string that decodes to 32 bytes (AES-256-GCM key)")
+        return 1
     print("Environment validation passed")
     return 0
 
@@ -84,6 +89,17 @@ def _is_placeholder_secret(value: str | None) -> bool:
         return True
     normalized = value.strip().lower()
     return normalized in {"", "changeme", "change_me", "set_me", "<set-me>", "your_token_here"}
+
+
+def _is_valid_aes256_key(value: str) -> bool:
+    normalized = value.strip()
+    if not normalized:
+        return False
+    try:
+        decoded = base64.b64decode(normalized, validate=True)
+    except (ValueError, TypeError):
+        return False
+    return len(decoded) == 32
 
 
 if __name__ == "__main__":
