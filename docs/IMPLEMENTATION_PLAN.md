@@ -50,6 +50,8 @@ Use this exact format in each update:
 | 7    | 2026-02-14 | P2-001,P2-002,P2-003 | - | - | Ingestion adapter, resilience manager, and orderbook sync engine delivered; tests green | 54% |
 | 8    | 2026-02-14 | P2-004,P2-005,P2-006 | - | - | Gap detection, k-line validation, and canonical publisher delivered; tests green | 63% |
 | 9    | 2026-02-14 | P2-007,P2-008,P2-009 | - | - | Persistence writers, pipeline metrics, and replay harness delivered; tests green | 72% |
+| 10   | 2026-02-14 | P3-001,P3-002,P3-003 | - | - | Agent orchestrator, planner, and risk baseline delivered; tests green | 81% |
+| 11   | 2026-02-14 | P3-004 | - | - | Execution decision agent with constrained proposals delivered; tests green | 84% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -132,6 +134,24 @@ Use this exact format in each update:
 - Next Task IDs: [P3-001, P3-002, P3-003]
 - Overall Progress: 72%
 
+### Turn Update 2026-02-14 13:15
+
+- Completed Task IDs: [P3-001, P3-002, P3-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-004, P3-005, P3-006]
+- Overall Progress: 81%
+
+### Turn Update 2026-02-14 13:30
+
+- Completed Task IDs: [P3-004]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-005, P3-006, P3-007]
+- Overall Progress: 84%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -139,7 +159,7 @@ Use this exact format in each update:
 | 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | DONE |
 | 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | DONE |
 | 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | DONE |
-| 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | NOT_STARTED |
+| 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | IN_PROGRESS |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | NOT_STARTED |
@@ -260,10 +280,10 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 
 | ID     | Pri | Task                        | Actionable Steps                                                                  | Dependencies         | Deliverable                              | Status      |
 | ------ | --- | --------------------------- | --------------------------------------------------------------------------------- | -------------------- | ---------------------------------------- | ----------- |
-| P3-001 | P0  | Orchestrator skeleton       | Build orchestrator consuming `market.canonical` and managing decision lifecycle   | P1-009,P2-006        | Agent orchestration runtime              | NOT_STARTED |
-| P3-002 | P0  | Planner agent               | Implement dynamic plan generation based on market context and strategy config     | P3-001               | Planner output contracts                 | NOT_STARTED |
-| P3-003 | P0  | Risk agent                  | Implement risk-analysis agent outputs for pre-trade risk signals                  | P3-001               | Risk agent outputs                       | NOT_STARTED |
-| P3-004 | P0  | Execution decision agent    | Implement final action proposal agent with schema constraints                     | P3-001               | Action proposals (`BUY/SELL/HOLD/CLOSE`) | NOT_STARTED |
+| P3-001 | P0  | Orchestrator skeleton       | Build orchestrator consuming `market.canonical` and managing decision lifecycle   | P1-009,P2-006        | Agent orchestration runtime              | DONE |
+| P3-002 | P0  | Planner agent               | Implement dynamic plan generation based on market context and strategy config     | P3-001               | Planner output contracts                 | DONE |
+| P3-003 | P0  | Risk agent                  | Implement risk-analysis agent outputs for pre-trade risk signals                  | P3-001               | Risk agent outputs                       | DONE |
+| P3-004 | P0  | Execution decision agent    | Implement final action proposal agent with schema constraints                     | P3-001               | Action proposals (`BUY/SELL/HOLD/CLOSE`) | DONE |
 | P3-005 | P1  | Market context agent        | Implement optional context enrichment with market microstructure + news summaries | P3-001               | Optional context module                  | NOT_STARTED |
 | P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | NOT_STARTED |
 | P3-007 | P0  | Prompt/response persistence | Persist full prompt and full response with tokens/cost/latency/trace IDs          | P1-006,P3-006        | Complete LLM audit trail                 | NOT_STARTED |
@@ -548,7 +568,10 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P2-007  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-008  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-009  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
-| P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P3-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -560,6 +583,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P3-001` orchestrator skeleton consuming `market.canonical`.
-2. Start `P3-002` planner agent contract and execution path.
-3. Start `P3-003` risk agent baseline outputs and checks.
+1. Start `P3-005` market context agent baseline for optional enrichment inputs.
+2. Start `P3-006` LLM gateway service skeleton with provider/retry contracts.
+3. Start `P3-007` prompt/response persistence with full payload capture and metrics.
