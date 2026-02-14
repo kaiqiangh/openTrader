@@ -11,8 +11,8 @@ func TestCollectorTracksRunAndDeliveryMetrics(t *testing.T) {
 	collector.RecordNoMessage("execution.intent.real")
 	collector.RecordAck("execution.intent.real")
 	collector.RecordNack("execution.intent.real")
-	collector.RecordRunSuccess("execution.intent.real", 12*time.Millisecond)
-	collector.RecordRunFailure("execution.intent.real", 8*time.Millisecond, "handler_error")
+	collector.RecordRunSuccess("execution.intent.real", 12*time.Millisecond, "trace-1", "decision-1")
+	collector.RecordRunFailure("execution.intent.real", 8*time.Millisecond, "handler_error", "trace-2", "decision-2")
 
 	snapshot := collector.Snapshot()
 
@@ -45,6 +45,12 @@ func TestCollectorTracksRunAndDeliveryMetrics(t *testing.T) {
 	}
 	if snapshot.RecentSpans[1].ErrorType != "handler_error" {
 		t.Fatalf("expected failure error type handler_error, got %s", snapshot.RecentSpans[1].ErrorType)
+	}
+	if snapshot.RecentSpans[0].TraceID != "trace-1" {
+		t.Fatalf("expected first span trace id trace-1, got %s", snapshot.RecentSpans[0].TraceID)
+	}
+	if snapshot.RecentSpans[1].DecisionID != "decision-2" {
+		t.Fatalf("expected second span decision id decision-2, got %s", snapshot.RecentSpans[1].DecisionID)
 	}
 	if snapshot.AvgLatencyMs <= 0 {
 		t.Fatalf("expected avg latency > 0, got %f", snapshot.AvgLatencyMs)

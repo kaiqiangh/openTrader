@@ -35,6 +35,7 @@ Provides notification runtime core for event intake, policy routing, gateway dis
 - Telegram gateway reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_DEFAULT_CHAT_ID` config when enabled.
 - Observability collector emits in-memory metrics/log/trace snapshots for control-plane dashboards.
 - Worker settings validate `NOTIFY_*` env contracts before processing loop startup.
+- Worker runtime emits structured JSON logs and Prometheus-style worker counters/latency metrics with trace correlation fields.
 
 ## Testing Expectations
 

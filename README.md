@@ -101,6 +101,16 @@ Notification worker runtime (`P7-018`) commands:
 4. Deployment/secrets reference:
    - `docs/notification_worker_deployment.md`
 
+Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
+
+1. Validate API metrics endpoint:
+   - `uv run python -c "from services.api.app import create_app; print('/metrics ready' if create_app() else 'failed')"`
+2. Run API and scrape metrics:
+   - `uv run python -m uvicorn services.api.app:create_app --factory --host 0.0.0.0 --port 8000`
+   - `curl -s http://127.0.0.1:8000/metrics | head`
+3. Notification worker startup logs now emit structured JSON:
+   - `uv run python -m services.notification_service.worker --validate-only`
+
 Initial migration files:
 
 - `migrations/versions/20260214_0001_core_trading_schema.py`
@@ -260,6 +270,15 @@ Notification runtime baseline (`P7-011`..`P7-016`):
 - `services/notification_service/publishers.py` (strategy/OMS/risk/system source-event bridge into `notify.events.raw`)
 - `services/notification_service/settings.py` (`P7-018` startup env validation and typed worker settings contract)
 - `services/notification_service/worker.py` (`P7-018` notification queue consumer runtime entrypoint and worker loop)
+
+Phase 8 observability baseline (`P8-001`..`P8-003`):
+
+- `services/shared/runtime/structured_logging.py` (shared JSON log schema with trace/decision/order/strategy/mode keys)
+- `services/shared/runtime/prometheus.py` (lightweight Prometheus counter/histogram registry + text exposition)
+- `services/shared/runtime/trace_context.py` (traceparent parse/build/resolve helpers for runtime propagation)
+- `services/api/app.py` (request observability middleware for logs/metrics/trace headers)
+- `services/api/routers/system.py` (`GET /metrics` Prometheus scrape endpoint)
+- `services/real_execution_go/internal/tracing/tracecontext.go` (Go trace-context parse/build/resolve helper)
 
 Notification validation suite baseline (`P7-017`):
 

@@ -50,7 +50,7 @@ func TestRunnerReceivesAndAcksDelivery(t *testing.T) {
 	cons := &fakeConsumer{
 		deliveries: []consumer.Delivery{
 			{
-				Body: []byte(`{"ok":true}`),
+				Body: []byte(`{"ok":true,"trace_id":"trace-1","decision_id":"decision-1"}`),
 				Ack: func() error {
 					acked++
 					return nil
@@ -89,6 +89,15 @@ func TestRunnerReceivesAndAcksDelivery(t *testing.T) {
 	if snapshot.Totals.AckTotal != 1 {
 		t.Fatalf("expected one ack metric, got %d", snapshot.Totals.AckTotal)
 	}
+	if len(snapshot.RecentSpans) == 0 {
+		t.Fatal("expected trace spans to be recorded")
+	}
+	if snapshot.RecentSpans[0].TraceID != "trace-1" {
+		t.Fatalf("expected span trace id trace-1, got %s", snapshot.RecentSpans[0].TraceID)
+	}
+	if snapshot.RecentSpans[0].DecisionID != "decision-1" {
+		t.Fatalf("expected span decision id decision-1, got %s", snapshot.RecentSpans[0].DecisionID)
+	}
 }
 
 func TestRunnerNacksOnHandlerError(t *testing.T) {
@@ -96,7 +105,7 @@ func TestRunnerNacksOnHandlerError(t *testing.T) {
 	cons := &fakeConsumer{
 		deliveries: []consumer.Delivery{
 			{
-				Body: []byte(`{"ok":false}`),
+				Body: []byte(`{"ok":false,"trace_id":"trace-2","decision_id":"decision-2"}`),
 				Nack: func(requeue bool) error {
 					_ = requeue
 					nacked++
@@ -132,5 +141,14 @@ func TestRunnerNacksOnHandlerError(t *testing.T) {
 	}
 	if snapshot.Totals.NackTotal != 1 {
 		t.Fatalf("expected one nack metric, got %d", snapshot.Totals.NackTotal)
+	}
+	if len(snapshot.RecentSpans) == 0 {
+		t.Fatal("expected failure span to be recorded")
+	}
+	if snapshot.RecentSpans[0].TraceID != "trace-2" {
+		t.Fatalf("expected span trace id trace-2, got %s", snapshot.RecentSpans[0].TraceID)
+	}
+	if snapshot.RecentSpans[0].DecisionID != "decision-2" {
+		t.Fatalf("expected span decision id decision-2, got %s", snapshot.RecentSpans[0].DecisionID)
 	}
 }

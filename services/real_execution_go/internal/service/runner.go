@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"open-trader/real_execution_go/internal/consumer"
@@ -45,12 +47,13 @@ func (r *Runner) Run(ctx context.Context) error {
 				continue
 			}
 			if r.Metrics != nil {
-				r.Metrics.RecordRunFailure(r.QueueName, 0, "consumer_error")
+				r.Metrics.RecordRunFailure(r.QueueName, 0, "consumer_error", "", "")
 			}
 			return err
 		}
 
 		started := time.Now()
+		traceID, decisionID := extractTraceMetadata(delivery.Body)
 		handleErr := r.Handler.Handle(ctx, delivery.Body)
 		if handleErr != nil {
 			if delivery.Nack != nil {
@@ -60,14 +63,14 @@ func (r *Runner) Run(ctx context.Context) error {
 				}
 			}
 			if r.Metrics != nil {
-				r.Metrics.RecordRunFailure(r.QueueName, time.Since(started), "handler_error")
+				r.Metrics.RecordRunFailure(r.QueueName, time.Since(started), "handler_error", traceID, decisionID)
 			}
 			continue
 		}
 		if delivery.Ack != nil {
 			if ackErr := delivery.Ack(); ackErr != nil {
 				if r.Metrics != nil {
-					r.Metrics.RecordRunFailure(r.QueueName, time.Since(started), "ack_error")
+					r.Metrics.RecordRunFailure(r.QueueName, time.Since(started), "ack_error", traceID, decisionID)
 				}
 				return ackErr
 			}
@@ -76,7 +79,18 @@ func (r *Runner) Run(ctx context.Context) error {
 			}
 		}
 		if r.Metrics != nil {
-			r.Metrics.RecordRunSuccess(r.QueueName, time.Since(started))
+			r.Metrics.RecordRunSuccess(r.QueueName, time.Since(started), traceID, decisionID)
 		}
 	}
+}
+
+func extractTraceMetadata(body []byte) (string, string) {
+	var envelope struct {
+		TraceID    string `json:"trace_id"`
+		DecisionID string `json:"decision_id"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(envelope.TraceID), strings.TrimSpace(envelope.DecisionID)
 }

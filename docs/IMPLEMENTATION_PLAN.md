@@ -79,6 +79,7 @@ Use this exact format in each update:
 | 36   | 2026-02-14 | P7-016 | - | - | Added notification observability collector, telemetry ops APIs, and dashboard notification panel hooks for metrics/logs/traces; Python/Go suites green | 100% |
 | 37   | 2026-02-14 | P7-017 | - | - | Expanded notification validation suite with dispatcher fault-injection scenarios and publish->deliver integration coverage across bridge/runtime/observability flow; Python/Go suites green | 100% |
 | 38   | 2026-02-14 | P7-018 | - | - | Added notification worker deployment/config wiring with startup validation, compose profile integration, and env/secrets documentation; targeted/full Python suites plus Go tests green | 100% |
+| 39   | 2026-02-14 | P8-001,P8-002,P8-003 | - | - | Added shared structured logging, Prometheus-compatible metrics exposition, and trace-context propagation baseline across API/notification worker plus Go runtime tracing helpers; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -422,6 +423,15 @@ Use this exact format in each update:
 - Next Task IDs: [P8-001, P8-002, P8-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 22:05
+
+- Completed Task IDs: [P8-001, P8-002, P8-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; current metrics/tracing baseline is in-process and contract-level, while full observability stack deployment remains in `P8-004`.
+- Next Task IDs: [P8-004, P8-005, P8-006]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -435,7 +445,7 @@ Use this exact format in each update:
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | DONE |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | DONE |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | DONE |
-| 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
+| 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | IN_PROGRESS |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
 
 ## 3. Workstreams
@@ -732,9 +742,9 @@ Implement full monitoring stack, alerting, encryption at rest for keys, network 
 
 | ID     | Pri | Task                           | Actionable Steps                                                                             | Dependencies         | Deliverable                    | Status      |
 | ------ | --- | ------------------------------ | -------------------------------------------------------------------------------------------- | -------------------- | ------------------------------ | ----------- |
-| P8-001 | P0  | Structured logging standard    | Enforce JSON log schema across all services                                                  | P0-001               | Unified logs with IDs          | NOT_STARTED |
-| P8-002 | P0  | Metrics instrumentation        | Add Prometheus metrics to every service                                                      | P0-001               | Full service metrics           | NOT_STARTED |
-| P8-003 | P0  | Distributed tracing            | Add OpenTelemetry spans/context propagation Python<->Go                                      | P0-002,P0-003        | Cross-service tracing          | NOT_STARTED |
+| P8-001 | P0  | Structured logging standard    | Enforce JSON log schema across all services                                                  | P0-001               | Unified logs with IDs          | DONE |
+| P8-002 | P0  | Metrics instrumentation        | Add Prometheus metrics to every service                                                      | P0-001               | Full service metrics           | DONE |
+| P8-003 | P0  | Distributed tracing            | Add OpenTelemetry spans/context propagation Python<->Go                                      | P0-002,P0-003        | Cross-service tracing          | DONE |
 | P8-004 | P0  | Observability stack in Compose | Configure Prometheus, Grafana, Loki, Tempo, Alertmanager                                     | P1-001               | Observability platform running | NOT_STARTED |
 | P8-005 | P0  | Alert rules                    | Implement critical alerts for disconnects, quota breaches, risk breaches, integrity failures | P8-004               | Alert catalog                  | NOT_STARTED |
 | P8-006 | P0  | Key encryption at rest         | Implement AES-256-GCM for persisted exchange keys                                            | P1-003               | Encrypted key storage          | NOT_STARTED |
@@ -956,13 +966,15 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P7-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-017  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-018  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P8-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P8-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P8-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 
 > Note: Keep this board concise for active critical-path tasks. Full task catalog remains in phase sections above.
 
 ## 11. Immediate Next Actions
 
-1. Start `P8-001` structured logging standard alignment for notification and control-plane services.
-2. Start `P8-002` metrics instrumentation alignment for notification and API services.
-3. Start `P8-003` distributed tracing baseline across Python and Go runtime surfaces.
+1. Start `P8-004` observability stack wiring in Docker Compose (Prometheus/Grafana/Loki/Tempo/Alertmanager).
+2. Start `P8-005` critical alert rule catalog for exchange/risk/quota/integrity scenarios.
+3. Start `P8-006` encryption-at-rest key management for persisted exchange credentials.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 
 from services.api.auth import require_viewer
 from services.api.dependencies import get_api_settings, get_control_plane_state
@@ -56,6 +56,19 @@ def metadata(
             "risk_controls",
         ],
         generated_at=_utc_now_iso(),
+    )
+
+
+@router.get("/metrics", include_in_schema=False)
+def metrics(request: Request) -> Response:
+    registry = getattr(request.app.state, "prometheus_registry", None)
+    if registry is None:
+        payload = ""
+    else:
+        payload = registry.render()
+    return Response(
+        content=payload,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 

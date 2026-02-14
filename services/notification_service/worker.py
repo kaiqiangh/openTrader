@@ -4,6 +4,7 @@ from argparse import ArgumentParser, Namespace
 from asyncio import run as asyncio_run
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any, Protocol
 from urllib import error, parse, request
 import asyncio
@@ -19,6 +20,13 @@ from services.notification_service.service import NotificationService
 from services.notification_service.settings import NotificationSettingsError, NotificationWorkerSettings, load_notification_worker_settings
 from services.notification_service.telegram_gateway import TelegramGateway, TelegramGatewayConfig
 from services.shared.runtime.broker import InMemoryTopicBroker
+from services.shared.runtime.prometheus import PrometheusRegistry
+from services.shared.runtime.structured_logging import StructuredLogger
+
+_WORKER_SERVICE_NAME = "notification_worker"
+_WORKER_POLLS_METRIC = "open_trader_notification_worker_polls_total"
+_WORKER_LATENCY_METRIC = "open_trader_notification_worker_process_duration_seconds"
+_WORKER_DELIVERY_METRIC = "open_trader_notification_delivery_results_total"
 
 
 class NotificationEnvelopeConsumer(Protocol):
@@ -87,15 +95,111 @@ class NotificationWorker:
     service: NotificationService
     queue_name: str
     poll_timeout_seconds: float
+    logger: StructuredLogger | None = None
+    metrics: PrometheusRegistry | None = None
 
     async def run_once(self) -> NotificationProcessingResult | None:
+        started = perf_counter()
         envelope = await self.consumer.consume(
             queue_name=self.queue_name,
             timeout_seconds=self.poll_timeout_seconds,
         )
         if envelope is None:
+            self._record_poll_result(result="empty")
             return None
-        return await self.service.process_envelope(envelope)
+
+        trace_id = str(envelope.get("trace_id", "unknown"))
+        decision_id = str(envelope.get("decision_id", "unknown"))
+        mode = str(envelope.get("mode", "UNKNOWN"))
+        event_type = str(envelope.get("event_type", "unknown"))
+
+        if self.logger is not None:
+            self.logger.info(
+                event="notification.worker.envelope.received",
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                context={"queue_name": self.queue_name, "event_type": event_type},
+            )
+
+        try:
+            result = await self.service.process_envelope(envelope)
+        except Exception as exc:
+            latency = max(0.0, perf_counter() - started)
+            self._record_latency(latency)
+            self._record_poll_result(result="failed")
+            if self.logger is not None:
+                self.logger.error(
+                    event="notification.worker.envelope.failed",
+                    trace_id=trace_id,
+                    decision_id=decision_id,
+                    mode=mode,
+                    context={
+                        "queue_name": self.queue_name,
+                        "event_type": event_type,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+            raise
+
+        latency = max(0.0, perf_counter() - started)
+        self._record_latency(latency)
+        self._record_poll_result(result="processed")
+        self._record_delivery_results(result=result)
+        if self.logger is not None:
+            self.logger.info(
+                event="notification.worker.envelope.processed",
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                context={
+                    "queue_name": self.queue_name,
+                    "event_type": result.event.event_type,
+                    "severity": result.event.severity.value,
+                    "messages_count": len(result.messages),
+                    "delivery_results_count": len(result.results),
+                    "latency_ms": latency * 1000.0,
+                },
+            )
+        return result
+
+    def render_metrics(self) -> str:
+        if self.metrics is None:
+            return ""
+        return self.metrics.render()
+
+    def _record_poll_result(self, *, result: str) -> None:
+        if self.metrics is None:
+            return
+        self.metrics.inc_counter(
+            name=_WORKER_POLLS_METRIC,
+            help_text="Notification worker poll outcomes",
+            label_values={"service": _WORKER_SERVICE_NAME, "result": result},
+        )
+
+    def _record_latency(self, latency_seconds: float) -> None:
+        if self.metrics is None:
+            return
+        self.metrics.observe_histogram(
+            name=_WORKER_LATENCY_METRIC,
+            help_text="Notification worker envelope processing latency seconds",
+            value=max(0.0, float(latency_seconds)),
+            label_values={"service": _WORKER_SERVICE_NAME, "queue": self.queue_name},
+        )
+
+    def _record_delivery_results(self, *, result: NotificationProcessingResult) -> None:
+        if self.metrics is None:
+            return
+        for delivery in result.results:
+            self.metrics.inc_counter(
+                name=_WORKER_DELIVERY_METRIC,
+                help_text="Notification delivery result counts by status and gateway",
+                label_values={
+                    "service": _WORKER_SERVICE_NAME,
+                    "gateway": delivery.gateway,
+                    "status": delivery.status,
+                },
+            )
 
 
 def build_notification_worker_from_settings(
@@ -103,6 +207,8 @@ def build_notification_worker_from_settings(
     settings: NotificationWorkerSettings,
     topology_path: str = "config/rabbitmq/topology.json",
 ) -> NotificationWorker:
+    logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
+    metrics = PrometheusRegistry()
     gateways = {
         settings.default_gateway: _build_gateway(settings=settings),
     }
@@ -145,6 +251,8 @@ def build_notification_worker_from_settings(
         service=service,
         queue_name=settings.queue_name,
         poll_timeout_seconds=settings.poll_timeout_seconds,
+        logger=logger,
+        metrics=metrics,
     )
 
 
@@ -154,8 +262,9 @@ async def run_worker_loop(
     once: bool = False,
     max_idle_cycles: int = 0,
 ) -> int:
+    startup_logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     if not settings.enabled:
-        print("Notification worker disabled by NOTIFY_ENABLED=false")
+        startup_logger.info(event="notification.worker.disabled", context={"reason": "NOTIFY_ENABLED=false"})
         return 0
 
     worker = build_notification_worker_from_settings(settings=settings)
@@ -172,24 +281,24 @@ async def run_worker_loop(
             continue
 
         idle_cycles = 0
-        print(
-            f"processed notification event={result.event.event_type} "
-            f"severity={result.event.severity.value} results={len(result.results)}"
-        )
         if once:
             return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    startup_logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     args = _parse_args(argv)
     try:
         settings = load_notification_worker_settings()
     except NotificationSettingsError as exc:
-        print(f"Notification worker startup validation failed: {exc}")
+        startup_logger.error(
+            event="notification.worker.startup.validation_failed",
+            context={"error": str(exc)},
+        )
         return 1
 
     if args.validate_only:
-        print("Notification worker startup validation passed")
+        startup_logger.info(event="notification.worker.startup.validation_passed")
         return 0
 
     return asyncio_run(
