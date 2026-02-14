@@ -53,6 +53,38 @@ services:
     networks:
       - internal
 
+  notification_worker:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    container_name: ot_notification_worker
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.notification_service.worker
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}
+      NOTIFY_DEFAULT_GATEWAY: ${NOTIFY_DEFAULT_GATEWAY:-telegram}
+      NOTIFY_QUEUE_NAME: ${NOTIFY_QUEUE_NAME:-notify.events.raw}
+      NOTIFY_CONSUMER_BACKEND: ${NOTIFY_CONSUMER_BACKEND:-rabbitmq_http}
+      NOTIFY_RABBITMQ_HTTP_API_URL: ${NOTIFY_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      NOTIFY_POLL_TIMEOUT_SECONDS: ${NOTIFY_POLL_TIMEOUT_SECONDS:-1.0}
+      NOTIFY_IDLE_SLEEP_SECONDS: ${NOTIFY_IDLE_SLEEP_SECONDS:-0.5}
+      NOTIFY_OBSERVABILITY_MAX_RECORDS: ${NOTIFY_OBSERVABILITY_MAX_RECORDS:-200}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - app
+      - notification
+
 volumes:
   postgres_data:
   redis_data:
