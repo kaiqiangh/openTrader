@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+from dataclasses import asdict
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from services.agent_orchestrator.replay_service import DecisionReplayNotFoundError, DecisionReplayResult
+from services.api.auth import require_viewer
+from services.api.dependencies import get_control_plane_state
+from services.api.models import (
+    AuthPrincipal,
+    ReplayDecisionResultResponse,
+    ReplayRequestCreateRequest,
+    ReplayRequestResponse,
+)
+from services.api.state import ControlPlaneState, ReplayRequestRecord
+
+router = APIRouter(prefix="/replay", tags=["replay"])
+
+
+@router.post("/requests", response_model=ReplayRequestResponse)
+async def submit_replay_request(
+    body: ReplayRequestCreateRequest,
+    principal: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> ReplayRequestResponse:
+    try:
+        request_record = await state.submit_replay_request(
+            decision_id=body.decision_id,
+            requested_by=principal.user_id,
+        )
+    except DecisionReplayNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return _request_model(request_record)
+
+
+@router.get("/requests/{request_id}", response_model=ReplayRequestResponse)
+def get_replay_request(
+    request_id: str,
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> ReplayRequestResponse:
+    request_record = state.get_replay_request(request_id=request_id)
+    if request_record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Replay request not found")
+    return _request_model(request_record)
+
+
+@router.get("/decisions/{decision_id}", response_model=ReplayDecisionResultResponse)
+async def get_replay_decision(
+    decision_id: str,
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> ReplayDecisionResultResponse:
+    try:
+        result = await state.replay_decision(decision_id=decision_id)
+    except DecisionReplayNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return _result_model(result)
+
+
+def _request_model(record: ReplayRequestRecord) -> ReplayRequestResponse:
+    return ReplayRequestResponse(
+        request_id=record.request_id,
+        decision_id=record.decision_id,
+        status=record.status,
+        requested_by=record.requested_by,
+        requested_at=record.requested_at,
+        result=_result_model(record.result),
+    )
+
+
+def _result_model(result: DecisionReplayResult) -> ReplayDecisionResultResponse:
+    return ReplayDecisionResultResponse(
+        decision_id=result.decision_id,
+        trace_id=result.trace_id,
+        strategy_id=result.strategy_id,
+        mode=result.mode,
+        status=result.status,
+        summary=dict(result.summary),
+        lifecycle=[dict(item) for item in result.lifecycle],
+        agent_runs=[dict(item) for item in result.agent_runs],
+        llm_calls=[dict(item) for item in result.llm_calls],
+        graph_nodes=[asdict(item) for item in result.graph_nodes],
+        graph_edges=[asdict(item) for item in result.graph_edges],
+        deterministic_digest=result.deterministic_digest,
+    )
