@@ -26,10 +26,17 @@ class LiteLLMHTTPProviderClient:
     ) -> None:
         if not base_url:
             raise ValueError("base_url must be non-empty")
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+
+        normalized_endpoint = endpoint_path.strip().lstrip("/")
+        if not normalized_endpoint:
+            raise ValueError("endpoint_path must be non-empty")
+
         self.base_url = base_url.rstrip("/") + "/"
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
-        self.endpoint_path = endpoint_path.lstrip("/")
+        self.endpoint_path = normalized_endpoint
 
     async def complete(
         self,
