@@ -6,6 +6,7 @@ import uuid
 import pytest
 
 from services.agent_orchestrator.contracts import StrategyConfig
+from services.agent_orchestrator.memory_layer import AgentMemoryLayer, DecisionMemoryRecord
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 from services.shared.contracts.message_envelope import EnvelopeValidationError
 
@@ -16,6 +17,48 @@ class _FakePublisher:
 
     async def publish(self, *, routing_key: str, message: dict[str, object]) -> None:
         self.messages.append({"routing_key": routing_key, "message": message})
+
+
+class _FakeRedisMemoryStore:
+    def __init__(self) -> None:
+        self.read_calls: list[dict[str, str]] = []
+        self.write_calls: list[dict[str, str]] = []
+
+    async def read_slots(self, *, mode: str, strategy_id: str, decision_id: str) -> dict[str, object]:
+        self.read_calls.append(
+            {"mode": mode, "strategy_id": strategy_id, "decision_id": decision_id}
+        )
+        return {}
+
+    async def write_slot(
+        self,
+        *,
+        mode: str,
+        strategy_id: str,
+        decision_id: str,
+        slot: str,
+        payload: dict[str, object],
+        ttl_seconds: int,
+    ) -> None:
+        self.write_calls.append(
+            {
+                "mode": mode,
+                "strategy_id": strategy_id,
+                "decision_id": decision_id,
+                "slot": slot,
+            }
+        )
+
+
+class _FakePostgresMemoryStore:
+    def __init__(self) -> None:
+        self.records: list[DecisionMemoryRecord] = []
+
+    async def persist_decision_summary(self, record: DecisionMemoryRecord) -> None:
+        self.records.append(record)
+
+    async def read_decision_summary(self, *, decision_id: str) -> DecisionMemoryRecord | None:
+        return None
 
 
 def _market_event(*, mode: str = "MOCK") -> dict[str, object]:
@@ -140,3 +183,35 @@ async def test_orchestrator_rejects_invalid_market_envelope() -> None:
 
     with pytest.raises(EnvelopeValidationError):
         await orchestrator.handle_market_event(invalid_envelope, strategy=_strategy(mode="MOCK"))
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_persists_short_and_long_term_memory() -> None:
+    publisher = _FakePublisher()
+    redis_store = _FakeRedisMemoryStore()
+    postgres_store = _FakePostgresMemoryStore()
+    memory_layer = AgentMemoryLayer(short_term_store=redis_store, long_term_store=postgres_store)
+    orchestrator = AgentOrchestrator(publisher=publisher, memory_layer=memory_layer)
+
+    result = await orchestrator.handle_market_event(_market_event(mode="MOCK"), strategy=_strategy())
+
+    assert redis_store.read_calls == [
+        {
+            "mode": "MOCK",
+            "strategy_id": "scalp-long-short",
+            "decision_id": result.decision_id,
+        }
+    ]
+    written_slots = {call["slot"] for call in redis_store.write_calls}
+    assert {
+        "context",
+        "plan",
+        "risk",
+        "execution_decision",
+        "guardrail",
+        "status",
+        "summary",
+    }.issubset(written_slots)
+    assert len(postgres_store.records) == 1
+    assert postgres_store.records[0].decision_id == result.decision_id
+    assert postgres_store.records[0].status == result.status
