@@ -42,6 +42,10 @@ Use this exact format in each update:
 | ---- | ---------- | ------------- | --------------- | ----------- | ------------ | --------- |
 | 0    | 2026-02-14 | -             | -               | -           | Plan created | 0%        |
 | 1    | 2026-02-14 | P0-001,P0-002,P0-004,P0-005,P0-006,P0-007 | - | P0-003 | Phase 0 bootstrap started; Python tests green | 8% |
+| 2    | 2026-02-14 | P1-002 | P1-001 | P0-003 | Phase 1 foundation scaffolded; tests green | 14% |
+| 3    | 2026-02-14 | P1-003,P1-004,P1-008 | P1-001 | P0-003 | Added schema migrations and RabbitMQ topology; tests green | 22% |
+| 4    | 2026-02-14 | P1-005 | P1-001 | P0-003 | Agent trace schema migration delivered; tests green | 26% |
+| 5    | 2026-02-14 | P1-001,P0-003,P1-006 | - | - | Runtime verification succeeded; Go tests unblocked locally; LLM governance schema added | 36% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -52,12 +56,48 @@ Use this exact format in each update:
 - Next Task IDs: [P0-003, P1-001, P1-002]
 - Overall Progress: 8%
 
+### Turn Update 2026-02-14 11:20
+
+- Completed Task IDs: [P1-002]
+- In Progress Task IDs: [P1-001]
+- Blocked Task IDs: [P0-003]
+- New Risks/Blockers: Docker daemon is not reachable in this environment, so runtime verification of Compose startup is pending.
+- Next Task IDs: [P1-001, P1-003, P1-004]
+- Overall Progress: 14%
+
+### Turn Update 2026-02-14 11:35
+
+- Completed Task IDs: [P1-003, P1-004, P1-008]
+- In Progress Task IDs: [P1-001]
+- Blocked Task IDs: [P0-003]
+- New Risks/Blockers: Docker runtime checks remain blocked until Docker daemon is available locally.
+- Next Task IDs: [P1-001, P1-005, P1-006]
+- Overall Progress: 22%
+
+### Turn Update 2026-02-14 11:50
+
+- Completed Task IDs: [P1-005]
+- In Progress Task IDs: [P1-001]
+- Blocked Task IDs: [P0-003]
+- New Risks/Blockers: No new blockers. Existing blockers remain: Docker daemon unavailable (runtime compose checks) and Go toolchain network restriction.
+- Next Task IDs: [P1-001, P1-006, P1-007]
+- Overall Progress: 26%
+
+### Turn Update 2026-02-14 12:05
+
+- Completed Task IDs: [P1-001, P0-003, P1-006]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No current blockers on the previous critical path items.
+- Next Task IDs: [P1-007, P1-009, P1-010]
+- Overall Progress: 36%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
 | ----- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- | ----------- |
-| 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | IN_PROGRESS |
-| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | NOT_STARTED |
+| 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | DONE |
+| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | IN_PROGRESS |
 | 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | NOT_STARTED |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | NOT_STARTED |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
@@ -99,7 +139,7 @@ Create implementation scaffolding, coding standards, CI gates, and environment t
 | ------ | --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
 | P0-001 | P0  | Repo structure bootstrap    | Create service directories (`api`, `market_ingestion`, `integrity_service`, `agent_orchestrator`, `llm_gateway`, `simulation_execution`, `real_execution_go`, `oms`, `news_ingestion`, `news_summarizer`, `workers`) | -             | Deterministic monorepo layout | DONE |
 | P0-002 | P0  | Python baseline setup       | Configure Python 3.13 tooling, dependency management, formatting, linting, typing                                                                                                                                    | P0-001        | Reproducible Python toolchain | DONE |
-| P0-003 | P0  | Go baseline setup           | Configure Go module for `real_execution_go`, lint/test setup                                                                                                                                                         | P0-001        | Reproducible Go toolchain     | BLOCKED |
+| P0-003 | P0  | Go baseline setup           | Configure Go module for `real_execution_go`, lint/test setup                                                                                                                                                         | P0-001        | Reproducible Go toolchain     | DONE |
 | P0-004 | P0  | `.env` schema contract      | Define required env vars per service and validation script                                                                                                                                                           | P0-001        | `.env.example` + validator    | DONE |
 | P0-005 | P1  | CI skeleton                 | Add workflows for lint/test/build for Python and Go                                                                                                                                                                  | P0-002,P0-003 | Green CI on scaffold          | DONE |
 | P0-006 | P1  | Architecture decision index | Add ADR directory and initial ADRs for ARD mandates                                                                                                                                                                  | P0-001        | ADR baseline                  | DONE |
@@ -123,14 +163,14 @@ Implement foundational infrastructure: PostgreSQL+TimescaleDB, Redis, RabbitMQ, 
 
 | ID     | Pri | Task                          | Actionable Steps                                                                                            | Dependencies | Deliverable                         | Status      |
 | ------ | --- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------- | ----------- |
-| P1-001 | P0  | Docker Compose core stack     | Define services for postgres-timescaledb, redis, rabbitmq, shared networks, volumes                         | P0-004       | Running infra stack                 | NOT_STARTED |
-| P1-002 | P0  | Database migration framework  | Set up migrations and migration CI check                                                                    | P1-001       | Repeatable schema migration process | NOT_STARTED |
-| P1-003 | P0  | Core trading schema           | Implement `exchanges`, `symbols`, `orders`, `fills`, `positions`, `portfolio_snapshots`                     | P1-002       | Trading schema v1                   | NOT_STARTED |
-| P1-004 | P0  | Time-series schema            | Implement Timescale hypertables for `klines`, `orderbook_snapshots`                                         | P1-002       | Time-series schema v1               | NOT_STARTED |
-| P1-005 | P0  | Agent trace schema            | Implement `decision_traces`, `agent_runs`, `agent_messages`                                                 | P1-002       | Agent trace persistence             | NOT_STARTED |
-| P1-006 | P0  | LLM governance schema         | Implement `llm_calls`, `llm_usage_daily`, `llm_usage_monthly`, `llm_quota_limits`                           | P1-002       | LLM observability schema            | NOT_STARTED |
+| P1-001 | P0  | Docker Compose core stack     | Define services for postgres-timescaledb, redis, rabbitmq, shared networks, volumes                         | P0-004       | Running infra stack                 | DONE |
+| P1-002 | P0  | Database migration framework  | Set up migrations and migration CI check                                                                    | P1-001       | Repeatable schema migration process | DONE |
+| P1-003 | P0  | Core trading schema           | Implement `exchanges`, `symbols`, `orders`, `fills`, `positions`, `portfolio_snapshots`                     | P1-002       | Trading schema v1                   | DONE |
+| P1-004 | P0  | Time-series schema            | Implement Timescale hypertables for `klines`, `orderbook_snapshots`                                         | P1-002       | Time-series schema v1               | DONE |
+| P1-005 | P0  | Agent trace schema            | Implement `decision_traces`, `agent_runs`, `agent_messages`                                                 | P1-002       | Agent trace persistence             | DONE |
+| P1-006 | P0  | LLM governance schema         | Implement `llm_calls`, `llm_usage_daily`, `llm_usage_monthly`, `llm_quota_limits`                           | P1-002       | LLM observability schema            | DONE |
 | P1-007 | P1  | News schema                   | Implement `news_items`, `news_tags`, `news_summaries`, `decision_news_links`                                | P1-002       | News persistence schema             | NOT_STARTED |
-| P1-008 | P0  | RabbitMQ topology declaration | Define exchanges, routing keys, queues, DLQs (`market.canonical`, `execution.intent.*`, `oms.events`, etc.) | P1-001       | Versioned broker topology           | NOT_STARTED |
+| P1-008 | P0  | RabbitMQ topology declaration | Define exchanges, routing keys, queues, DLQs (`market.canonical`, `execution.intent.*`, `oms.events`, etc.) | P1-001       | Versioned broker topology           | DONE |
 | P1-009 | P1  | Message envelope contract     | Define shared envelope (`trace_id`, `decision_id`, `mode`, `idempotency_key`) and schema validators         | P1-008       | Canonical event contract package    | NOT_STARTED |
 | P1-010 | P1  | Redis namespace strategy      | Define keys/TTL for short-term memory, snapshots, rate limits, locks                                        | P1-001       | Redis keyspace spec                 | NOT_STARTED |
 
@@ -447,10 +487,15 @@ Run integration, replay, load, and reliability validation; finalize release read
 | ------- | ----- | ---------- | ----------- | ----------- | --- | ------- | ----------- |
 | P0-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P0-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P0-003  | TBD   | 2026-02-14 | -           | BLOCKED | 80  | Go toolchain download restricted in sandbox | 2026-02-14  |
+| P0-003  | TBD   | 2026-02-14 | -           | DONE | 100  | - | 2026-02-14  |
 | P0-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P1-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P1-002  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P1-001  | TBD   | 2026-02-14 | -           | DONE | 100  | - | 2026-02-14  |
+| P1-002  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-003  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-004  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-005  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-006  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-008  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -464,6 +509,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Finish `P0-003` verification (run Go checks in unrestricted environment or with preinstalled toolchain).
-2. Start `P1-001` Docker Compose core stack for RabbitMQ/Redis/PostgreSQL+TimescaleDB.
-3. Start `P1-002` migration framework scaffolding after Compose baseline is up.
+1. Start `P1-007` news schema migration.
+2. Start `P1-009` message envelope contract definitions and validators.
+3. Start `P1-010` Redis namespace strategy documentation and key conventions.
