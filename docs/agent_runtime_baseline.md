@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-008)
+# Agent Runtime Baseline (P3-001..P3-009)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -11,6 +11,7 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/llm_gateway/gateway.py` (`P3-006`)
 - `services/llm_gateway/persistence.py` (`P3-007`)
 - `services/llm_gateway/quota.py` (`P3-008`)
+- `services/agent_orchestrator/guardrail_validation.py` (`P3-009`)
 
 ## Component Boundaries
 
@@ -66,6 +67,15 @@ This document defines the first Phase 3 decision runtime modules:
 - Defines hard-limit quota contracts (`QuotaLimits`, `QuotaUsage`, `LLMQuotaStore`).
 - Gateway now performs pre-dispatch hard-limit enforcement and post-success usage increments, with quota-blocked audit records persisted through call-record infrastructure.
 
+10. `guardrail_validation.py`
+- Enforces final decision guardrails across:
+  - action/quantity schema semantics
+  - symbol constraints
+  - confidence threshold
+  - risk alignment
+  - notional/position/leverage bounds.
+- Returns structured `GuardrailValidationResult` with explicit violation codes and details.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -83,7 +93,10 @@ This document defines the first Phase 3 decision runtime modules:
 5. `agent.decision.action_proposed`
 - Final constrained action proposal produced and recorded.
 
-6. `agent.decision.intent_published` (approved + executable path only)
+6. `agent.decision.guardrail_passed` or `agent.decision.guardrail_rejected`
+- Guardrail validation decision recorded with blocked reasons and check matrix.
+
+7. `agent.decision.intent_published` (approved + executable path only)
 - Execution intent is emitted to mode-specific queue.
 
 ## Contract Notes
