@@ -5,7 +5,14 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
-from services.api.routers import control_router, ops_router, system_router
+from services.api.routers import (
+    control_router,
+    dashboard_router,
+    governance_router,
+    ops_router,
+    replay_router,
+    system_router,
+)
 from services.api.settings import APISettings, load_api_settings
 from services.api.state import ControlPlaneState, build_default_state
 
@@ -34,4 +41,7 @@ def create_app(
     app.include_router(system_router)
     app.include_router(control_router)
     app.include_router(ops_router)
+    app.include_router(governance_router)
+    app.include_router(replay_router)
+    app.include_router(dashboard_router)
     return app
