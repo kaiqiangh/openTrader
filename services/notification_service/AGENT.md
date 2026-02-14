@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-Provides notification runtime core for event intake, policy routing, gateway dispatch, concrete Telegram delivery, and notification telemetry.
+Provides notification runtime core for event intake, policy routing, gateway dispatch, concrete Telegram delivery, notification telemetry, and worker startup validation.
 
 ## Architectural Boundaries
 
@@ -34,11 +34,14 @@ Provides notification runtime core for event intake, policy routing, gateway dis
 - Publisher bridge emits `notify.*` source events for downstream notification processing.
 - Telegram gateway reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_DEFAULT_CHAT_ID` config when enabled.
 - Observability collector emits in-memory metrics/log/trace snapshots for control-plane dashboards.
+- Worker settings validate `NOTIFY_*` env contracts before processing loop startup.
 
 ## Testing Expectations
 
 - Unit tests required for severity mapping, preference filters, dedupe/rate-limit, dispatch retries, DLQ paths, and observability snapshots.
 - Cover retryable vs terminal gateway failures and template escaping paths.
+- Maintain publish->deliver integration tests across bridge output -> service processing -> delivery + telemetry.
+- Cover deployment validation paths (enabled/disabled, backend selection, and gateway secret requirements).
 
 ## Operational Notes
 

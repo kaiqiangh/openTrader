@@ -23,6 +23,17 @@ from services.notification_service.observability import (
     NotificationTraceSpan,
     NotificationDeliveryLog,
 )
+from services.notification_service.settings import (
+    NotificationSettingsError,
+    NotificationWorkerSettings,
+    load_notification_worker_settings,
+)
+from services.notification_service.worker import (
+    InMemoryNotificationEnvelopeConsumer,
+    NotificationWorker,
+    RabbitMQHTTPConsumer,
+    build_notification_worker_from_settings,
+)
 
 __all__ = [
     "NotificationEvent",
@@ -43,6 +54,13 @@ __all__ = [
     "NotificationObservabilityCollector",
     "NotificationTraceSpan",
     "NotificationDeliveryLog",
+    "NotificationSettingsError",
+    "NotificationWorkerSettings",
+    "load_notification_worker_settings",
+    "NotificationWorker",
+    "InMemoryNotificationEnvelopeConsumer",
+    "RabbitMQHTTPConsumer",
+    "build_notification_worker_from_settings",
     "NotificationService",
     "NotificationEventBridge",
 ]

@@ -23,6 +23,7 @@ Hosts background worker entrypoints and job processors for queue-driven tasks.
 ## Integration Contracts
 
 - Queue consumer groups and routing keys must match topology declarations.
+- Worker startup must validate env/config contracts before entering processing loops.
 
 ## Testing Expectations
 
@@ -31,3 +32,4 @@ Hosts background worker entrypoints and job processors for queue-driven tasks.
 ## Operational Notes
 
 - Worker concurrency settings must be tunable per environment.
+- Compose deployment wiring should include clear dependency health checks for broker-backed workers.

@@ -50,6 +50,14 @@ def classify_severity(*, event_type: str, payload: Mapping[str, Any]) -> Notific
             return NotificationSeverity.CRITICAL
         return NotificationSeverity.WARNING
 
+    if lowered.startswith("notify.risk."):
+        declared = _declared_severity(payload)
+        if declared is not None:
+            return declared
+        if "kill_switch" in lowered or "tripped" in lowered:
+            return NotificationSeverity.CRITICAL
+        return NotificationSeverity.WARNING
+
     if lowered.startswith("system.") or lowered.startswith("notify.system."):
         return NotificationSeverity.CRITICAL
 
@@ -63,13 +71,20 @@ def classify_severity(*, event_type: str, payload: Mapping[str, Any]) -> Notific
             return NotificationSeverity.WARNING
         return NotificationSeverity.INFO
 
+    declared = _declared_severity(payload)
+    if declared is not None:
+        return declared
+
+    return NotificationSeverity.INFO
+
+
+def _declared_severity(payload: Mapping[str, Any]) -> NotificationSeverity | None:
     declared = payload.get("severity")
     if isinstance(declared, str):
         normalized = declared.strip().upper()
         if normalized in {"INFO", "WARNING", "CRITICAL"}:
             return NotificationSeverity(normalized)
-
-    return NotificationSeverity.INFO
+    return None
 
 
 def utc_now_iso() -> str:
