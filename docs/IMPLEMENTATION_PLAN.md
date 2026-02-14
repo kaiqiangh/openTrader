@@ -49,6 +49,7 @@ Use this exact format in each update:
 | 6    | 2026-02-14 | P1-007,P1-009,P1-010 | - | - | News schema, envelope contract, and Redis namespace strategy delivered; tests green | 45% |
 | 7    | 2026-02-14 | P2-001,P2-002,P2-003 | - | - | Ingestion adapter, resilience manager, and orderbook sync engine delivered; tests green | 54% |
 | 8    | 2026-02-14 | P2-004,P2-005,P2-006 | - | - | Gap detection, k-line validation, and canonical publisher delivered; tests green | 63% |
+| 9    | 2026-02-14 | P2-007,P2-008,P2-009 | - | - | Persistence writers, pipeline metrics, and replay harness delivered; tests green | 72% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -122,13 +123,22 @@ Use this exact format in each update:
 - Next Task IDs: [P2-007, P2-008, P2-009]
 - Overall Progress: 63%
 
+### Turn Update 2026-02-14 13:00
+
+- Completed Task IDs: [P2-007, P2-008, P2-009]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-001, P3-002, P3-003]
+- Overall Progress: 72%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
 | ----- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- | ----------- |
 | 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | DONE |
 | 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | DONE |
-| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | IN_PROGRESS |
+| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | DONE |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | NOT_STARTED |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
@@ -228,9 +238,9 @@ Build resilient exchange ingestion and data integrity controls (resync, gap dete
 | P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | DONE |
 | P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | DONE |
 | P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | DONE |
-| P2-007 | P1  | Persistence writers              | Persist kline and orderbook snapshots to Timescale                                  | P2-006,P1-004 | Historical data persisted        | NOT_STARTED |
-| P2-008 | P1  | Market pipeline metrics          | Expose ingestion lag/rates/reconnect counters                                       | P2-002        | Prometheus metrics for ingestion | NOT_STARTED |
-| P2-009 | P1  | Integration test harness         | Replay fixture streams and validate deterministic normalization                     | P2-006        | Ingestion integration tests      | NOT_STARTED |
+| P2-007 | P1  | Persistence writers              | Persist kline and orderbook snapshots to Timescale                                  | P2-006,P1-004 | Historical data persisted        | DONE |
+| P2-008 | P1  | Market pipeline metrics          | Expose ingestion lag/rates/reconnect counters                                       | P2-002        | Prometheus metrics for ingestion | DONE |
+| P2-009 | P1  | Integration test harness         | Replay fixture streams and validate deterministic normalization                     | P2-006        | Ingestion integration tests      | DONE |
 
 ---
 
@@ -535,6 +545,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P2-004  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-005  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-006  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-007  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-008  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-009  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -547,6 +560,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P2-007` persistence writers for `klines` and `orderbook_snapshots`.
-2. Start `P2-008` market pipeline metrics instrumentation.
-3. Start `P2-009` ingestion replay integration harness.
+1. Start `P3-001` orchestrator skeleton consuming `market.canonical`.
+2. Start `P3-002` planner agent contract and execution path.
+3. Start `P3-003` risk agent baseline outputs and checks.
