@@ -5,6 +5,7 @@ from typing import Any, Mapping, Protocol
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
+from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
@@ -24,6 +25,7 @@ class AgentOrchestrator:
         risk_agent: RiskAgent | None = None,
         execution_decision_agent: ExecutionDecisionAgent | None = None,
         market_context_agent: MarketContextAgent | None = None,
+        guardrail_validation_layer: GuardrailValidationLayer | None = None,
         service_name: str = "agent_orchestrator",
     ) -> None:
         self.publisher = publisher
@@ -31,6 +33,7 @@ class AgentOrchestrator:
         self.risk_agent = risk_agent or RiskAgent()
         self.execution_decision_agent = execution_decision_agent or ExecutionDecisionAgent()
         self.market_context_agent = market_context_agent or MarketContextAgent()
+        self.guardrail_validation_layer = guardrail_validation_layer or GuardrailValidationLayer()
         self.service_name = service_name
 
     async def handle_market_event(
@@ -59,6 +62,13 @@ class AgentOrchestrator:
             risk=risk,
             market_context=market_context,
             strategy=strategy,
+        )
+        guardrail = self.guardrail_validation_layer.validate(
+            strategy=strategy,
+            market_context=market_context,
+            plan=plan,
+            risk=risk,
+            decision=execution_decision,
         )
 
         lifecycle = [
@@ -109,7 +119,12 @@ class AgentOrchestrator:
             ),
         ]
 
-        status = "RISK_APPROVED" if risk.approved else "RISK_REJECTED"
+        if not risk.approved:
+            status = "RISK_REJECTED"
+        elif not guardrail.allowed:
+            status = "GUARDRAIL_REJECTED"
+        else:
+            status = "RISK_APPROVED"
         lifecycle.append(
             self._build_envelope(
                 trace_id=trace_id,
@@ -145,10 +160,39 @@ class AgentOrchestrator:
                 },
             )
         )
+        lifecycle.append(
+            self._build_envelope(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                event_type=(
+                    "agent.decision.guardrail_passed"
+                    if guardrail.allowed
+                    else "agent.decision.guardrail_rejected"
+                ),
+                idempotency_key=f"agent.decision.guardrail:{decision_id}:{'pass' if guardrail.allowed else 'reject'}",
+                payload={
+                    "strategy_id": strategy.strategy_id,
+                    "symbol": market_context["symbol"],
+                    "allowed": guardrail.allowed,
+                    "blocked_by": list(guardrail.blocked_by),
+                    "checks": guardrail.checks,
+                    "violations": [
+                        {
+                            "code": violation.code,
+                            "message": violation.message,
+                            "details": violation.details,
+                        }
+                        for violation in guardrail.violations
+                    ],
+                },
+            )
+        )
 
         execution_intent: dict[str, Any] | None = None
         should_publish_intent = (
             risk.approved
+            and guardrail.allowed
             and execution_decision.constraints.get("schema_valid", False)
             and execution_decision.action in {"BUY", "SELL", "CLOSE"}
             and execution_decision.quantity != 0.0
@@ -216,6 +260,7 @@ class AgentOrchestrator:
             plan=plan,
             risk=risk,
             execution_decision=execution_decision,
+            guardrail=guardrail,
             execution_intent=execution_intent,
         )
 

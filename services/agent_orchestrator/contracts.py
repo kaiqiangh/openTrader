@@ -18,6 +18,8 @@ class StrategyConfig:
     risk_max_position_size: float
     risk_max_drawdown_pct: float
     risk_min_confidence: float
+    max_leverage: float = 3.0
+    allowed_actions: tuple[str, ...] = ("BUY", "SELL", "HOLD", "CLOSE")
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +60,21 @@ class ExecutionDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class GuardrailViolation:
+    code: str
+    message: str
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class GuardrailValidationResult:
+    allowed: bool
+    blocked_by: tuple[str, ...]
+    violations: tuple[GuardrailViolation, ...]
+    checks: dict[str, bool]
+
+
+@dataclass(frozen=True, slots=True)
 class MarketContextOutput:
     context: dict[str, Any]
     microstructure: dict[str, Any]
@@ -77,4 +94,5 @@ class OrchestrationResult:
     plan: PlannerDecision
     risk: RiskAssessment
     execution_decision: ExecutionDecision
+    guardrail: GuardrailValidationResult
     execution_intent: dict[str, Any] | None

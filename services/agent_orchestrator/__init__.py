@@ -2,6 +2,8 @@
 
 from services.agent_orchestrator.contracts import (
     ExecutionDecision,
+    GuardrailValidationResult,
+    GuardrailViolation,
     MarketContextOutput,
     OrchestrationResult,
     PlannerDecision,
@@ -10,6 +12,7 @@ from services.agent_orchestrator.contracts import (
     StrategyConfig,
 )
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
+from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
 from services.agent_orchestrator.orchestrator import AgentOrchestrator, DecisionPublisher
 from services.agent_orchestrator.planner_agent import PlannerAgent
@@ -20,6 +23,9 @@ __all__ = [
     "DecisionPublisher",
     "ExecutionDecision",
     "ExecutionDecisionAgent",
+    "GuardrailValidationLayer",
+    "GuardrailValidationResult",
+    "GuardrailViolation",
     "MarketContextAgent",
     "MarketContextOutput",
     "OrchestrationResult",
