@@ -90,6 +90,21 @@ Phase 3 LLM gateway baseline:
 - `docs/learning/2026-02-14-p3-llm-persistence-instincts.md` (continuous-learning-v2 prompt-response persistence notes)
 - `docs/learning/2026-02-14-p3-llm-quota-instincts.md` (continuous-learning-v2 quota enforcement notes)
 
+Runtime integration gate + Phase 4 foundations:
+
+- `services/shared/runtime/broker.py` (concrete in-process topic broker adapter)
+- `services/market_ingestion/binance_http_adapter.py` (concrete Binance depth transport adapter)
+- `services/workers/runtime_pipeline.py` (market->orchestrator runtime worker cycle)
+- `services/market_ingestion/sqlalchemy_store.py` (concrete local timeseries persistence adapter)
+- `services/agent_orchestrator/sqlalchemy_memory_store.py` (concrete short/long-term memory adapters)
+- `services/llm_gateway/sqlalchemy_stores.py` (concrete LLM call/quota persistence adapters)
+- `services/llm_gateway/litellm_http_adapter.py` (concrete LiteLLM HTTP provider adapter)
+- `services/simulation_execution/mode_routing.py` (`P4-001` strict mode routing policy)
+- `services/simulation_execution/engine.py` (`P4-002` simulation fill/slippage/fee core)
+- `services/simulation_execution/safety_guard.py` (`P4-003` MOCK-mode live-endpoint safety guard)
+- `services/simulation_execution/worker.py` (mock intent consumer -> OMS event publisher)
+- `docs/runtime/runtime-integration-gate-2026-02-14.md` (runtime gate verification evidence)
+
 Runtime verification evidence:
 
 - `docs/runtime/runtime-verification-2026-02-14.md`

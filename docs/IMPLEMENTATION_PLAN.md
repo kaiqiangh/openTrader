@@ -62,6 +62,8 @@ Use this exact format in each update:
 | 19   | 2026-02-14 | P3-012 | - | - | Agent metrics/tracing baseline delivered with stage latency/failure instrumentation and LLM token telemetry hooks; tests green | 100% |
 | 20   | 2026-02-14 | - | - | - | PRD/ARD/plan updated with extensible notification architecture and Telegram-first delivery roadmap | 100% |
 | 21   | 2026-02-14 | - | - | - | Added Phase 0-3 completeness gap review and AGENT.md documentation rollout; identified critical runtime integration gaps before Phase 4 | 100% |
+| 22   | 2026-02-14 | P3-013,P3-014,P3-015,P3-016,P4-001,P4-002,P4-003 | - | - | Runtime integration gate delivered with concrete broker/workers/adapters plus strict mode routing, simulation engine, and mock safety guard | 100% |
+| 23   | 2026-02-14 | - | - | - | Added concrete Binance transport adapter and completed full-suite runtime validation (`pytest` green) | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -252,6 +254,24 @@ Use this exact format in each update:
 - Next Task IDs: [P4-001, P4-002, P4-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 15:44
+
+- Completed Task IDs: [P3-013, P3-014, P3-015, P3-016, P4-001, P4-002, P4-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified after runtime integration gate implementation and targeted runtime test validation.
+- Next Task IDs: [P4-004, P4-005, P4-006]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 15:47
+
+- Completed Task IDs: [-]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; full test suite passed after concrete exchange adapter addition.
+- Next Task IDs: [P4-004, P4-005, P4-006]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -260,7 +280,8 @@ Use this exact format in each update:
 | 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | DONE |
 | 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | DONE |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | DONE |
-| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
+| 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport | Runnable Phase 2-3 pipeline validation completed | DONE |
+| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | IN_PROGRESS |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | NOT_STARTED |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
@@ -279,6 +300,7 @@ Use this exact format in each update:
 - WS-H: Observability + Security + Reliability
 - WS-I: QA + Performance + Release
 - WS-J: Notification and Operator Communication
+- WS-K: Runtime Integration Gate
 
 ## 4. Detailed Phase Plan
 
@@ -396,11 +418,40 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 
 ---
 
+## Phase 3.5 - Runtime Integration Gate
+
+### Objective
+
+Close integration gaps between Phase 2-3 logic contracts and runnable runtime behavior before advancing deeper into Phase 4.
+
+### Exit Criteria
+
+- Runnable ingestion -> broker -> orchestrator -> execution intent flow is validated.
+- Concrete persistence adapters exist for ingestion, memory, and LLM governance runtime surfaces.
+- Concrete LiteLLM-compatible provider transport is implemented.
+- Runtime gate validation artifacts are documented.
+
+### Tasks
+
+| ID     | Pri | Task                                 | Actionable Steps                                                                 | Dependencies      | Deliverable                              | Status      |
+| ------ | --- | ------------------------------------ | -------------------------------------------------------------------------------- | ----------------- | ---------------------------------------- | ----------- |
+| P3-013 | P0  | Broker/exchange adapters + worker runtime | Implement concrete topic broker adapter, concrete exchange transport adapter, and market/orchestrator worker loops | P1-008,P2-006,P3-001 | Runnable market->decision runtime path | DONE |
+| P3-014 | P0  | Concrete persistence adapters        | Implement concrete stores for timeseries, memory summaries, and LLM governance   | P1-004,P1-005,P1-006 | Executable runtime persistence adapters | DONE |
+| P3-015 | P0  | Concrete LLM transport adapter       | Implement LiteLLM-compatible HTTP client adapter with timeout/error handling      | P3-006            | Runnable model transport adapter         | DONE |
+| P3-016 | P0  | Runtime gate integration validation  | Add runtime gate tests and verification documentation                              | P3-013,P3-014,P3-015 | Runtime gate evidence and pass report  | DONE |
+
+---
+
 ## Phase 4 - Dual Execution Modes
 
 ### Objective
 
 Implement and hard-separate MOCK and REAL execution paths.
+
+### Entry Criteria
+
+- `P3-016` runtime integration gate must be completed with runnable market->decision->intent pipeline evidence.
+- Phase advancement must be based on executable runtime validation, not contract-only completion.
 
 ### Exit Criteria
 
@@ -412,9 +463,9 @@ Implement and hard-separate MOCK and REAL execution paths.
 
 | ID     | Pri | Task                               | Actionable Steps                                                                    | Dependencies  | Deliverable                  | Status      |
 | ------ | --- | ---------------------------------- | ----------------------------------------------------------------------------------- | ------------- | ---------------------------- | ----------- |
-| P4-001 | P0  | Mode routing policy                | Implement strict mode router for `execution.intent.mock` vs `execution.intent.real` | P3-009,P1-008 | Deterministic routing layer  | NOT_STARTED |
-| P4-002 | P0  | Simulation engine core             | Build simulated matching/fill engine with slippage and fees model                   | P4-001        | Mock execution runtime       | NOT_STARTED |
-| P4-003 | P0  | Simulation safety guard            | Add assertions guaranteeing no exchange order endpoint usage in MOCK mode           | P4-002        | Mode isolation safety        | NOT_STARTED |
+| P4-001 | P0  | Mode routing policy                | Implement strict mode router for `execution.intent.mock` vs `execution.intent.real` | P3-016,P3-009,P1-008 | Deterministic routing layer  | DONE |
+| P4-002 | P0  | Simulation engine core             | Build simulated matching/fill engine with slippage and fees model                   | P4-001        | Mock execution runtime       | DONE |
+| P4-003 | P0  | Simulation safety guard            | Add assertions guaranteeing no exchange order endpoint usage in MOCK mode           | P4-002        | Mode isolation safety        | DONE |
 | P4-004 | P0  | Go real execution service skeleton | Build Go service with queue consumer and idempotent command handler                 | P4-001,P0-003 | Real execution service       | NOT_STARTED |
 | P4-005 | P0  | CCXT Pro bridge contracts          | Define strongly typed command contract for Go<->Python exchange actions             | P4-004,P2-001 | Execution interface contract | NOT_STARTED |
 | P4-006 | P0  | Idempotent order dispatch          | Enforce idempotency keys and dedupe for create/cancel actions                       | P4-004        | Safe at-least-once behavior  | NOT_STARTED |
@@ -574,10 +625,11 @@ Run integration, replay, load, and reliability validation; finalize release read
 1. P0-001 -> P1-001 -> P1-002 -> P1-003/P1-004/P1-008
 2. P2-001 -> P2-003/P2-004 -> P2-006
 3. P3-001 -> P3-006 -> P3-007/P3-008/P3-009/P3-010/P3-011/P3-012
-4. P4-001 -> P4-002 and P4-004 -> P5-001/P5-002
-5. P5-005/P5-006 -> P7-003 -> P9-001/P9-002
-6. P7-011 -> P7-012/P7-013/P7-015 -> P7-016/P7-017
-7. P8-004/P8-005 spans all operational readiness gates
+4. P3-013/P3-014/P3-015 -> P3-016 -> P4-001
+5. P4-001 -> P4-002/P4-003 -> P4-004 -> P5-001/P5-002
+6. P5-005/P5-006 -> P7-003 -> P9-001/P9-002
+7. P7-011 -> P7-012/P7-013/P7-015 -> P7-016/P7-017
+8. P8-004/P8-005 spans all operational readiness gates
 
 ## 6. Definition of Done by Capability
 
@@ -618,6 +670,13 @@ Run integration, replay, load, and reliability validation; finalize release read
 - User preference filters correctly control route/threshold/suppression behavior.
 - Delivery outcomes are observable with metrics/logs/traces and replayable audit records.
 
+### 6.7 Runtime Integration Gate DoD
+
+- Concrete worker runtime path from market ingestion to orchestrator intent publish is runnable and tested.
+- Concrete persistence adapters are available for ingestion, memory, and LLM governance runtime surfaces.
+- Concrete LiteLLM-compatible HTTP adapter is implemented and covered by tests.
+- Runtime gate verification evidence is documented before advancing deeper Phase 4 items.
+
 ## 7. Test Strategy Matrix
 
 | Layer             | Test Type                        | Minimum Coverage                    |
@@ -643,6 +702,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 | Data drift/integrity issues    | High     | Validation service, resync workflows, integrity alerts             |
 | Replay inconsistency           | Medium   | Immutable payload persistence + deterministic reconstruction tests |
 | Notification storm/noise       | Medium   | Severity thresholds, dedupe windows, per-user/gateway rate limits |
+| Contract/runtime drift         | High     | Runtime integration gate with executable adapters and end-to-end verification before Phase 4 gating |
 
 ## 9. First 3 Execution Sprints (Actionable)
 
@@ -700,7 +760,14 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P3-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-012  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P3-013  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-014  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-015  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P4-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P4-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P4-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P4-004  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -713,6 +780,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P4-001` strict mode routing policy for `execution.intent.mock` vs `execution.intent.real`.
-2. Start `P4-002` simulation execution engine core.
-3. Start `P4-003` simulation safety guard to enforce mode isolation.
+1. Start `P4-004` Go real execution service skeleton with queue consumer and idempotent command handler.
+2. Start `P4-005` CCXT Pro bridge contracts for Go<->Python execution actions.
+3. Start `P4-006` idempotent order dispatch and dedupe enforcement for create/cancel actions.

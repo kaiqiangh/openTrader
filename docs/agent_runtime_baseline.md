@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-012)
+# Agent Runtime Baseline (P3-001..P4-003)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -15,6 +15,17 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/agent_orchestrator/memory_layer.py` (`P3-010`)
 - `services/agent_orchestrator/replay_service.py` (`P3-011`)
 - `services/agent_orchestrator/metrics_tracing.py` (`P3-012`)
+- `services/shared/runtime/broker.py` (runtime integration gate)
+- `services/workers/runtime_pipeline.py` (runtime integration gate)
+- `services/market_ingestion/binance_http_adapter.py` (runtime integration gate)
+- `services/market_ingestion/sqlalchemy_store.py` (runtime integration gate)
+- `services/agent_orchestrator/sqlalchemy_memory_store.py` (runtime integration gate)
+- `services/llm_gateway/sqlalchemy_stores.py` (runtime integration gate)
+- `services/llm_gateway/litellm_http_adapter.py` (runtime integration gate)
+- `services/simulation_execution/mode_routing.py` (`P4-001`)
+- `services/simulation_execution/engine.py` (`P4-002`)
+- `services/simulation_execution/safety_guard.py` (`P4-003`)
+- `services/simulation_execution/worker.py` (`P4-002`/`P4-003`)
 
 ## Component Boundaries
 
@@ -38,7 +49,7 @@ This document defines the first Phase 3 decision runtime modules:
 4. `orchestrator.py`
 - Consumes canonical market envelopes (`market.canonical.*`) and validates message envelope schema.
 - Builds enriched market context, invokes planner -> risk -> execution decision, and tracks lifecycle events.
-- Publishes approved intents to:
+- Publishes approved intents through strict mode-routing policy:
   - `execution.intent.mock` for `mode=MOCK`
   - `execution.intent.real` for `mode=REAL`
 - Emits lifecycle envelopes to `strategy.decision.lifecycle`.
@@ -96,6 +107,19 @@ This document defines the first Phase 3 decision runtime modules:
   - stage latency aggregates
   - LLM token/cost usage aggregates.
 - Supports span-like trace snapshots for stage success/failure events.
+
+14. Runtime integration gate modules
+- `shared/runtime/broker.py` provides concrete topic-routing broker behavior for local runtime loops and integration tests.
+- `workers/runtime_pipeline.py` wires market ingestion worker -> canonical queue -> orchestrator worker cycle.
+- `market_ingestion/binance_http_adapter.py` provides concrete exchange transport for Binance depth payloads.
+- concrete persistence adapters in ingestion/memory/llm modules provide executable store implementations for runtime verification.
+- `llm_gateway/litellm_http_adapter.py` provides concrete HTTP transport against LiteLLM-compatible endpoints.
+
+15. P4 mode-routing and simulation modules
+- `simulation_execution/mode_routing.py` enforces strict mode-to-routing contracts and leakage detection.
+- `simulation_execution/engine.py` provides deterministic mock fill engine with slippage and fee model.
+- `simulation_execution/safety_guard.py` blocks live-order endpoint usage in MOCK-mode paths.
+- `simulation_execution/worker.py` consumes mock intents and publishes OMS order events.
 
 ## Decision Lifecycle
 
