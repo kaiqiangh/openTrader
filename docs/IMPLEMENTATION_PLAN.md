@@ -52,6 +52,8 @@ Use this exact format in each update:
 | 9    | 2026-02-14 | P2-007,P2-008,P2-009 | - | - | Persistence writers, pipeline metrics, and replay harness delivered; tests green | 72% |
 | 10   | 2026-02-14 | P3-001,P3-002,P3-003 | - | - | Agent orchestrator, planner, and risk baseline delivered; tests green | 81% |
 | 11   | 2026-02-14 | P3-004 | - | - | Execution decision agent with constrained proposals delivered; tests green | 84% |
+| 12   | 2026-02-14 | P3-005 | - | - | Market context enrichment agent delivered with microstructure/news context flow; tests green | 87% |
+| 13   | 2026-02-14 | P3-006 | - | - | LLM gateway skeleton delivered with timeout/retry/fallback contracts; tests green | 90% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -151,6 +153,24 @@ Use this exact format in each update:
 - New Risks/Blockers: No new blockers identified.
 - Next Task IDs: [P3-005, P3-006, P3-007]
 - Overall Progress: 84%
+
+### Turn Update 2026-02-14 13:45
+
+- Completed Task IDs: [P3-005]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-006, P3-007, P3-008]
+- Overall Progress: 87%
+
+### Turn Update 2026-02-14 14:00
+
+- Completed Task IDs: [P3-006]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-007, P3-008, P3-009]
+- Overall Progress: 90%
 
 ## 2. Milestone Roadmap (Multi-Phase)
 
@@ -284,8 +304,8 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 | P3-002 | P0  | Planner agent               | Implement dynamic plan generation based on market context and strategy config     | P3-001               | Planner output contracts                 | DONE |
 | P3-003 | P0  | Risk agent                  | Implement risk-analysis agent outputs for pre-trade risk signals                  | P3-001               | Risk agent outputs                       | DONE |
 | P3-004 | P0  | Execution decision agent    | Implement final action proposal agent with schema constraints                     | P3-001               | Action proposals (`BUY/SELL/HOLD/CLOSE`) | DONE |
-| P3-005 | P1  | Market context agent        | Implement optional context enrichment with market microstructure + news summaries | P3-001               | Optional context module                  | NOT_STARTED |
-| P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | NOT_STARTED |
+| P3-005 | P1  | Market context agent        | Implement optional context enrichment with market microstructure + news summaries | P3-001               | Optional context module                  | DONE |
+| P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | DONE |
 | P3-007 | P0  | Prompt/response persistence | Persist full prompt and full response with tokens/cost/latency/trace IDs          | P1-006,P3-006        | Complete LLM audit trail                 | NOT_STARTED |
 | P3-008 | P0  | Token quota enforcement     | Enforce per-agent/per-strategy daily token + monthly cost hard limits             | P1-006,P3-006        | Quota guardrails                         | NOT_STARTED |
 | P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | NOT_STARTED |
@@ -572,6 +592,8 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P3-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -583,6 +605,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P3-005` market context agent baseline for optional enrichment inputs.
-2. Start `P3-006` LLM gateway service skeleton with provider/retry contracts.
-3. Start `P3-007` prompt/response persistence with full payload capture and metrics.
+1. Start `P3-007` prompt/response persistence with full payload capture and metrics.
+2. Start `P3-008` token quota enforcement baseline with hard-limit controls.
+3. Start `P3-009` guardrail validation layer for action/risk/schema constraints.
