@@ -5,6 +5,7 @@
     {"name": "strategy.events", "type": "topic", "durable": true},
     {"name": "execution.events", "type": "topic", "durable": true},
     {"name": "oms.events", "type": "topic", "durable": true},
+    {"name": "notify.events", "type": "topic", "durable": true},
     {"name": "dead.letter", "type": "topic", "durable": true}
   ],
   "queues": [
@@ -40,10 +41,19 @@
         "x-dead-letter-routing-key": "dlq.oms.events.order_updates"
       }
     },
+    {
+      "name": "notify.events.raw",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.notify.events.raw"
+      }
+    },
     {"name": "dlq.execution.intent.real", "durable": true},
     {"name": "dlq.execution.intent.mock", "durable": true},
     {"name": "dlq.market.canonical", "durable": true},
-    {"name": "dlq.oms.events.order_updates", "durable": true}
+    {"name": "dlq.oms.events.order_updates", "durable": true},
+    {"name": "dlq.notify.events.raw", "durable": true}
   ],
   "bindings": [
     {
@@ -67,6 +77,11 @@
       "routing_key": "oms.order.*"
     },
     {
+      "exchange": "notify.events",
+      "queue": "notify.events.raw",
+      "routing_key": "notify.#"
+    },
+    {
       "exchange": "dead.letter",
       "queue": "dlq.execution.intent.real",
       "routing_key": "dlq.execution.intent.real"
@@ -85,6 +100,11 @@
       "exchange": "dead.letter",
       "queue": "dlq.oms.events.order_updates",
       "routing_key": "dlq.oms.events.order_updates"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.notify.events.raw",
+      "routing_key": "dlq.notify.events.raw"
     }
   ]
 }
