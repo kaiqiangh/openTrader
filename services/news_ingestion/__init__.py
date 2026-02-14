@@ -9,6 +9,7 @@ from services.news_ingestion.ingestion_service import (
     NewsItemStore,
     NormalizedNewsItem,
 )
+from services.news_ingestion.quality_metrics import NewsQualityMetrics
 from services.news_ingestion.source_connectors import (
     CallableSourceConnector,
     ConnectorCycleResult,
@@ -36,6 +37,7 @@ __all__ = [
     "NewsItemStore",
     "InMemoryNewsItemStore",
     "NewsIngestionService",
+    "NewsQualityMetrics",
     "NewsSourceRecord",
     "ConnectorFetchResult",
     "ConnectorCycleResult",
