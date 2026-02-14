@@ -48,6 +48,7 @@ Use this exact format in each update:
 | 5    | 2026-02-14 | P1-001,P0-003,P1-006 | - | - | Runtime verification succeeded; Go tests unblocked locally; LLM governance schema added | 36% |
 | 6    | 2026-02-14 | P1-007,P1-009,P1-010 | - | - | News schema, envelope contract, and Redis namespace strategy delivered; tests green | 45% |
 | 7    | 2026-02-14 | P2-001,P2-002,P2-003 | - | - | Ingestion adapter, resilience manager, and orderbook sync engine delivered; tests green | 54% |
+| 8    | 2026-02-14 | P2-004,P2-005,P2-006 | - | - | Gap detection, k-line validation, and canonical publisher delivered; tests green | 63% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -111,6 +112,15 @@ Use this exact format in each update:
 - New Risks/Blockers: No new blockers identified.
 - Next Task IDs: [P2-004, P2-005, P2-006]
 - Overall Progress: 54%
+
+### Turn Update 2026-02-14 12:45
+
+- Completed Task IDs: [P2-004, P2-005, P2-006]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P2-007, P2-008, P2-009]
+- Overall Progress: 63%
 
 ## 2. Milestone Roadmap (Multi-Phase)
 
@@ -215,9 +225,9 @@ Build resilient exchange ingestion and data integrity controls (resync, gap dete
 | P2-001 | P0  | CCXT Pro ingestion adapter       | Build exchange clients for WS + REST snapshot bootstrap                             | P1-008        | Unified ingestion adapters       | DONE |
 | P2-002 | P0  | Connection resilience            | Implement heartbeat, stale detection, reconnect with exponential backoff and jitter | P2-001        | Stable connection manager        | DONE |
 | P2-003 | P0  | Order book sync engine           | Snapshot + delta apply logic with sequence handling                                 | P2-001        | Consistent local order books     | DONE |
-| P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | NOT_STARTED |
-| P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | NOT_STARTED |
-| P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | NOT_STARTED |
+| P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | DONE |
+| P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | DONE |
+| P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | DONE |
 | P2-007 | P1  | Persistence writers              | Persist kline and orderbook snapshots to Timescale                                  | P2-006,P1-004 | Historical data persisted        | NOT_STARTED |
 | P2-008 | P1  | Market pipeline metrics          | Expose ingestion lag/rates/reconnect counters                                       | P2-002        | Prometheus metrics for ingestion | NOT_STARTED |
 | P2-009 | P1  | Integration test harness         | Replay fixture streams and validate deterministic normalization                     | P2-006        | Ingestion integration tests      | NOT_STARTED |
@@ -522,6 +532,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P2-001  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-002  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-003  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-004  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-005  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-006  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -534,6 +547,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P2-004` gap detection module tied to sequence-gap events.
-2. Start `P2-005` k-line reconstruction validator.
-3. Start `P2-006` canonical normalization pipeline to publish `market.canonical`.
+1. Start `P2-007` persistence writers for `klines` and `orderbook_snapshots`.
+2. Start `P2-008` market pipeline metrics instrumentation.
+3. Start `P2-009` ingestion replay integration harness.
