@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-011)
+# Agent Runtime Baseline (P3-001..P3-012)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -14,6 +14,7 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/agent_orchestrator/guardrail_validation.py` (`P3-009`)
 - `services/agent_orchestrator/memory_layer.py` (`P3-010`)
 - `services/agent_orchestrator/replay_service.py` (`P3-011`)
+- `services/agent_orchestrator/metrics_tracing.py` (`P3-012`)
 
 ## Component Boundaries
 
@@ -88,6 +89,14 @@ This document defines the first Phase 3 decision runtime modules:
 - Produces ordered graph nodes/edges across decision trace, agent runs, long-term summary, and LLM calls.
 - Emits deterministic replay digest over normalized payloads for audit/debug reproducibility.
 
+13. `metrics_tracing.py`
+- Defines in-memory metrics/tracing collector contracts for:
+  - stage run counts
+  - stage failure rates
+  - stage latency aggregates
+  - LLM token/cost usage aggregates.
+- Supports span-like trace snapshots for stage success/failure events.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -121,6 +130,10 @@ Replay handling notes:
 - Replay merges optional long-term memory summary/lifecycle snapshots and persisted `llm_calls`.
 - Replay output is sorted deterministically and hashed for stable verification.
 
+Metrics/tracing notes:
+- Orchestrator records latency and status for major runtime stages (`market_context_agent`, `planner_agent`, `risk_agent`, `execution_decision_agent`, `guardrail_validation`) plus memory stages.
+- Gateway can emit LLM call metrics (tokens/cost/latency/status) into the same collector for shared runtime observability.
+
 ## Contract Notes
 
 - Envelope contract:
@@ -143,6 +156,10 @@ Replay handling notes:
 - Replay contract:
   - Trace store: `read_decision_trace(...)`, `list_agent_runs(...)`, `list_agent_messages(...)`, `list_llm_calls(...)`.
   - Result: deterministic `DecisionReplayResult` with graph nodes/edges and replay digest.
+- Metrics/tracing contract:
+  - Stage metrics: `record_stage_success(...)`, `record_stage_failure(...)`.
+  - LLM usage metrics: `record_llm_call(...)`.
+  - Snapshot: consolidated stage and LLM telemetry payload for observability surfaces.
 
 ## Usage Flow
 

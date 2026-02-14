@@ -5,6 +5,7 @@ import asyncio
 
 import pytest
 
+from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.llm_gateway.contracts import (
     GatewaySettings,
     LLMRequest,
@@ -134,3 +135,23 @@ async def test_gateway_raises_when_all_providers_fail() -> None:
 
     with pytest.raises(LLMRetryExhaustedError):
         await gateway.generate(_request())
+
+
+@pytest.mark.asyncio
+async def test_gateway_records_token_consumption_metrics_when_enabled() -> None:
+    metrics = AgentRuntimeMetrics()
+    gateway = LLMGateway(
+        settings=_settings(),
+        provider_clients={"primary": _FlakyProvider()},
+        metrics=metrics,
+    )
+
+    await gateway.generate(_request(), provider_order=("primary",))
+    snapshot = metrics.snapshot()
+
+    totals = snapshot["llm_usage"]["totals"]
+    assert totals["calls_total"] == 1
+    assert totals["tokens_total"] == 19
+    assert totals["failed_calls_total"] == 0
+    scoped = snapshot["llm_usage"]["by_scope"]["scalp-long-short:planner"]
+    assert scoped["tokens_total"] == 19
