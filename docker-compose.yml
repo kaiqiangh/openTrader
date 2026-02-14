@@ -75,9 +75,6 @@ services:
     networks:
       - internal
       - public
-    profiles:
-      - app
-      - notification
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -96,9 +93,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    profiles:
-      - app
-      - observability
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -112,9 +106,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    profiles:
-      - app
-      - observability
 
   loki:
     image: grafana/loki:3.1.1
@@ -127,9 +118,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    profiles:
-      - app
-      - observability
 
   tempo:
     image: grafana/tempo:2.6.1
@@ -142,9 +130,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    profiles:
-      - app
-      - observability
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -171,9 +156,6 @@ services:
     networks:
       - internal
       - public
-    profiles:
-      - app
-      - observability
 
 volumes:
   postgres_data:
