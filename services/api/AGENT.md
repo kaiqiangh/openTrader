@@ -33,11 +33,13 @@ Hosts control-plane APIs for strategy, risk, replay, governance, and operations.
 - `auth.py` owns JWT bearer parsing and `viewer/operator/admin` dependency gates.
 - `state.py` owns in-memory control-plane/trading-ops adapters, governance aggregates, replay request cache, and risk-control action wiring.
 - `routers/system.py` exposes liveness/readiness/metadata.
-- `routers/control.py` exposes mode and strategy state controls.
+- `routers/control.py` exposes mode and strategy state controls plus mode history audit endpoint.
 - `routers/ops.py` exposes orders, positions, portfolio, risk status, and kill-switch/circuit-breaker actions.
 - `routers/governance.py` exposes LLM usage/quota/breach history endpoints.
 - `routers/replay.py` exposes replay request submission and decision replay retrieval endpoints.
 - `routers/dashboard.py` exposes lightweight operator dashboard pages (`/dashboard/*`).
+- `static/dashboard_app.js` hosts React UI logic for governance/replay/mode operator panels.
+- `static/dashboard.css` defines shared dashboard styles and rendering-performance hints (`content-visibility` for long rows).
 
 ## Testing Expectations
 

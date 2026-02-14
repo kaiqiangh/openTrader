@@ -14,6 +14,8 @@ def test_api_control_plane_files_exist() -> None:
     assert Path("services/api/routers/governance.py").exists()
     assert Path("services/api/routers/replay.py").exists()
     assert Path("services/api/routers/dashboard.py").exists()
+    assert Path("services/api/static/dashboard_app.js").exists()
+    assert Path("services/api/static/dashboard.css").exists()
 
 
 def test_readme_mentions_api_control_plane_baseline() -> None:
@@ -25,9 +27,11 @@ def test_readme_mentions_api_control_plane_baseline() -> None:
     assert "services/api/routers/governance.py" in content
     assert "services/api/routers/replay.py" in content
     assert "services/api/routers/dashboard.py" in content
+    assert "services/api/static/dashboard_app.js" in content
+    assert "services/api/static/dashboard.css" in content
 
 
-def test_implementation_plan_marks_p7_001_to_p7_006_done() -> None:
+def test_implementation_plan_marks_p7_001_to_p7_009_done() -> None:
     content = Path("docs/IMPLEMENTATION_PLAN.md").read_text(encoding="utf-8")
     assert re.search(r"\| P7-001 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-002 \|.*\| DONE \|", content)
@@ -35,3 +39,6 @@ def test_implementation_plan_marks_p7_001_to_p7_006_done() -> None:
     assert re.search(r"\| P7-004 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-005 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-006 \|.*\| DONE \|", content)
+    assert re.search(r"\| P7-007 \|.*\| DONE \|", content)
+    assert re.search(r"\| P7-008 \|.*\| DONE \|", content)
+    assert re.search(r"\| P7-009 \|.*\| DONE \|", content)

@@ -216,7 +216,7 @@ News pipeline baseline (`P6-001`..`P6-007`):
 - `services/news_summarizer/resilience.py` (`P6-006` stale/missing summary fallback policy with alert envelope publisher)
 - `services/news_ingestion/quality_metrics.py` (`P6-007` coverage/freshness/lag/error metric snapshot contracts for news ops visibility)
 
-API control-plane baseline (`P7-001`..`P7-006`):
+API control-plane baseline (`P7-001`..`P7-009`):
 
 - `services/api/app.py` (`P7-001` FastAPI app factory, lifespan wiring, and router registration)
 - `services/api/settings.py` (`P7-001` API settings contract for mode/auth defaults)
@@ -229,6 +229,9 @@ API control-plane baseline (`P7-001`..`P7-006`):
 - `services/api/routers/governance.py` (`P7-004` LLM usage/quota/breach governance endpoints)
 - `services/api/routers/replay.py` (`P7-005` replay request lifecycle and decision replay endpoints)
 - `services/api/routers/dashboard.py` (`P7-006` HTML dashboard shell for status/governance/replay pages)
+- `services/api/routers/control.py` (`P7-009` mode history API: `GET /control/mode/history`)
+- `services/api/static/dashboard_app.js` (`P7-007`/`P7-008`/`P7-009` React UI module for governance/replay/mode views)
+- `services/api/static/dashboard.css` (`P7-007`/`P7-008`/`P7-009` dashboard styling and list rendering performance hints)
 
 Runtime verification evidence:
 
