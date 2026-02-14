@@ -14,6 +14,13 @@ from services.agent_orchestrator.contracts import (
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
+from services.agent_orchestrator.memory_layer import (
+    AgentMemoryLayer,
+    DecisionMemoryRecord,
+    DecisionMemorySnapshot,
+    LongTermMemoryStore,
+    ShortTermMemoryStore,
+)
 from services.agent_orchestrator.orchestrator import AgentOrchestrator, DecisionPublisher
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
@@ -26,13 +33,18 @@ __all__ = [
     "GuardrailValidationLayer",
     "GuardrailValidationResult",
     "GuardrailViolation",
+    "LongTermMemoryStore",
     "MarketContextAgent",
     "MarketContextOutput",
+    "AgentMemoryLayer",
+    "DecisionMemoryRecord",
+    "DecisionMemorySnapshot",
     "OrchestrationResult",
     "PlannerAgent",
     "PlannerDecision",
     "RiskAgent",
     "RiskAssessment",
     "RiskSignal",
+    "ShortTermMemoryStore",
     "StrategyConfig",
 ]

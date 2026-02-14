@@ -7,6 +7,7 @@ from services.agent_orchestrator.contracts import OrchestrationResult, StrategyC
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
+from services.agent_orchestrator.memory_layer import AgentMemoryLayer
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
 from services.shared.contracts.message_envelope import validate_envelope
@@ -26,6 +27,7 @@ class AgentOrchestrator:
         execution_decision_agent: ExecutionDecisionAgent | None = None,
         market_context_agent: MarketContextAgent | None = None,
         guardrail_validation_layer: GuardrailValidationLayer | None = None,
+        memory_layer: AgentMemoryLayer | None = None,
         service_name: str = "agent_orchestrator",
     ) -> None:
         self.publisher = publisher
@@ -34,6 +36,7 @@ class AgentOrchestrator:
         self.execution_decision_agent = execution_decision_agent or ExecutionDecisionAgent()
         self.market_context_agent = market_context_agent or MarketContextAgent()
         self.guardrail_validation_layer = guardrail_validation_layer or GuardrailValidationLayer()
+        self.memory_layer = memory_layer or AgentMemoryLayer()
         self.service_name = service_name
 
     async def handle_market_event(
@@ -49,19 +52,85 @@ class AgentOrchestrator:
         mode = str(envelope["mode"])
         trace_id = str(envelope["trace_id"])
         decision_id = str(envelope["decision_id"])
+        await self.memory_layer.read_decision_memory(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+        )
         context_output = self.market_context_agent.enrich(
             payload=envelope["payload"],
             strategy=strategy,
         )
         market_context = context_output.context
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="context",
+            payload={
+                "market_context": market_context,
+                "microstructure": context_output.microstructure,
+                "news": context_output.news,
+                "quality": context_output.quality,
+                "notes": list(context_output.notes),
+            },
+        )
 
         plan = self.planner_agent.build_plan(market_context=market_context, strategy=strategy)
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="plan",
+            payload={
+                "action": plan.action,
+                "confidence": plan.confidence,
+                "target_quantity": plan.target_quantity,
+                "rationale": list(plan.rationale),
+                "metrics": plan.metrics,
+            },
+        )
         risk = self.risk_agent.evaluate(plan=plan, market_context=market_context, strategy=strategy)
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="risk",
+            payload={
+                "approved": risk.approved,
+                "approved_quantity": risk.approved_quantity,
+                "blocked_by": list(risk.blocked_by),
+                "risk_score": risk.risk_score,
+                "signals": [
+                    {
+                        "name": signal.name,
+                        "passed": signal.passed,
+                        "value": signal.value,
+                        "limit": signal.limit,
+                        "message": signal.message,
+                    }
+                    for signal in risk.signals
+                ],
+            },
+        )
         execution_decision = self.execution_decision_agent.propose_action(
             plan=plan,
             risk=risk,
             market_context=market_context,
             strategy=strategy,
+        )
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="execution_decision",
+            payload={
+                "action": execution_decision.action,
+                "quantity": execution_decision.quantity,
+                "confidence": execution_decision.confidence,
+                "rationale": list(execution_decision.rationale),
+                "constraints": execution_decision.constraints,
+            },
         )
         guardrail = self.guardrail_validation_layer.validate(
             strategy=strategy,
@@ -69,6 +138,25 @@ class AgentOrchestrator:
             plan=plan,
             risk=risk,
             decision=execution_decision,
+        )
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="guardrail",
+            payload={
+                "allowed": guardrail.allowed,
+                "blocked_by": list(guardrail.blocked_by),
+                "checks": guardrail.checks,
+                "violations": [
+                    {
+                        "code": violation.code,
+                        "message": violation.message,
+                        "details": violation.details,
+                    }
+                    for violation in guardrail.violations
+                ],
+            },
         )
 
         lifecycle = [
@@ -125,6 +213,13 @@ class AgentOrchestrator:
             status = "GUARDRAIL_REJECTED"
         else:
             status = "RISK_APPROVED"
+        await self.memory_layer.write_decision_slot(
+            mode=mode,
+            strategy_id=strategy.strategy_id,
+            decision_id=decision_id,
+            slot="status",
+            payload={"status": status},
+        )
         lifecycle.append(
             self._build_envelope(
                 trace_id=trace_id,
@@ -243,6 +338,49 @@ class AgentOrchestrator:
                 routing_key=self._routing_key_for_mode(mode),
                 message=execution_intent,
             )
+
+        await self.memory_layer.persist_decision_summary(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            strategy_id=strategy.strategy_id,
+            mode=mode,
+            status=status,
+            market_context=market_context,
+            plan={
+                "action": plan.action,
+                "confidence": plan.confidence,
+                "target_quantity": plan.target_quantity,
+                "rationale": list(plan.rationale),
+                "metrics": plan.metrics,
+            },
+            risk={
+                "approved": risk.approved,
+                "approved_quantity": risk.approved_quantity,
+                "blocked_by": list(risk.blocked_by),
+                "risk_score": risk.risk_score,
+            },
+            execution_decision={
+                "action": execution_decision.action,
+                "quantity": execution_decision.quantity,
+                "confidence": execution_decision.confidence,
+                "rationale": list(execution_decision.rationale),
+                "constraints": execution_decision.constraints,
+            },
+            guardrail={
+                "allowed": guardrail.allowed,
+                "blocked_by": list(guardrail.blocked_by),
+                "checks": guardrail.checks,
+                "violations": [
+                    {
+                        "code": violation.code,
+                        "message": violation.message,
+                        "details": violation.details,
+                    }
+                    for violation in guardrail.violations
+                ],
+            },
+            lifecycle=tuple(lifecycle),
+        )
 
         for lifecycle_event in lifecycle:
             await self.publisher.publish(
