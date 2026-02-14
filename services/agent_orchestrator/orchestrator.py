@@ -5,6 +5,7 @@ from typing import Any, Mapping, Protocol
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
+from services.agent_orchestrator.market_context_agent import MarketContextAgent
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
 from services.shared.contracts.message_envelope import validate_envelope
@@ -22,12 +23,14 @@ class AgentOrchestrator:
         planner_agent: PlannerAgent | None = None,
         risk_agent: RiskAgent | None = None,
         execution_decision_agent: ExecutionDecisionAgent | None = None,
+        market_context_agent: MarketContextAgent | None = None,
         service_name: str = "agent_orchestrator",
     ) -> None:
         self.publisher = publisher
         self.planner_agent = planner_agent or PlannerAgent()
         self.risk_agent = risk_agent or RiskAgent()
         self.execution_decision_agent = execution_decision_agent or ExecutionDecisionAgent()
+        self.market_context_agent = market_context_agent or MarketContextAgent()
         self.service_name = service_name
 
     async def handle_market_event(
@@ -43,7 +46,11 @@ class AgentOrchestrator:
         mode = str(envelope["mode"])
         trace_id = str(envelope["trace_id"])
         decision_id = str(envelope["decision_id"])
-        market_context = self._build_market_context(payload=envelope["payload"], strategy=strategy)
+        context_output = self.market_context_agent.enrich(
+            payload=envelope["payload"],
+            strategy=strategy,
+        )
+        market_context = context_output.context
 
         plan = self.planner_agent.build_plan(market_context=market_context, strategy=strategy)
         risk = self.risk_agent.evaluate(plan=plan, market_context=market_context, strategy=strategy)
@@ -64,6 +71,25 @@ class AgentOrchestrator:
                 payload={
                     "strategy_id": strategy.strategy_id,
                     "symbol": market_context["symbol"],
+                },
+            ),
+            self._build_envelope(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                event_type="agent.decision.context_enriched",
+                idempotency_key=f"agent.decision.context_enriched:{decision_id}",
+                payload={
+                    "strategy_id": strategy.strategy_id,
+                    "symbol": market_context["symbol"],
+                    "microstructure": context_output.microstructure,
+                    "news": {
+                        "summary": context_output.news["summary"],
+                        "sentiment": context_output.news["sentiment"],
+                        "source_count": context_output.news["source_count"],
+                    },
+                    "quality": context_output.quality,
+                    "notes": list(context_output.notes),
                 },
             ),
             self._build_envelope(
@@ -146,6 +172,11 @@ class AgentOrchestrator:
                         "mid_price": market_context["mid_price"],
                         "best_bid": market_context["best_bid"],
                         "best_ask": market_context["best_ask"],
+                        "spread_bps": market_context["spread_bps"],
+                        "orderbook_imbalance": market_context["orderbook_imbalance"],
+                        "microstructure_regime": market_context["microstructure_regime"],
+                        "news_summary": market_context["news_summary"],
+                        "news_sentiment": market_context["news_sentiment"],
                     },
                 },
             )
@@ -181,64 +212,12 @@ class AgentOrchestrator:
             mode=mode,
             status=status,
             lifecycle=tuple(lifecycle),
+            market_context=context_output,
             plan=plan,
             risk=risk,
             execution_decision=execution_decision,
             execution_intent=execution_intent,
         )
-
-    def _build_market_context(
-        self,
-        *,
-        payload: Mapping[str, Any],
-        strategy: StrategyConfig,
-    ) -> dict[str, Any]:
-        best_bid, best_bid_size = self._extract_level(payload.get("bids"), side="bid")
-        best_ask, best_ask_size = self._extract_level(payload.get("asks"), side="ask")
-
-        if best_bid is not None and best_ask is not None:
-            mid_price = (best_bid + best_ask) / 2.0
-        else:
-            mid_price = float(payload.get("mid_price", 0.0))
-
-        return {
-            "exchange": payload.get("exchange", "unknown"),
-            "symbol": payload.get("symbol", strategy.symbol),
-            "timestamp_ms": payload.get("timestamp_ms"),
-            "best_bid": best_bid,
-            "best_ask": best_ask,
-            "best_bid_size": best_bid_size,
-            "best_ask_size": best_ask_size,
-            "mid_price": mid_price,
-            "current_position": float(payload.get("current_position", 0.0)),
-            "drawdown_pct": float(payload.get("drawdown_pct", 0.0)),
-        }
-
-    @staticmethod
-    def _extract_level(levels: Any, *, side: str) -> tuple[float | None, float]:
-        if not isinstance(levels, list) or len(levels) == 0:
-            return None, 0.0
-
-        parsed: list[tuple[float, float]] = []
-        for level in levels:
-            if not isinstance(level, Mapping):
-                continue
-            try:
-                price = float(level["price"])
-                size = float(level["amount"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            parsed.append((price, max(0.0, size)))
-
-        if not parsed:
-            return None, 0.0
-
-        if side == "bid":
-            price, size = max(parsed, key=lambda item: item[0])
-            return price, size
-
-        price, size = min(parsed, key=lambda item: item[0])
-        return price, size
 
     @staticmethod
     def _routing_key_for_mode(mode: str) -> str:
