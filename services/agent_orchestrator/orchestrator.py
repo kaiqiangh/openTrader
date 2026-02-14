@@ -13,6 +13,7 @@ from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
+from services.simulation_execution.mode_routing import assert_no_mode_leakage, route_execution_intent
 from services.shared.contracts.message_envelope import validate_envelope
 
 
@@ -369,6 +370,8 @@ class AgentOrchestrator:
                     },
                 },
             )
+            routing_key = route_execution_intent(execution_intent)
+            assert_no_mode_leakage(routing_key=routing_key, envelope=execution_intent)
             lifecycle.append(
                 self._build_envelope(
                     trace_id=trace_id,
@@ -379,13 +382,13 @@ class AgentOrchestrator:
                     payload={
                         "strategy_id": strategy.strategy_id,
                         "symbol": market_context["symbol"],
-                        "routing_key": self._routing_key_for_mode(mode),
+                        "routing_key": routing_key,
                         "action": execution_decision.action,
                     },
                 )
             )
             await self.publisher.publish(
-                routing_key=self._routing_key_for_mode(mode),
+                routing_key=routing_key,
                 message=execution_intent,
             )
 
@@ -457,15 +460,6 @@ class AgentOrchestrator:
             guardrail=guardrail,
             execution_intent=execution_intent,
         )
-
-    @staticmethod
-    def _routing_key_for_mode(mode: str) -> str:
-        normalized = mode.upper()
-        if normalized == "MOCK":
-            return "execution.intent.mock"
-        if normalized == "REAL":
-            return "execution.intent.real"
-        raise ValueError(f"Unsupported mode for routing key: {mode}")
 
     def _build_envelope(
         self,
