@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Mapping
+
+from services.oms.position_engine import PositionState
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioSnapshot:
+    snapshot_time: str
+    mode: str
+    total_balance_usd: float
+    available_balance_usd: float
+    locked_balance_usd: float
+    unrealized_pnl: float
+    realized_pnl_today: float
+
+
+class PortfolioSnapshotEngineError(ValueError):
+    """Raised when snapshot inputs are incomplete or inconsistent."""
+
+
+class PortfolioSnapshotEngine:
+    """Builds mode-tagged portfolio snapshots from balances and marked positions."""
+
+    def build_snapshot(
+        self,
+        *,
+        mode: str,
+        available_balance_usd: float,
+        locked_balance_usd: float,
+        positions: tuple[PositionState, ...],
+        mark_prices: Mapping[str, float],
+        realized_pnl_today: float | None = None,
+        snapshot_time: str | None = None,
+    ) -> PortfolioSnapshot:
+        unrealized_pnl = 0.0
+        realized_from_positions = 0.0
+        normalized_mode = mode.strip().upper()
+
+        for position in positions:
+            if position.mode.strip().upper() != normalized_mode:
+                raise PortfolioSnapshotEngineError(
+                    f"position mode mismatch: expected {normalized_mode}, got {position.mode}"
+                )
+
+            realized_from_positions += float(position.realized_pnl)
+            if abs(float(position.quantity)) <= 1e-9:
+                continue
+
+            mark_price = mark_prices.get(position.symbol)
+            if mark_price is None:
+                raise PortfolioSnapshotEngineError(
+                    f"missing mark price for open position symbol: {position.symbol}"
+                )
+            unrealized_pnl += (float(mark_price) - float(position.average_entry_price)) * float(position.quantity)
+
+        realized_value = (
+            float(realized_pnl_today) if realized_pnl_today is not None else float(realized_from_positions)
+        )
+        available = float(available_balance_usd)
+        locked = float(locked_balance_usd)
+        total = available + locked + unrealized_pnl
+
+        return PortfolioSnapshot(
+            snapshot_time=snapshot_time or _utc_now_iso(),
+            mode=normalized_mode,
+            total_balance_usd=total,
+            available_balance_usd=available,
+            locked_balance_usd=locked,
+            unrealized_pnl=unrealized_pnl,
+            realized_pnl_today=realized_value,
+        )
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
