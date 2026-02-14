@@ -7,9 +7,6 @@ Create Date: 2026-02-14 11:20:06.094805
 
 from __future__ import annotations
 
-from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision = 'c034098f085b'
