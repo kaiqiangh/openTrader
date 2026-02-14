@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Final
+import uuid
 
 from services.oms.risk_controls import RiskControlEvent
 from services.oms.risk_policy import RiskPolicyDecision
 from services.oms.risk_rules import ProposedOrder
+from services.shared.contracts.message_envelope import validate_envelope
 
 _CRITICAL_BLOCKERS: Final[frozenset[str]] = frozenset({"kill_switch", "circuit_breaker"})
 _WARNING_BLOCKERS: Final[frozenset[str]] = frozenset(
@@ -44,6 +46,7 @@ class RiskObservabilityCollector:
         self._blocked_by: dict[str, int] = {}
         self._control_events: dict[str, int] = {}
         self._events: list[RiskObservabilityEvent] = []
+        self._notification_events: list[dict[str, Any]] = []
 
     def record_policy_decision(
         self,
@@ -85,6 +88,20 @@ class RiskObservabilityCollector:
             },
         )
         self._events.append(event)
+        if not decision.allowed:
+            self._notification_events.append(
+                _build_notification_envelope(
+                    event=event,
+                    mode=order.mode,
+                    payload={
+                        "source_event_type": event.event_type,
+                        "blocked_by": list(decision.blocked_by),
+                        "strategy_id": strategy_id,
+                        "symbol": order.symbol,
+                        "severity": event.severity,
+                    },
+                )
+            )
 
     def record_control_events(self, *, events: tuple[RiskControlEvent, ...]) -> None:
         if not events:
@@ -108,6 +125,20 @@ class RiskObservabilityCollector:
                         "reason": event.reason,
                         "actor": event.actor,
                         "metadata": dict(event.metadata),
+                    },
+                )
+            )
+            self._notification_events.append(
+                _build_notification_envelope(
+                    event=self._events[-1],
+                    mode="REAL",
+                    payload={
+                        "source_event_type": event.event_type,
+                        "control": event.control,
+                        "status": event.status,
+                        "reason": event.reason,
+                        "actor": event.actor,
+                        "severity": _control_severity(event.event_type),
                     },
                 )
             )
@@ -136,6 +167,20 @@ class RiskObservabilityCollector:
         self._events.clear()
         return drained
 
+    def drain_notification_events(self, *, mode: str) -> tuple[dict[str, Any], ...]:
+        normalized_mode = mode.strip().upper()
+        if normalized_mode not in {"MOCK", "REAL"}:
+            raise ValueError("mode must be MOCK or REAL")
+
+        drained = []
+        for envelope in self._notification_events:
+            current = dict(envelope)
+            current["mode"] = normalized_mode
+            validate_envelope(current)
+            drained.append(current)
+        self._notification_events.clear()
+        return tuple(drained)
+
 
 def _policy_severity(blocked_by: tuple[str, ...]) -> str:
     if not blocked_by:
@@ -159,3 +204,38 @@ def _control_severity(event_type: str) -> str:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _build_notification_envelope(
+    *,
+    event: RiskObservabilityEvent,
+    mode: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    trace_id = _safe_uuid(event.trace_id, namespace="risk-trace")
+    decision_id = _safe_uuid(event.decision_id, namespace="risk-decision")
+    envelope = {
+        "trace_id": trace_id,
+        "decision_id": decision_id,
+        "mode": mode if mode in {"MOCK", "REAL"} else "REAL",
+        "idempotency_key": (
+            f"notify:risk:{event.event_type}:{decision_id}:{event.occurred_at}:{uuid.uuid4()}"
+        ),
+        "event_type": "notify.risk.event",
+        "severity": event.severity,
+        "emitted_at": event.occurred_at,
+        "payload": payload,
+        "service": "risk_observability",
+    }
+    validate_envelope(envelope)
+    return envelope
+
+
+def _safe_uuid(value: str | None, *, namespace: str) -> str:
+    if value:
+        try:
+            uuid.UUID(value)
+            return value
+        except ValueError:
+            pass
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{namespace}:{value or 'none'}"))

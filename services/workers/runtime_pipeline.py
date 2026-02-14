@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import uuid
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
 from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
+from services.notification_service.publishers import NotificationEventBridge
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,21 +26,35 @@ class MarketIngestionRuntimeWorker:
         symbol: str,
         mode: str,
         depth: int = 200,
+        notification_bridge: NotificationEventBridge | None = None,
     ) -> None:
         self.adapter = adapter
         self.pipeline = pipeline
         self.symbol = symbol
         self.mode = mode
         self.depth = depth
+        self.notification_bridge = notification_bridge
         self._bootstrapped = False
 
     async def run_once(self) -> dict[str, Any]:
-        if not self._bootstrapped:
-            await self.adapter.bootstrap_snapshot(self.symbol, limit=self.depth)
-            self._bootstrapped = True
+        try:
+            if not self._bootstrapped:
+                await self.adapter.bootstrap_snapshot(self.symbol, limit=self.depth)
+                self._bootstrapped = True
 
-        delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
-        return await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
+            delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
+            return await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
+        except Exception as exc:  # noqa: BLE001 - runtime worker preserves failure propagation
+            if self.notification_bridge is not None:
+                await self.notification_bridge.publish_system_health_event(
+                    trace_id=str(uuid.uuid4()),
+                    mode=self.mode,
+                    event_type="system.exchange.connectivity_issue",
+                    severity="CRITICAL",
+                    reason=exc.__class__.__name__,
+                    details={"symbol": self.symbol, "error": str(exc)},
+                )
+            raise
 
 
 class AgentOrchestratorRuntimeWorker:
