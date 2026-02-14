@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+import time
 from typing import Any, Mapping, Protocol
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
+from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
@@ -28,7 +31,9 @@ class AgentOrchestrator:
         market_context_agent: MarketContextAgent | None = None,
         guardrail_validation_layer: GuardrailValidationLayer | None = None,
         memory_layer: AgentMemoryLayer | None = None,
+        metrics: AgentRuntimeMetrics | None = None,
         service_name: str = "agent_orchestrator",
+        monotonic_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.publisher = publisher
         self.planner_agent = planner_agent or PlannerAgent()
@@ -37,7 +42,9 @@ class AgentOrchestrator:
         self.market_context_agent = market_context_agent or MarketContextAgent()
         self.guardrail_validation_layer = guardrail_validation_layer or GuardrailValidationLayer()
         self.memory_layer = memory_layer or AgentMemoryLayer()
+        self.metrics = metrics or AgentRuntimeMetrics()
         self.service_name = service_name
+        self._monotonic_clock = monotonic_clock
 
     async def handle_market_event(
         self,
@@ -52,14 +59,26 @@ class AgentOrchestrator:
         mode = str(envelope["mode"])
         trace_id = str(envelope["trace_id"])
         decision_id = str(envelope["decision_id"])
-        await self.memory_layer.read_decision_memory(
-            mode=mode,
-            strategy_id=strategy.strategy_id,
+        await self._run_async_stage(
+            stage="memory_read",
+            trace_id=trace_id,
             decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.memory_layer.read_decision_memory(
+                mode=mode,
+                strategy_id=strategy.strategy_id,
+                decision_id=decision_id,
+            ),
         )
-        context_output = self.market_context_agent.enrich(
-            payload=envelope["payload"],
-            strategy=strategy,
+        context_output = self._run_sync_stage(
+            stage="market_context_agent",
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.market_context_agent.enrich(
+                payload=envelope["payload"],
+                strategy=strategy,
+            ),
         )
         market_context = context_output.context
         await self.memory_layer.write_decision_slot(
@@ -76,7 +95,16 @@ class AgentOrchestrator:
             },
         )
 
-        plan = self.planner_agent.build_plan(market_context=market_context, strategy=strategy)
+        plan = self._run_sync_stage(
+            stage="planner_agent",
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.planner_agent.build_plan(
+                market_context=market_context,
+                strategy=strategy,
+            ),
+        )
         await self.memory_layer.write_decision_slot(
             mode=mode,
             strategy_id=strategy.strategy_id,
@@ -90,7 +118,17 @@ class AgentOrchestrator:
                 "metrics": plan.metrics,
             },
         )
-        risk = self.risk_agent.evaluate(plan=plan, market_context=market_context, strategy=strategy)
+        risk = self._run_sync_stage(
+            stage="risk_agent",
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.risk_agent.evaluate(
+                plan=plan,
+                market_context=market_context,
+                strategy=strategy,
+            ),
+        )
         await self.memory_layer.write_decision_slot(
             mode=mode,
             strategy_id=strategy.strategy_id,
@@ -113,11 +151,17 @@ class AgentOrchestrator:
                 ],
             },
         )
-        execution_decision = self.execution_decision_agent.propose_action(
-            plan=plan,
-            risk=risk,
-            market_context=market_context,
-            strategy=strategy,
+        execution_decision = self._run_sync_stage(
+            stage="execution_decision_agent",
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.execution_decision_agent.propose_action(
+                plan=plan,
+                risk=risk,
+                market_context=market_context,
+                strategy=strategy,
+            ),
         )
         await self.memory_layer.write_decision_slot(
             mode=mode,
@@ -132,12 +176,18 @@ class AgentOrchestrator:
                 "constraints": execution_decision.constraints,
             },
         )
-        guardrail = self.guardrail_validation_layer.validate(
-            strategy=strategy,
-            market_context=market_context,
-            plan=plan,
-            risk=risk,
-            decision=execution_decision,
+        guardrail = self._run_sync_stage(
+            stage="guardrail_validation",
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            operation=lambda: self.guardrail_validation_layer.validate(
+                strategy=strategy,
+                market_context=market_context,
+                plan=plan,
+                risk=risk,
+                decision=execution_decision,
+            ),
         )
         await self.memory_layer.write_decision_slot(
             mode=mode,
@@ -339,47 +389,53 @@ class AgentOrchestrator:
                 message=execution_intent,
             )
 
-        await self.memory_layer.persist_decision_summary(
+        await self._run_async_stage(
+            stage="memory_persist",
             trace_id=trace_id,
             decision_id=decision_id,
-            strategy_id=strategy.strategy_id,
             mode=mode,
-            status=status,
-            market_context=market_context,
-            plan={
-                "action": plan.action,
-                "confidence": plan.confidence,
-                "target_quantity": plan.target_quantity,
-                "rationale": list(plan.rationale),
-                "metrics": plan.metrics,
-            },
-            risk={
-                "approved": risk.approved,
-                "approved_quantity": risk.approved_quantity,
-                "blocked_by": list(risk.blocked_by),
-                "risk_score": risk.risk_score,
-            },
-            execution_decision={
-                "action": execution_decision.action,
-                "quantity": execution_decision.quantity,
-                "confidence": execution_decision.confidence,
-                "rationale": list(execution_decision.rationale),
-                "constraints": execution_decision.constraints,
-            },
-            guardrail={
-                "allowed": guardrail.allowed,
-                "blocked_by": list(guardrail.blocked_by),
-                "checks": guardrail.checks,
-                "violations": [
-                    {
-                        "code": violation.code,
-                        "message": violation.message,
-                        "details": violation.details,
-                    }
-                    for violation in guardrail.violations
-                ],
-            },
-            lifecycle=tuple(lifecycle),
+            operation=lambda: self.memory_layer.persist_decision_summary(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                strategy_id=strategy.strategy_id,
+                mode=mode,
+                status=status,
+                market_context=market_context,
+                plan={
+                    "action": plan.action,
+                    "confidence": plan.confidence,
+                    "target_quantity": plan.target_quantity,
+                    "rationale": list(plan.rationale),
+                    "metrics": plan.metrics,
+                },
+                risk={
+                    "approved": risk.approved,
+                    "approved_quantity": risk.approved_quantity,
+                    "blocked_by": list(risk.blocked_by),
+                    "risk_score": risk.risk_score,
+                },
+                execution_decision={
+                    "action": execution_decision.action,
+                    "quantity": execution_decision.quantity,
+                    "confidence": execution_decision.confidence,
+                    "rationale": list(execution_decision.rationale),
+                    "constraints": execution_decision.constraints,
+                },
+                guardrail={
+                    "allowed": guardrail.allowed,
+                    "blocked_by": list(guardrail.blocked_by),
+                    "checks": guardrail.checks,
+                    "violations": [
+                        {
+                            "code": violation.code,
+                            "message": violation.message,
+                            "details": violation.details,
+                        }
+                        for violation in guardrail.violations
+                    ],
+                },
+                lifecycle=tuple(lifecycle),
+            ),
         )
 
         for lifecycle_event in lifecycle:
@@ -433,3 +489,65 @@ class AgentOrchestrator:
         }
         validate_envelope(envelope)
         return envelope
+
+    def _run_sync_stage(
+        self,
+        *,
+        stage: str,
+        trace_id: str,
+        decision_id: str,
+        mode: str,
+        operation: Callable[[], Any],
+    ) -> Any:
+        started = self._monotonic_clock()
+        try:
+            result = operation()
+        except Exception as exc:  # noqa: BLE001 - stage wrapper records all runtime failures
+            self.metrics.record_stage_failure(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                stage=stage,
+                latency_ms=(self._monotonic_clock() - started) * 1000.0,
+                error_type=exc.__class__.__name__,
+            )
+            raise
+        self.metrics.record_stage_success(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            stage=stage,
+            latency_ms=(self._monotonic_clock() - started) * 1000.0,
+        )
+        return result
+
+    async def _run_async_stage(
+        self,
+        *,
+        stage: str,
+        trace_id: str,
+        decision_id: str,
+        mode: str,
+        operation: Callable[[], Awaitable[Any]],
+    ) -> Any:
+        started = self._monotonic_clock()
+        try:
+            result = await operation()
+        except Exception as exc:  # noqa: BLE001 - stage wrapper records all runtime failures
+            self.metrics.record_stage_failure(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                stage=stage,
+                latency_ms=(self._monotonic_clock() - started) * 1000.0,
+                error_type=exc.__class__.__name__,
+            )
+            raise
+        self.metrics.record_stage_success(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            mode=mode,
+            stage=stage,
+            latency_ms=(self._monotonic_clock() - started) * 1000.0,
+        )
+        return result
