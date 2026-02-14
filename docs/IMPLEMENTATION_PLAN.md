@@ -56,6 +56,7 @@ Use this exact format in each update:
 | 13   | 2026-02-14 | P3-006 | - | - | LLM gateway skeleton delivered with timeout/retry/fallback contracts; tests green | 90% |
 | 14   | 2026-02-14 | P3-007 | - | - | LLM prompt/response persistence with token/cost/latency audit records delivered; tests green | 93% |
 | 15   | 2026-02-14 | P3-008 | - | - | Hard-limit token/cost quota enforcement delivered with quota-blocked audit records; tests green | 96% |
+| 16   | 2026-02-14 | P3-009 | - | - | Guardrail validation layer delivered with pre-publish gating and structured violations; tests green | 99% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -191,6 +192,15 @@ Use this exact format in each update:
 - New Risks/Blockers: No new blockers identified.
 - Next Task IDs: [P3-009, P3-010, P3-011]
 - Overall Progress: 96%
+
+### Turn Update 2026-02-14 14:45
+
+- Completed Task IDs: [P3-009]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P3-010, P3-011, P3-012]
+- Overall Progress: 99%
 
 ## 2. Milestone Roadmap (Multi-Phase)
 
@@ -328,7 +338,7 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 | P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | DONE |
 | P3-007 | P0  | Prompt/response persistence | Persist full prompt and full response with tokens/cost/latency/trace IDs          | P1-006,P3-006        | Complete LLM audit trail                 | DONE |
 | P3-008 | P0  | Token quota enforcement     | Enforce per-agent/per-strategy daily token + monthly cost hard limits             | P1-006,P3-006        | Quota guardrails                         | DONE |
-| P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | NOT_STARTED |
+| P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | DONE |
 | P3-010 | P1  | Memory layer integration    | Implement short-term Redis memory and long-term Postgres memory writes/reads      | P1-005,P1-010        | Shared memory system                     | NOT_STARTED |
 | P3-011 | P1  | Replay service              | Reconstruct decision graph and payloads from persisted traces                     | P3-007,P1-005        | Deterministic replay API/service         | NOT_STARTED |
 | P3-012 | P1  | Agent metrics/tracing       | Instrument agent latencies, failure rates, token consumption                      | P3-001               | Observability for agent runtime          | NOT_STARTED |
@@ -616,6 +626,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P3-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P3-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P3-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -627,6 +638,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P3-009` guardrail validation layer for action/risk/schema constraints.
-2. Start `P3-010` memory layer integration with Redis short-term + Postgres long-term paths.
-3. Start `P3-011` replay service for deterministic decision reconstruction.
+1. Start `P3-010` memory layer integration with Redis short-term + Postgres long-term paths.
+2. Start `P3-011` replay service for deterministic decision reconstruction.
+3. Start `P3-012` agent metrics and tracing baseline.
