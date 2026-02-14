@@ -1,0 +1,718 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+
+const h = React.createElement;
+const requestCache = new Map();
+const TOKEN_STORAGE_KEY = "openTraderJWT";
+
+function safeReadToken() {
+  try {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveToken(token) {
+  try {
+    if (!token) {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Ignore local storage failures in restricted environments.
+  }
+}
+
+function buildQuery(params) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      query.set(key, String(value));
+    }
+  });
+  const encoded = query.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
+async function apiFetchJson(path, { token, method = "GET", body, dedupe = method === "GET" } = {}) {
+  const cacheKey = `${method}:${path}:${body ? JSON.stringify(body) : ""}`;
+  if (dedupe && requestCache.has(cacheKey)) {
+    return requestCache.get(cacheKey);
+  }
+
+  const headers = { Accept: "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const task = fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }).then(async (response) => {
+    const raw = await response.text();
+    let payload = null;
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        payload = { detail: raw };
+      }
+    }
+
+    if (!response.ok) {
+      const detail = payload && payload.detail ? payload.detail : `${response.status} ${response.statusText}`;
+      throw new Error(String(detail));
+    }
+    return payload || {};
+  });
+
+  if (dedupe) {
+    requestCache.set(cacheKey, task);
+  }
+
+  try {
+    return await task;
+  } finally {
+    if (dedupe) {
+      requestCache.delete(cacheKey);
+    }
+  }
+}
+
+function SectionCard({ title, subtitle, children }) {
+  return h(
+    "section",
+    { className: "panel-card" },
+    h("header", { className: "panel-header" }, h("h2", null, title), subtitle ? h("p", null, subtitle) : null),
+    h("div", { className: "panel-body" }, children)
+  );
+}
+
+function KeyStat({ label, value }) {
+  return h("div", { className: "key-stat" }, h("span", { className: "stat-label" }, label), h("strong", null, value));
+}
+
+function JsonBlock({ value }) {
+  const formatted = useMemo(() => JSON.stringify(value, null, 2), [value]);
+  return h("pre", { className: "json-block" }, formatted);
+}
+
+function HomeView() {
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "Operator Workspace",
+        subtitle: "Use these focused panels for governance, replay explainability, and mode controls.",
+      },
+      h(
+        "ul",
+        { className: "link-list" },
+        h("li", null, h("a", { href: "/dashboard/governance" }, "P7-007 Token Usage Dashboard")),
+        h("li", null, h("a", { href: "/dashboard/replay" }, "P7-008 Prompt/Response Inspector")),
+        h("li", null, h("a", { href: "/dashboard/mode" }, "P7-009 Trading Mode Panel"))
+      )
+    )
+  );
+}
+
+function StatusView({ token }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [readiness, setReadiness] = useState(null);
+  const [riskStatus, setRiskStatus] = useState(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const tasks = [apiFetchJson("/health/readiness")];
+      if (token) {
+        tasks.push(apiFetchJson("/ops/risk/status", { token }));
+      }
+      const [ready, risk] = await Promise.all(tasks);
+      setReadiness(ready);
+      setRiskStatus(risk || null);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      { title: "System Status", subtitle: "FastAPI readiness and risk-control summary." },
+      loading
+        ? h("p", { className: "muted" }, "Loading status...")
+        : h(
+            "div",
+            { className: "stats-grid" },
+            h(KeyStat, { label: "Readiness", value: readiness ? readiness.status : "unknown" }),
+            h(KeyStat, { label: "Mode", value: readiness ? readiness.mode : "unknown" }),
+            h(KeyStat, {
+              label: "Kill Switch",
+              value: riskStatus ? String(riskStatus.kill_switch_enabled) : "n/a",
+            }),
+            h(KeyStat, {
+              label: "Circuit Breaker",
+              value: riskStatus ? String(riskStatus.circuit_breaker_open) : "n/a",
+            })
+          ),
+      h("div", { className: "button-row" }, h("button", { type: "button", onClick: () => void reload() }, "Refresh")),
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
+function GovernanceView({ token }) {
+  const [strategyInput, setStrategyInput] = useState("");
+  const [agentInput, setAgentInput] = useState("");
+  const [filters, setFilters] = useState({ strategy_id: "", agent_name: "" });
+  const [usageItems, setUsageItems] = useState([]);
+  const [breachItems, setBreachItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [refreshSeed, setRefreshSeed] = useState(0);
+  const [isPending, startTransition] = useTransition();
+
+  const load = useCallback(async () => {
+    if (!token) {
+      setError("Set JWT token to load governance data.");
+      setUsageItems([]);
+      setBreachItems([]);
+      return;
+    }
+
+    const query = buildQuery(filters);
+    setLoading(true);
+    setError("");
+    try {
+      const [usagePayload, breachPayload] = await Promise.all([
+        apiFetchJson(`/governance/llm/usage${query}`, { token }),
+        apiFetchJson(`/governance/llm/breaches${query}`, { token }),
+      ]);
+      setUsageItems(Array.isArray(usagePayload.items) ? usagePayload.items : []);
+      setBreachItems(Array.isArray(breachPayload.items) ? breachPayload.items : []);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setUsageItems([]);
+      setBreachItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filters]);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshSeed]);
+
+  const applyFilters = () => {
+    startTransition(() => {
+      setFilters({ strategy_id: strategyInput.trim(), agent_name: agentInput.trim() });
+      setRefreshSeed((value) => value + 1);
+    });
+  };
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "Token Usage Dashboard",
+        subtitle: "Per strategy/agent token, cost, and quota utilization.",
+      },
+      h(
+        "div",
+        { className: "filter-row" },
+        h("input", {
+          type: "text",
+          placeholder: "strategy_id (optional)",
+          value: strategyInput,
+          onChange: (event) => setStrategyInput(event.target.value),
+        }),
+        h("input", {
+          type: "text",
+          placeholder: "agent_name (optional)",
+          value: agentInput,
+          onChange: (event) => setAgentInput(event.target.value),
+        }),
+        h("button", { type: "button", onClick: applyFilters, disabled: loading || isPending }, "Apply"),
+        h(
+          "button",
+          {
+            type: "button",
+            onClick: () => startTransition(() => setRefreshSeed((value) => value + 1)),
+            disabled: loading || isPending,
+          },
+          "Refresh"
+        )
+      ),
+      loading
+        ? h("p", { className: "muted" }, "Loading governance data...")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h(
+                  "tr",
+                  null,
+                  h("th", null, "Strategy"),
+                  h("th", null, "Agent"),
+                  h("th", null, "Daily Tokens"),
+                  h("th", null, "Daily Limit"),
+                  h("th", null, "Monthly Cost"),
+                  h("th", null, "Monthly Limit"),
+                  h("th", null, "Breaches")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                usageItems.map((item) =>
+                  h(
+                    "tr",
+                    { key: `${item.strategy_id}-${item.agent_name}`, className: "virtual-row" },
+                    h("td", null, item.strategy_id),
+                    h("td", null, item.agent_name),
+                    h("td", null, String(item.daily_tokens)),
+                    h("td", null, String(item.daily_token_limit ?? "-")),
+                    h("td", null, Number(item.monthly_cost).toFixed(6)),
+                    h("td", null, String(item.monthly_cost_limit ?? "-")),
+                    h("td", null, String(item.breach_count))
+                  )
+                )
+              )
+            )
+          ),
+      h("h3", null, "Recent Breaches"),
+      h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", null, "Created At"),
+              h("th", null, "Strategy"),
+              h("th", null, "Agent"),
+              h("th", null, "Reason"),
+              h("th", null, "Decision")
+            )
+          ),
+          h(
+            "tbody",
+            null,
+            breachItems.map((item) =>
+              h(
+                "tr",
+                { key: item.llm_call_id, className: "virtual-row" },
+                h("td", null, item.created_at),
+                h("td", null, item.strategy_id),
+                h("td", null, item.agent_name),
+                h("td", null, item.reason),
+                h("td", null, item.decision_id)
+              )
+            )
+          )
+        )
+      ),
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
+function ReplayView({ token }) {
+  const [decisionIdInput, setDecisionIdInput] = useState("");
+  const [requestIdInput, setRequestIdInput] = useState("");
+  const [decisionPayload, setDecisionPayload] = useState(null);
+  const [requestPayload, setRequestPayload] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadDecision = useCallback(async () => {
+    if (!token || !decisionIdInput.trim()) {
+      setError("Provide JWT token and decision_id.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await apiFetchJson(`/replay/decisions/${encodeURIComponent(decisionIdInput.trim())}`, { token });
+      setDecisionPayload(payload);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setDecisionPayload(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, decisionIdInput]);
+
+  const loadRequest = useCallback(async () => {
+    if (!token || !requestIdInput.trim()) {
+      setError("Provide JWT token and request_id.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await apiFetchJson(`/replay/requests/${encodeURIComponent(requestIdInput.trim())}`, { token });
+      setRequestPayload(payload);
+      setDecisionPayload(payload.result || null);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [token, requestIdInput]);
+
+  const submitReplayRequest = useCallback(async () => {
+    if (!token || !decisionIdInput.trim()) {
+      setError("Provide JWT token and decision_id.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await apiFetchJson("/replay/requests", {
+        token,
+        method: "POST",
+        body: { decision_id: decisionIdInput.trim() },
+        dedupe: false,
+      });
+      setRequestPayload(payload);
+      setDecisionPayload(payload.result || null);
+      setRequestIdInput(payload.request_id || "");
+    } catch (exc) {
+      setError(String(exc.message || exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [token, decisionIdInput]);
+
+  const llmCalls = useMemo(() => {
+    if (!decisionPayload || !Array.isArray(decisionPayload.llm_calls)) {
+      return [];
+    }
+    return decisionPayload.llm_calls;
+  }, [decisionPayload]);
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "Replay Inspector",
+        subtitle: "Inspect replay results and raw prompt/response payloads by decision.",
+      },
+      h(
+        "div",
+        { className: "filter-row" },
+        h("input", {
+          type: "text",
+          placeholder: "decision_id",
+          value: decisionIdInput,
+          onChange: (event) => setDecisionIdInput(event.target.value),
+        }),
+        h("button", { type: "button", onClick: () => void loadDecision(), disabled: loading }, "Fetch Decision"),
+        h(
+          "button",
+          { type: "button", onClick: () => void submitReplayRequest(), disabled: loading },
+          "Submit Replay Request"
+        )
+      ),
+      h(
+        "div",
+        { className: "filter-row" },
+        h("input", {
+          type: "text",
+          placeholder: "request_id",
+          value: requestIdInput,
+          onChange: (event) => setRequestIdInput(event.target.value),
+        }),
+        h("button", { type: "button", onClick: () => void loadRequest(), disabled: loading }, "Fetch Request")
+      ),
+      loading ? h("p", { className: "muted" }, "Loading replay data...") : null,
+      requestPayload
+        ? h(
+            "div",
+            null,
+            h("h3", null, "Replay Request"),
+            h(JsonBlock, { value: requestPayload })
+          )
+        : null,
+      decisionPayload
+        ? h(
+            "div",
+            null,
+            h("h3", null, "Decision Replay"),
+            h(JsonBlock, { value: decisionPayload })
+          )
+        : null,
+      llmCalls.length > 0
+        ? h(
+            "div",
+            null,
+            h("h3", null, "Prompt / Response Calls"),
+            llmCalls.map((call, index) =>
+              h(
+                "div",
+                { key: `${call.llm_call_id || index}`, className: "llm-call" },
+                h("h4", null, `${call.agent_name || "agent"} :: ${call.model || "model"}`),
+                h("p", { className: "muted" }, `trace_id=${call.trace_id || "n/a"}`),
+                h("div", { className: "json-columns" }, h(JsonBlock, { value: call.prompt_payload }), h(JsonBlock, { value: call.response_payload }))
+              )
+            )
+          )
+        : null,
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
+function ModeView({ token }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mode, setMode] = useState("MOCK");
+  const [reason, setReason] = useState("");
+  const [modePayload, setModePayload] = useState(null);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [strategies, setStrategies] = useState([]);
+  const [refreshSeed, setRefreshSeed] = useState(0);
+
+  const loadModeData = useCallback(async () => {
+    if (!token) {
+      setError("Set JWT token to load mode panel data.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const [currentMode, modeHistory, strategyList] = await Promise.all([
+        apiFetchJson("/control/mode", { token }),
+        apiFetchJson("/control/mode/history?limit=30", { token }),
+        apiFetchJson("/control/strategies", { token }),
+      ]);
+      setModePayload(currentMode);
+      setMode(currentMode.mode || "MOCK");
+      setHistoryItems(Array.isArray(modeHistory.items) ? modeHistory.items : []);
+      setStrategies(Array.isArray(strategyList.items) ? strategyList.items : []);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setModePayload(null);
+      setHistoryItems([]);
+      setStrategies([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadModeData();
+  }, [loadModeData, refreshSeed]);
+
+  const submitModeChange = useCallback(async () => {
+    if (!token) {
+      setError("Set JWT token before sending mode updates.");
+      return;
+    }
+    if (!reason.trim()) {
+      setError("Reason is required for mode updates.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      await apiFetchJson("/control/mode", {
+        token,
+        method: "PUT",
+        body: { mode, reason: reason.trim() },
+        dedupe: false,
+      });
+      setReason("");
+      setRefreshSeed((value) => value + 1);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+    } finally {
+      setLoading(false);
+    }
+  }, [mode, reason, token]);
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      { title: "Trading Mode Control", subtitle: "Display current mode and submit controlled updates." },
+      h(
+        "div",
+        { className: "stats-grid" },
+        h(KeyStat, { label: "Current Mode", value: modePayload ? modePayload.mode : "unknown" }),
+        h(KeyStat, { label: "Last Updated", value: modePayload ? modePayload.updated_at : "unknown" }),
+        h(KeyStat, { label: "Strategies", value: String(strategies.length) })
+      ),
+      h(
+        "div",
+        { className: "filter-row" },
+        h(
+          "select",
+          { value: mode, onChange: (event) => setMode(event.target.value) },
+          h("option", { value: "MOCK" }, "MOCK"),
+          h("option", { value: "REAL" }, "REAL")
+        ),
+        h("input", {
+          type: "text",
+          placeholder: "reason",
+          value: reason,
+          onChange: (event) => setReason(event.target.value),
+        }),
+        h("button", { type: "button", onClick: () => void submitModeChange(), disabled: loading }, "Update Mode"),
+        h("button", { type: "button", onClick: () => setRefreshSeed((value) => value + 1), disabled: loading }, "Refresh")
+      ),
+      loading ? h("p", { className: "muted" }, "Loading mode panel...") : null,
+      h("h3", null, "Mode Audit History"),
+      h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", null, "Changed At"),
+              h("th", null, "Mode"),
+              h("th", null, "Changed By"),
+              h("th", null, "Reason")
+            )
+          ),
+          h(
+            "tbody",
+            null,
+            historyItems.map((item) =>
+              h(
+                "tr",
+                { key: item.event_id, className: "virtual-row" },
+                h("td", null, item.changed_at),
+                h("td", null, item.mode),
+                h("td", null, item.changed_by),
+                h("td", null, item.reason)
+              )
+            )
+          )
+        )
+      ),
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
+function App({ initialView }) {
+  const [token, setToken] = useState(() => safeReadToken());
+  const [tokenInput, setTokenInput] = useState(() => safeReadToken());
+  const [tokenMessage, setTokenMessage] = useState("");
+
+  const setStoredToken = () => {
+    const value = tokenInput.trim();
+    saveToken(value);
+    setToken(value);
+    setTokenMessage(value ? "Token updated." : "Token cleared.");
+  };
+
+  const clearStoredToken = () => {
+    saveToken("");
+    setToken("");
+    setTokenInput("");
+    setTokenMessage("Token cleared.");
+  };
+
+  const body = useMemo(() => {
+    if (initialView === "governance") {
+      return h(GovernanceView, { token });
+    }
+    if (initialView === "replay") {
+      return h(ReplayView, { token });
+    }
+    if (initialView === "mode") {
+      return h(ModeView, { token });
+    }
+    if (initialView === "status") {
+      return h(StatusView, { token });
+    }
+    return h(HomeView);
+  }, [initialView, token]);
+
+  return h(
+    "div",
+    { className: "app-shell" },
+    h(
+      "section",
+      { className: "panel-card token-card" },
+      h("header", { className: "panel-header" }, h("h2", null, "Session Token"), h("p", null, "Paste JWT bearer token for authenticated API calls.")),
+      h(
+        "div",
+        { className: "panel-body" },
+        h(
+          "div",
+          { className: "filter-row" },
+          h("input", {
+            type: "password",
+            placeholder: "JWT token",
+            value: tokenInput,
+            onChange: (event) => setTokenInput(event.target.value),
+          }),
+          h("button", { type: "button", onClick: setStoredToken }, "Save Token"),
+          h("button", { type: "button", onClick: clearStoredToken }, "Clear")
+        ),
+        h("p", { className: "muted" }, token ? "Token is configured." : "No token configured."),
+        tokenMessage ? h("p", { className: "muted" }, tokenMessage) : null
+      )
+    ),
+    body
+  );
+}
+
+const rootNode = document.getElementById("dashboard-root");
+if (rootNode) {
+  const initialView = rootNode.dataset.view || "home";
+  const root = createRoot(rootNode);
+  root.render(h(App, { initialView }));
+}

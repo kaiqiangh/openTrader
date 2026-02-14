@@ -32,6 +32,15 @@ class StrategyRuntimeRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ModeAuditRecord:
+    event_id: str
+    mode: str
+    changed_by: str
+    reason: str
+    changed_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class LLMUsageRecord:
     strategy_id: str
     agent_name: str
@@ -75,6 +84,7 @@ class ReplayRequestRecord:
 class ControlPlaneState:
     mode: str
     strategies: dict[str, StrategyRuntimeRecord] = field(default_factory=dict)
+    mode_history: list[ModeAuditRecord] = field(default_factory=list)
     orders: list[ReconciliationOrder] = field(default_factory=list)
     positions: list[PositionState] = field(default_factory=list)
     portfolio_snapshots: list[PortfolioSnapshot] = field(default_factory=list)
@@ -112,10 +122,24 @@ class ControlPlaneState:
             )
             for strategy_id, record in self.strategies.items()
         }
+        self.mode_history.insert(
+            0,
+            ModeAuditRecord(
+                event_id=str(uuid.uuid4()),
+                mode=normalized_mode,
+                changed_by=actor,
+                reason=reason,
+                changed_at=now,
+            ),
+        )
         return True, now
 
     def list_strategies(self) -> tuple[StrategyRuntimeRecord, ...]:
         return tuple(self.strategies[key] for key in sorted(self.strategies.keys()))
+
+    def list_mode_history(self, *, limit: int = 50) -> tuple[ModeAuditRecord, ...]:
+        safe_limit = max(1, int(limit))
+        return tuple(self.mode_history[:safe_limit])
 
     def set_strategy_state(
         self,
@@ -443,6 +467,15 @@ def build_default_state(*, default_mode: str) -> ControlPlaneState:
     return ControlPlaneState(
         mode=normalized_mode,
         strategies=strategies,
+        mode_history=[
+            ModeAuditRecord(
+                event_id="bootstrap-mode",
+                mode=normalized_mode,
+                changed_by="system",
+                reason="bootstrap",
+                changed_at=now,
+            )
+        ],
         llm_quota_limits=llm_quota_limits,
     )
 
