@@ -78,10 +78,13 @@ Use this exact format in each update:
 | 35   | 2026-02-14 | P7-013,P7-014,P7-015 | - | - | Added Telegram gateway delivery, notification preference CRUD APIs, and hardened dedupe/rate-limit/backoff retry + DLQ behavior with regression coverage; Python/Go suites green | 100% |
 | 36   | 2026-02-14 | P7-016 | - | - | Added notification observability collector, telemetry ops APIs, and dashboard notification panel hooks for metrics/logs/traces; Python/Go suites green | 100% |
 | 37   | 2026-02-14 | P7-017 | - | - | Expanded notification validation suite with dispatcher fault-injection scenarios and publish->deliver integration coverage across bridge/runtime/observability flow; Python/Go suites green | 100% |
-| 38   | 2026-02-14 | P7-018 | - | - | Added notification worker deployment/config wiring with startup validation, compose profile integration, and env/secrets documentation; targeted/full Python suites plus Go tests green | 100% |
+| 38   | 2026-02-14 | P7-018 | - | - | Added notification worker deployment/config wiring with startup validation, compose integration, and env/secrets documentation; targeted/full Python suites plus Go tests green | 100% |
 | 39   | 2026-02-14 | P8-001,P8-002,P8-003 | - | - | Added shared structured logging, Prometheus-compatible metrics exposition, and trace-context propagation baseline across API/notification worker plus Go runtime tracing helpers; Python/Go suites green | 100% |
 | 40   | 2026-02-14 | P8-004,P8-005,P8-006 | - | - | Added compose observability stack configs/services (Prometheus/Grafana/Loki/Tempo/Alertmanager), critical alert rule catalog, and AES-256-GCM encrypted exchange credential store runtime; Python/Go suites green | 100% |
 | 41   | 2026-02-14 | P8-007,P8-008,P8-009 | - | - | Hardened compose network isolation with public/internal split, expanded Phase 8 security validation suite coverage, and added incident runbooks for exchange outage/quota breach/risk events; Python/Go suites green | 100% |
+| 42   | 2026-02-14 | P9-001,P9-002,P9-003 | - | - | Phase 9 validation setup completed; replay determinism and chaos/performance gates queued next | 100% |
+| 43   | 2026-02-14 | - | P9-004 readiness hotfixes | - | Runtime unblockers delivered for notification worker `.env` loading, queue bootstrap behavior, and API bootstrap parity | 100% |
+| 44   | 2026-02-14 | P9 runtime ops unblockers | - | - | Fixed `make env-validate` import path, made `docker compose up -d` start full stack by default, and added `make smoke` comprehensive runtime smoke checks | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -458,6 +461,24 @@ Use this exact format in each update:
 - In Progress Task IDs: [-]
 - Blocked Task IDs: [-]
 - New Risks/Blockers: No new blockers identified; replay determinism and performance/chaos validation remain open release gates for Phase 9.
+- Next Task IDs: [P9-004, P9-005, P9-006]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 23:55
+
+- Completed Task IDs: [-]
+- In Progress Task IDs: [P9-004 readiness hotfixes]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Resolved pre-Phase-9 runtime blockers for notification worker startup, `.env` loading, and API/uvicorn local bootstrap; migration fallback now works for network reachability but existing Postgres credential drift on reused volumes still requires local operator reset/alignment.
+- Next Task IDs: [P9-004, P9-005, P9-006]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 23:59
+
+- Completed Task IDs: [P9 runtime ops unblockers]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: `make env-validate` import-path issue resolved; `docker compose up -d` now starts full service stack by default; comprehensive smoke runner (`make smoke`) added and passing. Remaining non-code operational caveat is optional Postgres volume credential drift during migration fallback on reused local volumes.
 - Next Task IDs: [P9-004, P9-005, P9-006]
 - Overall Progress: 100%
 

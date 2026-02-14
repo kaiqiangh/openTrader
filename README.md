@@ -27,6 +27,12 @@ Use this sequence from the project root:
 - `cp .env.example .env` (first time only)
 - `make env-validate`
 
+The runtime settings loaders now auto-read `.env` from the current working directory for:
+
+- `services/api/settings.py`
+- `services/notification_service/settings.py`
+- `migrations/env.py`
+
 4. Run tooling through uv:
 
 - `uv run ruff check .`
@@ -85,9 +91,9 @@ The Phase 1 baseline is configured with Docker Compose:
 
 Useful commands:
 
-1. `docker compose up -d postgres_timescaledb redis rabbitmq`
+1. `docker compose up -d` (starts full local stack, including observability and notification worker)
 2. `docker compose ps`
-3. `make migrate-up`
+3. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
 4. `make migrate-revision MSG='create_initial_tables'`
 
 Notification worker runtime (`P7-018`) commands:
@@ -95,11 +101,15 @@ Notification worker runtime (`P7-018`) commands:
 1. Startup validation only:
    - `uv run python -m services.notification_service.worker --validate-only`
 2. Run one polling cycle locally:
-   - `uv run python -m services.notification_service.worker --once`
-3. Run with Docker Compose profile:
-   - `docker compose --profile notification up -d notification_worker rabbitmq`
+   - `NOTIFY_CONSUMER_BACKEND=inmemory uv run python -m services.notification_service.worker --once`
+3. Run with Docker Compose service targets:
+   - `docker compose up -d notification_worker rabbitmq`
 4. Deployment/secrets reference:
    - `docs/notification_worker_deployment.md`
+
+Smoke test command:
+
+- `make smoke`
 
 Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
 
@@ -113,8 +123,8 @@ Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
 
 Phase 8 observability stack + security (`P8-004`/`P8-005`/`P8-006`) commands:
 
-1. Start observability profile:
-   - `docker compose --profile observability up -d prometheus grafana loki tempo alertmanager`
+1. Start observability stack (or run full stack with `docker compose up -d`):
+   - `docker compose up -d prometheus grafana loki tempo alertmanager`
 2. Validate stack endpoints:
    - `docker compose exec prometheus wget -qO- http://localhost:9090/-/ready || true`
    - `curl -s http://127.0.0.1:3000/api/health`
