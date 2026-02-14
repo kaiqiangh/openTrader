@@ -188,3 +188,81 @@ class RiskControlActionResponse(BaseModel):
     changed_by: str
     occurred_at: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LLMUsageRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: str
+    agent_name: str
+    daily_tokens: int
+    monthly_cost: float
+    total_calls: int
+    breach_count: int
+    daily_token_limit: int | None
+    monthly_cost_limit: float | None
+    is_hard_limit: bool
+    daily_utilization_ratio: float | None
+    monthly_utilization_ratio: float | None
+    window_date: str
+    window_month: str
+
+
+class LLMUsageListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[LLMUsageRecordResponse]
+
+
+class LLMBreachRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    llm_call_id: str
+    strategy_id: str
+    agent_name: str
+    trace_id: str
+    decision_id: str
+    reason: str
+    projected_tokens: int | None
+    projected_cost: float | None
+    created_at: str
+
+
+class LLMBreachListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[LLMBreachRecordResponse]
+
+
+class ReplayRequestCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str = Field(min_length=1)
+
+
+class ReplayDecisionResultResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    trace_id: str
+    strategy_id: str
+    mode: str
+    status: str
+    summary: dict[str, Any]
+    lifecycle: list[dict[str, Any]]
+    agent_runs: list[dict[str, Any]]
+    llm_calls: list[dict[str, Any]]
+    graph_nodes: list[dict[str, Any]]
+    graph_edges: list[dict[str, Any]]
+    deterministic_digest: str
+
+
+class ReplayRequestResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    decision_id: str
+    status: str
+    requested_by: str
+    requested_at: str
+    result: ReplayDecisionResultResponse
