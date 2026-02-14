@@ -47,6 +47,7 @@ Use this exact format in each update:
 | 4    | 2026-02-14 | P1-005 | P1-001 | P0-003 | Agent trace schema migration delivered; tests green | 26% |
 | 5    | 2026-02-14 | P1-001,P0-003,P1-006 | - | - | Runtime verification succeeded; Go tests unblocked locally; LLM governance schema added | 36% |
 | 6    | 2026-02-14 | P1-007,P1-009,P1-010 | - | - | News schema, envelope contract, and Redis namespace strategy delivered; tests green | 45% |
+| 7    | 2026-02-14 | P2-001,P2-002,P2-003 | - | - | Ingestion adapter, resilience manager, and orderbook sync engine delivered; tests green | 54% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -102,13 +103,22 @@ Use this exact format in each update:
 - Next Task IDs: [P2-001, P2-002, P2-003]
 - Overall Progress: 45%
 
+### Turn Update 2026-02-14 12:29
+
+- Completed Task IDs: [P2-001, P2-002, P2-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P2-004, P2-005, P2-006]
+- Overall Progress: 54%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
 | ----- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- | ----------- |
 | 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | DONE |
 | 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | DONE |
-| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | NOT_STARTED |
+| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | IN_PROGRESS |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | NOT_STARTED |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
@@ -202,9 +212,9 @@ Build resilient exchange ingestion and data integrity controls (resync, gap dete
 
 | ID     | Pri | Task                             | Actionable Steps                                                                    | Dependencies  | Deliverable                      | Status      |
 | ------ | --- | -------------------------------- | ----------------------------------------------------------------------------------- | ------------- | -------------------------------- | ----------- |
-| P2-001 | P0  | CCXT Pro ingestion adapter       | Build exchange clients for WS + REST snapshot bootstrap                             | P1-008        | Unified ingestion adapters       | NOT_STARTED |
-| P2-002 | P0  | Connection resilience            | Implement heartbeat, stale detection, reconnect with exponential backoff and jitter | P2-001        | Stable connection manager        | NOT_STARTED |
-| P2-003 | P0  | Order book sync engine           | Snapshot + delta apply logic with sequence handling                                 | P2-001        | Consistent local order books     | NOT_STARTED |
+| P2-001 | P0  | CCXT Pro ingestion adapter       | Build exchange clients for WS + REST snapshot bootstrap                             | P1-008        | Unified ingestion adapters       | DONE |
+| P2-002 | P0  | Connection resilience            | Implement heartbeat, stale detection, reconnect with exponential backoff and jitter | P2-001        | Stable connection manager        | DONE |
+| P2-003 | P0  | Order book sync engine           | Snapshot + delta apply logic with sequence handling                                 | P2-001        | Consistent local order books     | DONE |
 | P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | NOT_STARTED |
 | P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | NOT_STARTED |
 | P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | NOT_STARTED |
@@ -509,7 +519,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P1-008  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P1-009  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P1-010  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
-| P2-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P2-001  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-002  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P2-003  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -522,6 +534,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P2-001` CCXT Pro ingestion adapter scaffolding.
-2. Start `P2-002` connection resilience manager design + tests.
-3. Start `P2-003` order book sync engine sequence model.
+1. Start `P2-004` gap detection module tied to sequence-gap events.
+2. Start `P2-005` k-line reconstruction validator.
+3. Start `P2-006` canonical normalization pipeline to publish `market.canonical`.

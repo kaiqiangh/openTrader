@@ -42,6 +42,14 @@ Redis keyspace strategy:
 - `config/redis/namespaces.json` (machine-readable namespace/TTL spec)
 - `docs/redis_namespace_strategy.md` (operator guide)
 
+Phase 2 market ingestion foundation:
+
+- `services/market_ingestion/exchange_adapter.py` (CCXT-style adapter + snapshot bootstrap)
+- `services/market_ingestion/connection_resilience.py` (heartbeat/reconnect/backoff manager)
+- `services/market_ingestion/order_book_sync.py` (snapshot + delta sync engine)
+- `docs/market_ingestion_foundation.md` (module architecture and contracts)
+- `docs/learning/2026-02-14-p2-ingestion-instincts.md` (continuous-learning-v2 notes)
+
 Runtime verification evidence:
 
 - `docs/runtime/runtime-verification-2026-02-14.md`
