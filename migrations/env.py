@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 import os
+from urllib.parse import quote_plus
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+from services.shared.runtime.env_loader import load_dotenv_file
 
 config = context.config
 
@@ -16,7 +19,17 @@ target_metadata = None
 
 
 def _db_url() -> str:
-    return os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+    load_dotenv_file()
+    explicit = os.getenv("DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+
+    host = os.getenv("POSTGRES_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    port = os.getenv("POSTGRES_PORT", "5432").strip() or "5432"
+    database = os.getenv("POSTGRES_DB", "open_trader").strip() or "open_trader"
+    user = os.getenv("POSTGRES_USER", "open_trader").strip() or "open_trader"
+    password = os.getenv("POSTGRES_PASSWORD", "change_me")
+    return f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{database}"
 
 
 def run_migrations_offline() -> None:
