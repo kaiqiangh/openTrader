@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "exchanges": [
+    {"name": "market.events", "type": "topic", "durable": true},
+    {"name": "strategy.events", "type": "topic", "durable": true},
+    {"name": "execution.events", "type": "topic", "durable": true},
+    {"name": "oms.events", "type": "topic", "durable": true},
+    {"name": "dead.letter", "type": "topic", "durable": true}
+  ],
+  "queues": [
+    {
+      "name": "market.canonical",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.market.canonical"
+      }
+    },
+    {
+      "name": "execution.intent.mock",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.execution.intent.mock"
+      }
+    },
+    {
+      "name": "execution.intent.real",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.execution.intent.real"
+      }
+    },
+    {
+      "name": "oms.events.order_updates",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.oms.events.order_updates"
+      }
+    },
+    {"name": "dlq.execution.intent.real", "durable": true},
+    {"name": "dlq.execution.intent.mock", "durable": true},
+    {"name": "dlq.market.canonical", "durable": true},
+    {"name": "dlq.oms.events.order_updates", "durable": true}
+  ],
+  "bindings": [
+    {
+      "exchange": "market.events",
+      "queue": "market.canonical",
+      "routing_key": "market.canonical"
+    },
+    {
+      "exchange": "execution.events",
+      "queue": "execution.intent.mock",
+      "routing_key": "execution.intent.mock"
+    },
+    {
+      "exchange": "execution.events",
+      "queue": "execution.intent.real",
+      "routing_key": "execution.intent.real"
+    },
+    {
+      "exchange": "oms.events",
+      "queue": "oms.events.order_updates",
+      "routing_key": "oms.order.*"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.execution.intent.real",
+      "routing_key": "dlq.execution.intent.real"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.execution.intent.mock",
+      "routing_key": "dlq.execution.intent.mock"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.market.canonical",
+      "routing_key": "dlq.market.canonical"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.oms.events.order_updates",
+      "routing_key": "dlq.oms.events.order_updates"
+    }
+  ]
+}
