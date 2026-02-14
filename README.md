@@ -50,9 +50,13 @@ Phase 2 market ingestion foundation:
 - `services/market_ingestion/gap_detection.py` (sequence gap classification and resync signaling)
 - `services/market_ingestion/kline_validator.py` (k-line continuity and quality validation)
 - `services/market_ingestion/canonical_pipeline.py` (canonical normalization + envelope-validated publisher)
+- `services/market_ingestion/persistence_writers.py` (timeseries persistence row writers)
+- `services/market_ingestion/pipeline_metrics.py` (ingestion lag/rate/reconnect metrics)
+- `services/market_ingestion/integration_harness.py` (fixture replay and deterministic digest verification)
 - `docs/market_ingestion_foundation.md` (module architecture and contracts)
 - `docs/learning/2026-02-14-p2-ingestion-instincts.md` (continuous-learning-v2 notes)
 - `docs/learning/2026-02-14-p2-integrity-instincts.md` (continuous-learning-v2 integrity notes)
+- `docs/learning/2026-02-14-p2-delivery-instincts.md` (continuous-learning-v2 delivery notes)
 
 Runtime verification evidence:
 

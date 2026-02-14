@@ -1,4 +1,4 @@
-# Market Ingestion Foundation (P2-001..P2-006)
+# Market Ingestion Foundation (P2-001..P2-009)
 
 This document defines the first production-facing ingestion and integrity components for Phase 2:
 
@@ -8,6 +8,9 @@ This document defines the first production-facing ingestion and integrity compon
 - `services/market_ingestion/gap_detection.py` (`P2-004`)
 - `services/market_ingestion/kline_validator.py` (`P2-005`)
 - `services/market_ingestion/canonical_pipeline.py` (`P2-006`)
+- `services/market_ingestion/persistence_writers.py` (`P2-007`)
+- `services/market_ingestion/pipeline_metrics.py` (`P2-008`)
+- `services/market_ingestion/integration_harness.py` (`P2-009`)
 
 ## Component Boundaries
 
@@ -44,6 +47,21 @@ This document defines the first production-facing ingestion and integrity compon
 - Wraps payloads with shared message envelope contract fields.
 - Publishes validated envelopes to routing key `market.canonical`.
 
+8. `persistence_writers.py`
+- Persists canonicalized orderbook snapshots and k-lines via a timeseries store protocol.
+- Produces table-ready row payloads for `orderbook_snapshots` and `klines`.
+
+9. `pipeline_metrics.py`
+- Tracks ingestion counters and lag/rate telemetry:
+  - processed deltas
+  - reconnect count
+  - resync request count
+  - rolling events/sec.
+
+10. `integration_harness.py`
+- Replays deterministic fixtures through canonical normalization/publish.
+- Computes stable digests over deterministic event fields to verify replay consistency.
+
 ## Internal Contract Notes
 
 - Adapter input contract:
@@ -63,6 +81,13 @@ This document defines the first production-facing ingestion and integrity compon
 - Canonical event contract:
   - Uses shared envelope fields (`trace_id`, `decision_id`, `mode`, `idempotency_key`, `event_type`, `emitted_at`, `payload`).
   - Envelope is validated before publish.
+- Persistence contract:
+  - `orderbook_snapshots`: best bid/ask, spread, sequence, serialized levels.
+  - `klines`: deduplicated by open time and written in ascending order.
+- Metrics contract:
+  - Counters: `deltas_processed_total`, `reconnects_total`, `resync_requests_total`.
+  - Lag: latest/avg/max.
+  - Rate: events/sec over rolling window.
 
 ## Usage Flow
 
@@ -75,4 +100,7 @@ This document defines the first production-facing ingestion and integrity compon
 - If action is `resync`, create a resync request and re-bootstrap snapshot.
 5. Run `KlineReconstructionValidator` on reconstructed bar windows.
 6. Publish normalized canonical events with `CanonicalNormalizationPipeline`.
-7. Use `ConnectionResilienceManager` to drive reconnect delays when feeds go stale.
+7. Persist normalized data with `TimescalePersistenceWriters`.
+8. Update `MarketPipelineMetrics` for lag/rate/reconnect observability.
+9. Use `IngestionIntegrationHarness` fixtures to validate deterministic replay behavior.
+10. Use `ConnectionResilienceManager` to drive reconnect delays when feeds go stale.
