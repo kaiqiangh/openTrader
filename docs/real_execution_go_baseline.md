@@ -76,7 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007` baseline complete and `P5-002`/`P5-003` delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001` now delivered, next work is:
 
-- `P5-005`: risk policy enforcement using reconciled positions and portfolio snapshots
-- `P5-007`: circuit-breaker and kill-switch controls with OMS-linked eventing
+- `P6-002`: news ingestion service for pull/normalize/deduplicate persistence flow
+- `P6-003`: news tagging/relevance pipeline
+- `P6-004`: rolling news summarizer service

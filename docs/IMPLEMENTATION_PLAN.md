@@ -67,6 +67,8 @@ Use this exact format in each update:
 | 24   | 2026-02-14 | P4-004,P4-005,P4-006 | - | - | Real execution Go queue-consumer skeleton, bridge contracts, and idempotent create/cancel dedupe dispatch delivered with Go test coverage | 100% |
 | 25   | 2026-02-14 | P4-007,P4-008,P5-001 | - | - | Added execution metrics/tracing, mode integration tests, and OMS lifecycle state machine; Python/Go suites green | 100% |
 | 26   | 2026-02-14 | P5-002,P5-003,P5-004 | - | - | Added OMS fill reconciliation, position engine, and portfolio snapshot engine; fixed `uv run pytest` parity with root-level pass | 100% |
+| 27   | 2026-02-14 | P5-005,P5-006,P5-007 | - | - | Added OMS core risk rules, drawdown/daily-loss guards, and circuit-breaker/kill-switch controls with composed policy engine; Python/Go suites green | 100% |
+| 28   | 2026-02-14 | P5-008,P5-009,P6-001 | - | - | Added risk observability telemetry, risk regression scenario suite, and pluggable news source connector framework; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -302,6 +304,24 @@ Use this exact format in each update:
 - Next Task IDs: [P5-005, P5-006, P5-007]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 16:45
+
+- Completed Task IDs: [P5-005, P5-006, P5-007]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; retain local environment notes (`uv sync` panic in this environment and `GOCACHE=/tmp/go-build` requirement for Go tests).
+- Next Task IDs: [P5-008, P5-009, P6-001]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 17:20
+
+- Completed Task IDs: [P5-008, P5-009, P6-001]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; LLM env semantics clarified (LiteLLM runtime keys vs optional upstream provider credentials).
+- Next Task IDs: [P6-002, P6-003, P6-004]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -312,8 +332,8 @@ Use this exact format in each update:
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | DONE |
 | 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport | Runnable Phase 2-3 pipeline validation completed | DONE |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | DONE |
-| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | IN_PROGRESS |
-| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | NOT_STARTED |
+| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | DONE |
+| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | IN_PROGRESS |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
@@ -524,11 +544,11 @@ Implement lifecycle state machine, reconciliation, portfolio accounting, and ris
 | P5-002 | P0  | Fill reconciliation           | Combine queue events + exchange query fallback reconciliation                                                             | P5-001,P4-004        | Reconciled order/fill state | DONE |
 | P5-003 | P0  | Position engine               | Update positions from fills for mock and real mode                                                                        | P5-001               | Position service            | DONE |
 | P5-004 | P0  | Portfolio snapshot engine     | Generate NAV, realized/unrealized PnL snapshots                                                                           | P5-003               | Portfolio snapshots in DB   | DONE |
-| P5-005 | P0  | Core risk rules               | Implement position limits, leverage checks, per-symbol exposure limits                                                    | P3-009,P5-001        | Risk rule engine            | NOT_STARTED |
-| P5-006 | P0  | Drawdown + daily loss rules   | Implement max drawdown and daily loss guardrails                                                                          | P5-004               | Portfolio risk protection   | NOT_STARTED |
-| P5-007 | P0  | Circuit breaker + kill switch | Implement system-wide stop controls and eventing                                                                          | P5-005,P5-006        | Emergency controls          | NOT_STARTED |
-| P5-008 | P1  | Risk observability            | Metrics/logs for risk checks, denials, and breaches                                                                       | P5-005               | Risk telemetry              | NOT_STARTED |
-| P5-009 | P1  | Risk regression tests         | Scenario tests for each policy and edge case                                                                              | P5-005,P5-006        | Risk validation suite       | NOT_STARTED |
+| P5-005 | P0  | Core risk rules               | Implement position limits, leverage checks, per-symbol exposure limits                                                    | P3-009,P5-001        | Risk rule engine            | DONE |
+| P5-006 | P0  | Drawdown + daily loss rules   | Implement max drawdown and daily loss guardrails                                                                          | P5-004               | Portfolio risk protection   | DONE |
+| P5-007 | P0  | Circuit breaker + kill switch | Implement system-wide stop controls and eventing                                                                          | P5-005,P5-006        | Emergency controls          | DONE |
+| P5-008 | P1  | Risk observability            | Metrics/logs for risk checks, denials, and breaches                                                                       | P5-005               | Risk telemetry              | DONE |
+| P5-009 | P1  | Risk regression tests         | Scenario tests for each policy and edge case                                                                              | P5-005,P5-006        | Risk validation suite       | DONE |
 
 ---
 
@@ -548,7 +568,7 @@ Integrate news/social signals into the agent context pipeline safely and observa
 
 | ID     | Pri | Task                           | Actionable Steps                                                         | Dependencies  | Deliverable                 | Status      |
 | ------ | --- | ------------------------------ | ------------------------------------------------------------------------ | ------------- | --------------------------- | ----------- |
-| P6-001 | P1  | Source connector framework     | Implement pluggable source connectors for RSS/APIs/social feeds          | P1-007        | Connector framework         | NOT_STARTED |
+| P6-001 | P1  | Source connector framework     | Implement pluggable source connectors for RSS/APIs/social feeds          | P1-007        | Connector framework         | DONE |
 | P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | NOT_STARTED |
 | P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | NOT_STARTED |
 | P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | NOT_STARTED |
@@ -806,7 +826,12 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P5-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P5-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P5-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P5-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -817,6 +842,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P5-005` core risk rules using new position and portfolio outputs as authoritative inputs.
-2. Start `P5-006` drawdown and daily loss guardrails on top of portfolio snapshot flow.
-3. Start `P5-007` circuit breaker and kill switch controls with event publication.
+1. Start `P6-002` news ingestion service with pull/normalize/deduplicate persistence.
+2. Start `P6-003` tagging and relevance pipeline for symbols/topics.
+3. Start `P6-004` rolling news summarizer service.

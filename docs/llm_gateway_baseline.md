@@ -17,6 +17,15 @@ Provide one service-layer contract for model requests that supports:
 - ordered provider fallback
 - normalized response payloads for downstream persistence (`P3-007`)
 
+## Configuration Notes
+
+- openTrader runtime currently uses a LiteLLM-compatible HTTP client adapter (`services/llm_gateway/litellm_http_adapter.py`).
+- Runtime-consumed env keys are:
+  - `LITELLM_BASE_URL`
+  - `LITELLM_API_KEY`
+  - `LITELLM_TIMEOUT_SECONDS`
+- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment and are not directly consumed by openTrader runtime modules at this stage.
+
 ## Contracts
 
 1. `ProviderSettings`
