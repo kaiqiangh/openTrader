@@ -80,6 +80,41 @@ class ReplayRequestRecord:
     result: DecisionReplayResult
 
 
+@dataclass(frozen=True, slots=True)
+class NewsPanelItem:
+    news_id: str
+    source: str
+    title: str
+    url: str
+    published_at: str
+    symbol: str | None
+    topic: str
+    relevance_score: float
+    sentiment_score: float
+
+
+@dataclass(frozen=True, slots=True)
+class NewsPanelSummary:
+    summary_id: str
+    symbol_scope: str
+    window_start: str
+    window_end: str
+    summary_text: str
+    generated_at: str
+    source_news_ids: tuple[str, ...]
+    avg_sentiment: float
+
+
+@dataclass(frozen=True, slots=True)
+class NewsImpactRecord:
+    symbol: str
+    headline_count: int
+    avg_sentiment: float
+    max_relevance: float
+    latest_published_at: str | None
+    latest_summary: str | None
+
+
 @dataclass(slots=True)
 class ControlPlaneState:
     mode: str
@@ -100,6 +135,8 @@ class ControlPlaneState:
     replay_llm_calls: dict[str, list[LLMCallRecord]] = field(default_factory=dict)
     replay_summaries: dict[str, DecisionMemoryRecord] = field(default_factory=dict)
     replay_requests: dict[str, ReplayRequestRecord] = field(default_factory=dict)
+    news_items: list[NewsPanelItem] = field(default_factory=list)
+    news_summaries: list[NewsPanelSummary] = field(default_factory=list)
 
     def set_mode(self, *, mode: str, actor: str, reason: str) -> tuple[bool, str]:
         normalized_mode = _normalize_mode(mode)
@@ -383,6 +420,91 @@ class ControlPlaneState:
         traces.sort(key=lambda item: item.started_at, reverse=True)
         return tuple(traces)
 
+    def list_news_items(self, *, symbol: str | None = None, limit: int = 50) -> tuple[NewsPanelItem, ...]:
+        symbol_filter = symbol.strip().upper() if symbol else None
+        safe_limit = max(1, int(limit))
+
+        items = [
+            item
+            for item in self.news_items
+            if symbol_filter is None or (item.symbol or "").upper() == symbol_filter
+        ]
+        items.sort(key=lambda item: item.published_at, reverse=True)
+        return tuple(items[:safe_limit])
+
+    def list_news_summaries(
+        self,
+        *,
+        symbol_scope: str | None = None,
+        limit: int = 20,
+    ) -> tuple[NewsPanelSummary, ...]:
+        scope_filter = symbol_scope.strip().upper() if symbol_scope else None
+        safe_limit = max(1, int(limit))
+
+        items = [
+            item
+            for item in self.news_summaries
+            if scope_filter is None or item.symbol_scope.upper() == scope_filter
+        ]
+        items.sort(key=lambda item: item.generated_at, reverse=True)
+        return tuple(items[:safe_limit])
+
+    def list_news_impact(self, *, limit: int = 10) -> tuple[NewsImpactRecord, ...]:
+        safe_limit = max(1, int(limit))
+        grouped: dict[str, dict[str, Any]] = {}
+
+        for item in self.news_items:
+            symbol = (item.symbol or "GLOBAL").upper()
+            row = grouped.setdefault(
+                symbol,
+                {
+                    "headline_count": 0,
+                    "sentiment_total": 0.0,
+                    "max_relevance": 0.0,
+                    "latest_published_at": None,
+                    "latest_summary": None,
+                },
+            )
+            row["headline_count"] += 1
+            row["sentiment_total"] += float(item.sentiment_score)
+            row["max_relevance"] = max(float(row["max_relevance"]), float(item.relevance_score))
+            latest = row["latest_published_at"]
+            if latest is None or item.published_at > latest:
+                row["latest_published_at"] = item.published_at
+
+        for summary in self.news_summaries:
+            symbol = summary.symbol_scope.upper()
+            row = grouped.setdefault(
+                symbol,
+                {
+                    "headline_count": 0,
+                    "sentiment_total": 0.0,
+                    "max_relevance": 0.0,
+                    "latest_published_at": None,
+                    "latest_summary": None,
+                },
+            )
+            if row["latest_summary"] is None:
+                row["latest_summary"] = summary.summary_text
+
+        records: list[NewsImpactRecord] = []
+        for symbol, row in grouped.items():
+            headline_count = int(row["headline_count"])
+            avg_sentiment = 0.0 if headline_count == 0 else float(row["sentiment_total"]) / headline_count
+            records.append(
+                NewsImpactRecord(
+                    symbol=symbol,
+                    headline_count=headline_count,
+                    avg_sentiment=avg_sentiment,
+                    max_relevance=float(row["max_relevance"]),
+                    latest_published_at=row["latest_published_at"],
+                    latest_summary=row["latest_summary"],
+                )
+            )
+
+        records.sort(key=lambda item: (item.symbol != "GLOBAL", item.headline_count, item.max_relevance), reverse=True)
+        return tuple(records[:safe_limit])
+
     def _last_risk_event(self) -> RiskControlEvent:
         events = self._capture_risk_events()
         if not events:
@@ -464,6 +586,53 @@ def build_default_state(*, default_mode: str) -> ControlPlaneState:
         },
     }
 
+    news_items = [
+        NewsPanelItem(
+            news_id=str(uuid.uuid4()),
+            source="coindesk",
+            title="Bitcoin ETF inflows stay positive as volatility compresses",
+            url="https://example.com/news/btc-etf-inflows",
+            published_at=now,
+            symbol="BTC",
+            topic="etf",
+            relevance_score=0.86,
+            sentiment_score=0.42,
+        ),
+        NewsPanelItem(
+            news_id=str(uuid.uuid4()),
+            source="theblock",
+            title="Ethereum staking demand rises ahead of protocol upgrade",
+            url="https://example.com/news/eth-staking-upgrade",
+            published_at=now,
+            symbol="ETH",
+            topic="protocol",
+            relevance_score=0.79,
+            sentiment_score=0.36,
+        ),
+    ]
+    news_summaries = [
+        NewsPanelSummary(
+            summary_id=str(uuid.uuid4()),
+            symbol_scope="BTC",
+            window_start=now,
+            window_end=now,
+            summary_text="BTC flow remains constructive with sustained ETF demand and stable funding.",
+            generated_at=now,
+            source_news_ids=(news_items[0].news_id,),
+            avg_sentiment=0.42,
+        ),
+        NewsPanelSummary(
+            summary_id=str(uuid.uuid4()),
+            symbol_scope="GLOBAL",
+            window_start=now,
+            window_end=now,
+            summary_text="Macro sentiment is neutral-positive with no high-severity security incidents.",
+            generated_at=now,
+            source_news_ids=(news_items[0].news_id, news_items[1].news_id),
+            avg_sentiment=0.39,
+        ),
+    ]
+
     return ControlPlaneState(
         mode=normalized_mode,
         strategies=strategies,
@@ -477,6 +646,8 @@ def build_default_state(*, default_mode: str) -> ControlPlaneState:
             )
         ],
         llm_quota_limits=llm_quota_limits,
+        news_items=news_items,
+        news_summaries=news_summaries,
     )
 
 
