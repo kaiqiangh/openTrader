@@ -1,4 +1,5 @@
 from services.simulation_execution.engine import SimulationExecutionEngine
+from services.simulation_execution.metrics_tracing import SimulationExecutionMetrics
 from services.simulation_execution.mode_routing import (
     MOCK_ROUTING_KEY,
     REAL_ROUTING_KEY,
@@ -11,6 +12,7 @@ from services.simulation_execution.worker import SimulationExecutionWorker
 __all__ = [
     "SimulationExecutionEngine",
     "SimulationExecutionWorker",
+    "SimulationExecutionMetrics",
     "MockModeSafetyGuard",
     "MOCK_ROUTING_KEY",
     "REAL_ROUTING_KEY",
