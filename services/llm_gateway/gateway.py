@@ -9,6 +9,7 @@ import uuid
 
 from services.llm_gateway.contracts import (
     GatewaySettings,
+    LLMMetricsSink,
     LLMQuotaExceededError,
     LLMRequest,
     LLMResponse,
@@ -38,6 +39,7 @@ class LLMGateway:
         provider_clients: Mapping[str, LLMProviderClient],
         call_store: LLMCallStore | None = None,
         quota_store: LLMQuotaStore | None = None,
+        metrics: LLMMetricsSink | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         monotonic_clock: Callable[[], float] = time.monotonic,
         uuid_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
@@ -47,6 +49,7 @@ class LLMGateway:
         self.provider_clients = dict(provider_clients)
         self.call_store = call_store
         self.quota_store = quota_store
+        self.metrics = metrics
         self._sleep = sleep
         self._monotonic_clock = monotonic_clock
         self._uuid_factory = uuid_factory
@@ -115,6 +118,17 @@ class LLMGateway:
                         response=response,
                         estimated_cost=estimated_cost,
                     )
+                    self._record_llm_metrics(
+                        request=request,
+                        provider_alias=alias,
+                        model=provider.model,
+                        prompt_tokens=response.usage["prompt_tokens"],
+                        completion_tokens=response.usage["completion_tokens"],
+                        total_tokens=response.usage["total_tokens"],
+                        latency_ms=float(response.latency_ms),
+                        estimated_cost=estimated_cost,
+                        status="succeeded",
+                    )
                     return response
                 except Exception as exc:  # noqa: BLE001 - gateway intentionally normalizes provider errors
                     reason = exc.__class__.__name__
@@ -131,6 +145,17 @@ class LLMGateway:
             provider_alias=last_provider_alias or "unknown",
             model=last_provider_model or "unknown",
             error_summaries=tuple(error_summaries),
+        )
+        self._record_llm_metrics(
+            request=request,
+            provider_alias=last_provider_alias or "unknown",
+            model=last_provider_model or "unknown",
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            latency_ms=0.0,
+            estimated_cost=0.0,
+            status="failed",
         )
         joined = "; ".join(error_summaries) if error_summaries else "unknown_gateway_error"
         raise LLMRetryExhaustedError(f"LLM request failed across configured providers: {joined}")
@@ -349,6 +374,17 @@ class LLMGateway:
                 projected_tokens=projected_daily_total,
                 projected_cost=projected_cost,
             )
+            self._record_llm_metrics(
+                request=request,
+                provider_alias="quota_guard",
+                model="quota_guard",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                latency_ms=0.0,
+                estimated_cost=0.0,
+                status="quota_blocked",
+            )
             raise LLMQuotaExceededError(
                 f"{reason}: projected={projected_daily_total} limit={limits.daily_token_limit}"
             )
@@ -367,6 +403,17 @@ class LLMGateway:
                     reason=reason,
                     projected_tokens=projected_total_tokens,
                     projected_cost=projected_monthly_cost,
+                )
+                self._record_llm_metrics(
+                    request=request,
+                    provider_alias="quota_guard",
+                    model="quota_guard",
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    latency_ms=0.0,
+                    estimated_cost=0.0,
+                    status="quota_blocked",
                 )
                 raise LLMQuotaExceededError(
                     f"{reason}: projected={projected_monthly_cost:.8f} limit={limits.monthly_cost_limit:.8f}"
@@ -420,6 +467,36 @@ class LLMGateway:
         if not costs:
             return 0.0
         return min(costs)
+
+    def _record_llm_metrics(
+        self,
+        *,
+        request: LLMRequest,
+        provider_alias: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        latency_ms: float,
+        estimated_cost: float,
+        status: str,
+    ) -> None:
+        if self.metrics is None:
+            return
+        self.metrics.record_llm_call(
+            trace_id=request.trace_id,
+            decision_id=request.decision_id,
+            strategy_id=request.strategy_id,
+            agent_name=request.agent_name,
+            provider=provider_alias,
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            latency_ms=latency_ms,
+            estimated_cost=estimated_cost,
+            status=status,
+        )
 
     @staticmethod
     def _estimate_cost(
