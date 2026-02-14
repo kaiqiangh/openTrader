@@ -23,6 +23,12 @@ class StrategyRuntimeState(str, Enum):
     PAUSED = "PAUSED"
 
 
+class NotificationSeverityLevel(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
 class AuthPrincipal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -260,6 +266,97 @@ class NewsImpactListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[NewsImpactRecordResponse]
+
+
+class NotificationPreferenceUpsertRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    min_severity: NotificationSeverityLevel = NotificationSeverityLevel.INFO
+    gateways: list[str] = Field(min_length=1)
+    strategy_ids: list[str] = Field(default_factory=list)
+    event_types: list[str] = Field(default_factory=list)
+
+
+class NotificationPreferenceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    min_severity: NotificationSeverityLevel
+    gateways: list[str]
+    strategy_ids: list[str]
+    event_types: list[str]
+    updated_at: str
+    updated_by: str
+
+
+class NotificationPreferenceListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NotificationPreferenceResponse]
+
+
+class NotificationMetricsTotalsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    received_total: int
+    filtered_total: int
+    dispatched_total: int
+    delivered_total: int
+    failed_total: int
+    retryable_total: int
+    dlq_total: int
+
+
+class NotificationMetricsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    totals: NotificationMetricsTotalsResponse
+    suppression: dict[str, int]
+    gateway_status: dict[str, int]
+    retry_attempt_histogram: dict[str, int]
+    generated_at: str
+
+
+class NotificationDeliveryRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    notification_event_id: str
+    trace_id: str
+    decision_id: str
+    event_type: str
+    severity: str
+    gateway: str
+    delivery_status: str
+    attempt: int
+    detail: str | None = None
+    logged_at: str
+
+
+class NotificationDeliveryListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NotificationDeliveryRecordResponse]
+
+
+class NotificationTraceRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    notification_event_id: str
+    trace_id: str
+    decision_id: str
+    stage: str
+    status: str
+    latency_ms: float
+    gateway: str | None = None
+    attempt: int | None = None
+    started_at: str
+    completed_at: str
+
+
+class NotificationTraceListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NotificationTraceRecordResponse]
 
 
 class LLMUsageRecordResponse(BaseModel):

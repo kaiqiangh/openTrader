@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from services.api.auth import require_admin, require_operator, require_viewer
 from services.api.dependencies import get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
+    NotificationDeliveryListResponse,
+    NotificationDeliveryRecordResponse,
+    NotificationMetricsResponse,
+    NotificationMetricsTotalsResponse,
+    NotificationPreferenceListResponse,
+    NotificationPreferenceResponse,
+    NotificationTraceListResponse,
+    NotificationTraceRecordResponse,
+    NotificationPreferenceUpsertRequest,
     NewsImpactListResponse,
     NewsImpactRecordResponse,
     NewsItemListResponse,
@@ -23,7 +32,15 @@ from services.api.models import (
     RiskControlEventResponse,
     RiskStatusResponse,
 )
-from services.api.state import ControlPlaneState, NewsImpactRecord, NewsPanelItem, NewsPanelSummary
+from services.api.state import (
+    ControlPlaneState,
+    NewsImpactRecord,
+    NewsPanelItem,
+    NewsPanelSummary,
+    NotificationDeliveryRecord,
+    NotificationPreferenceRecord,
+    NotificationTraceRecord,
+)
 from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder, RiskControlEvent
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -155,6 +172,111 @@ def list_news_impact(
     return NewsImpactListResponse(items=[_news_impact_model(item) for item in items])
 
 
+@router.get("/notifications/preferences", response_model=NotificationPreferenceListResponse)
+def list_notification_preferences(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    user_id: str | None = Query(default=None),
+) -> NotificationPreferenceListResponse:
+    try:
+        items = state.list_notification_preferences(user_id=user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return NotificationPreferenceListResponse(items=[_notification_preference_model(item) for item in items])
+
+
+@router.put("/notifications/preferences/{user_id}", response_model=NotificationPreferenceResponse)
+def upsert_notification_preference(
+    user_id: str,
+    body: NotificationPreferenceUpsertRequest,
+    principal: AuthPrincipal = Depends(require_admin),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> NotificationPreferenceResponse:
+    try:
+        updated = state.upsert_notification_preference(
+            user_id=user_id,
+            min_severity=body.min_severity.value,
+            gateways=body.gateways,
+            strategy_ids=body.strategy_ids,
+            event_types=body.event_types,
+            actor=principal.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return _notification_preference_model(updated)
+
+
+@router.delete("/notifications/preferences/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_notification_preference(
+    user_id: str,
+    _: AuthPrincipal = Depends(require_admin),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> Response:
+    try:
+        deleted = state.delete_notification_preference(user_id=user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification preference not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/notifications/metrics", response_model=NotificationMetricsResponse)
+def get_notification_metrics(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> NotificationMetricsResponse:
+    snapshot = state.notification_metrics_snapshot()
+    totals = snapshot.get("totals", {})
+    return NotificationMetricsResponse(
+        totals=NotificationMetricsTotalsResponse(
+            received_total=int(totals.get("received_total", 0)),
+            filtered_total=int(totals.get("filtered_total", 0)),
+            dispatched_total=int(totals.get("dispatched_total", 0)),
+            delivered_total=int(totals.get("delivered_total", 0)),
+            failed_total=int(totals.get("failed_total", 0)),
+            retryable_total=int(totals.get("retryable_total", 0)),
+            dlq_total=int(totals.get("dlq_total", 0)),
+        ),
+        suppression={str(key): int(value) for key, value in dict(snapshot.get("suppression", {})).items()},
+        gateway_status={str(key): int(value) for key, value in dict(snapshot.get("gateway_status", {})).items()},
+        retry_attempt_histogram={
+            str(key): int(value) for key, value in dict(snapshot.get("retry_attempt_histogram", {})).items()
+        },
+        generated_at=str(snapshot.get("generated_at", "")),
+    )
+
+
+@router.get("/notifications/deliveries", response_model=NotificationDeliveryListResponse)
+def list_notification_deliveries(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    limit: int = Query(default=100, ge=1, le=500),
+    gateway: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    severity: str | None = Query(default=None),
+) -> NotificationDeliveryListResponse:
+    items = state.list_notification_delivery_logs(
+        limit=limit,
+        gateway=gateway,
+        status=status_filter,
+        severity=severity,
+    )
+    return NotificationDeliveryListResponse(items=[_notification_delivery_model(item) for item in items])
+
+
+@router.get("/notifications/traces", response_model=NotificationTraceListResponse)
+def list_notification_traces(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    limit: int = Query(default=100, ge=1, le=500),
+    trace_id: str | None = Query(default=None),
+    stage: str | None = Query(default=None),
+) -> NotificationTraceListResponse:
+    items = state.list_notification_trace_spans(limit=limit, trace_id=trace_id, stage=stage)
+    return NotificationTraceListResponse(items=[_notification_trace_model(item) for item in items])
+
+
 def _order_model(item: ReconciliationOrder) -> OrderRecordResponse:
     return OrderRecordResponse(
         order_id=item.order_id,
@@ -250,4 +372,46 @@ def _news_impact_model(item: NewsImpactRecord) -> NewsImpactRecordResponse:
         max_relevance=item.max_relevance,
         latest_published_at=item.latest_published_at,
         latest_summary=item.latest_summary,
+    )
+
+
+def _notification_preference_model(item: NotificationPreferenceRecord) -> NotificationPreferenceResponse:
+    return NotificationPreferenceResponse(
+        user_id=item.user_id,
+        min_severity=item.min_severity,
+        gateways=list(item.gateways),
+        strategy_ids=list(item.strategy_ids),
+        event_types=list(item.event_types),
+        updated_at=item.updated_at,
+        updated_by=item.updated_by,
+    )
+
+
+def _notification_delivery_model(item: NotificationDeliveryRecord) -> NotificationDeliveryRecordResponse:
+    return NotificationDeliveryRecordResponse(
+        notification_event_id=item.notification_event_id,
+        trace_id=item.trace_id,
+        decision_id=item.decision_id,
+        event_type=item.event_type,
+        severity=item.severity,
+        gateway=item.gateway,
+        delivery_status=item.delivery_status,
+        attempt=item.attempt,
+        detail=item.detail,
+        logged_at=item.logged_at,
+    )
+
+
+def _notification_trace_model(item: NotificationTraceRecord) -> NotificationTraceRecordResponse:
+    return NotificationTraceRecordResponse(
+        notification_event_id=item.notification_event_id,
+        trace_id=item.trace_id,
+        decision_id=item.decision_id,
+        stage=item.stage,
+        status=item.status,
+        latency_ms=item.latency_ms,
+        gateway=item.gateway,
+        attempt=item.attempt,
+        started_at=item.started_at,
+        completed_at=item.completed_at,
     )

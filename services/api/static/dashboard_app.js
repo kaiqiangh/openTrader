@@ -122,6 +122,7 @@ function HomeView() {
       h(
         "ul",
         { className: "link-list" },
+        h("li", null, h("a", { href: "/dashboard/notifications" }, "P7-016 Notification Observability")),
         h("li", null, h("a", { href: "/dashboard/news" }, "P7-010 News Intelligence Panel")),
         h("li", null, h("a", { href: "/dashboard/governance" }, "P7-007 Token Usage Dashboard")),
         h("li", null, h("a", { href: "/dashboard/replay" }, "P7-008 Prompt/Response Inspector")),
@@ -797,6 +798,187 @@ function NewsView({ token }) {
   );
 }
 
+function NotificationsView({ token }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [metrics, setMetrics] = useState(null);
+  const [deliveries, setDeliveries] = useState([]);
+  const [traces, setTraces] = useState([]);
+  const [refreshSeed, setRefreshSeed] = useState(0);
+
+  const load = useCallback(async () => {
+    if (!token) {
+      setError("Set JWT token to load notification telemetry.");
+      setMetrics(null);
+      setDeliveries([]);
+      setTraces([]);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const [metricsPayload, deliveriesPayload, tracesPayload] = await Promise.all([
+        apiFetchJson("/ops/notifications/metrics", { token }),
+        apiFetchJson("/ops/notifications/deliveries?limit=60", { token }),
+        apiFetchJson("/ops/notifications/traces?limit=60", { token }),
+      ]);
+      setMetrics(metricsPayload);
+      setDeliveries(Array.isArray(deliveriesPayload.items) ? deliveriesPayload.items : []);
+      setTraces(Array.isArray(tracesPayload.items) ? tracesPayload.items : []);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setMetrics(null);
+      setDeliveries([]);
+      setTraces([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshSeed]);
+
+  const totals = metrics && metrics.totals ? metrics.totals : null;
+  const suppression = metrics && metrics.suppression ? metrics.suppression : {};
+  const gatewayStatus = metrics && metrics.gateway_status ? metrics.gateway_status : {};
+  const retryHistogram = metrics && metrics.retry_attempt_histogram ? metrics.retry_attempt_histogram : {};
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "Notification Observability",
+        subtitle: "Metrics, delivery logs, and trace spans for notification runtime.",
+      },
+      h(
+        "div",
+        { className: "button-row" },
+        h("button", { type: "button", onClick: () => setRefreshSeed((value) => value + 1), disabled: loading }, "Refresh")
+      ),
+      loading ? h("p", { className: "muted" }, "Loading notification telemetry...") : null,
+      totals
+        ? h(
+            "div",
+            { className: "stats-grid" },
+            h(KeyStat, { label: "Received", value: String(totals.received_total) }),
+            h(KeyStat, { label: "Filtered", value: String(totals.filtered_total) }),
+            h(KeyStat, { label: "Dispatched", value: String(totals.dispatched_total) }),
+            h(KeyStat, { label: "Delivered", value: String(totals.delivered_total) }),
+            h(KeyStat, { label: "Failed", value: String(totals.failed_total) }),
+            h(KeyStat, { label: "DLQ", value: String(totals.dlq_total) })
+          )
+        : null,
+      h(
+        "div",
+        { className: "json-columns" },
+        h(
+          "div",
+          { className: "mini-card" },
+          h("h3", null, "Suppression"),
+          h(JsonBlock, { value: suppression })
+        ),
+        h(
+          "div",
+          { className: "mini-card" },
+          h("h3", null, "Gateway Status"),
+          h(JsonBlock, { value: gatewayStatus })
+        ),
+        h(
+          "div",
+          { className: "mini-card" },
+          h("h3", null, "Retry Attempts"),
+          h(JsonBlock, { value: retryHistogram })
+        )
+      ),
+      h("h3", null, "Recent Deliveries"),
+      h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", null, "Logged At"),
+              h("th", null, "Event Type"),
+              h("th", null, "Severity"),
+              h("th", null, "Gateway"),
+              h("th", null, "Status"),
+              h("th", null, "Attempt"),
+              h("th", null, "Trace ID")
+            )
+          ),
+          h(
+            "tbody",
+            null,
+            deliveries.map((item, index) =>
+              h(
+                "tr",
+                { key: `${item.notification_event_id}-${item.gateway}-${index}`, className: "virtual-row" },
+                h("td", null, item.logged_at),
+                h("td", null, item.event_type),
+                h("td", null, item.severity),
+                h("td", null, item.gateway),
+                h("td", null, item.delivery_status),
+                h("td", null, String(item.attempt)),
+                h("td", null, item.trace_id)
+              )
+            )
+          )
+        )
+      ),
+      h("h3", null, "Recent Trace Spans"),
+      h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", null, "Completed At"),
+              h("th", null, "Stage"),
+              h("th", null, "Status"),
+              h("th", null, "Latency (ms)"),
+              h("th", null, "Trace ID"),
+              h("th", null, "Decision ID")
+            )
+          ),
+          h(
+            "tbody",
+            null,
+            traces.map((item, index) =>
+              h(
+                "tr",
+                { key: `${item.notification_event_id}-${item.stage}-${index}`, className: "virtual-row" },
+                h("td", null, item.completed_at),
+                h("td", null, item.stage),
+                h("td", null, item.status),
+                h("td", null, Number(item.latency_ms).toFixed(2)),
+                h("td", null, item.trace_id),
+                h("td", null, item.decision_id)
+              )
+            )
+          )
+        )
+      ),
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
 function App({ initialView }) {
   const [token, setToken] = useState(() => safeReadToken());
   const [tokenInput, setTokenInput] = useState(() => safeReadToken());
@@ -817,6 +999,9 @@ function App({ initialView }) {
   };
 
   const body = useMemo(() => {
+    if (initialView === "notifications") {
+      return h(NotificationsView, { token });
+    }
     if (initialView === "news") {
       return h(NewsView, { token });
     }

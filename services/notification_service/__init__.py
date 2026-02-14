@@ -11,6 +11,18 @@ from services.notification_service.models import (
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.publishers import NotificationEventBridge
 from services.notification_service.service import NotificationService
+from services.notification_service.telegram_gateway import (
+    TelegramGateway,
+    TelegramGatewayConfig,
+    TelegramSendResult,
+    load_telegram_gateway_from_env,
+    render_telegram_message_text,
+)
+from services.notification_service.observability import (
+    NotificationObservabilityCollector,
+    NotificationTraceSpan,
+    NotificationDeliveryLog,
+)
 
 __all__ = [
     "NotificationEvent",
@@ -23,6 +35,14 @@ __all__ = [
     "NotificationPolicyRouter",
     "GatewayDispatcher",
     "InMemoryGateway",
+    "TelegramGateway",
+    "TelegramGatewayConfig",
+    "TelegramSendResult",
+    "render_telegram_message_text",
+    "load_telegram_gateway_from_env",
+    "NotificationObservabilityCollector",
+    "NotificationTraceSpan",
+    "NotificationDeliveryLog",
     "NotificationService",
     "NotificationEventBridge",
 ]

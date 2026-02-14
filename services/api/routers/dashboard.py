@@ -71,6 +71,16 @@ def dashboard_news(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     )
 
 
+@router.get("/notifications", response_class=HTMLResponse)
+def dashboard_notifications(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+    return _render_shell(
+        title="Notification Observability",
+        heading="Notification Observability",
+        description="Delivery metrics, failure logs, and trace spans across notification gateways.",
+        view="notifications",
+    )
+
+
 def _render_shell(*, title: str, heading: str, description: str, view: str) -> HTMLResponse:
     nav_cards = [
         ("Dashboard Home", "/dashboard"),
@@ -79,6 +89,7 @@ def _render_shell(*, title: str, heading: str, description: str, view: str) -> H
         ("Replay Inspector", "/dashboard/replay"),
         ("Mode Panel", "/dashboard/mode"),
         ("News Panel", "/dashboard/news"),
+        ("Notifications", "/dashboard/notifications"),
     ]
     nav_html = "".join(
         f"<li><a href='{escape(path)}'>{escape(label)}</a></li>"
