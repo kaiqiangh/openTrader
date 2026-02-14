@@ -36,6 +36,7 @@ This document defines startup config and secret requirements for the notificatio
   - `TELEGRAM_DEFAULT_CHAT_ID`
 
 Startup validation rejects placeholder or empty Telegram secrets when notifications are enabled and Telegram is the default gateway.
+When launched from project root, worker settings also auto-load `.env` before validation.
 
 ## Validation Commands
 
@@ -43,12 +44,15 @@ Startup validation rejects placeholder or empty Telegram secrets when notificati
   - `make env-validate`
 - Notification worker startup validation only:
   - `uv run python -m services.notification_service.worker --validate-only`
+- One-cycle local smoke run (host process):
+  - `NOTIFY_CONSUMER_BACKEND=inmemory uv run python -m services.notification_service.worker --once`
 
-## Compose Profile
+## Compose Runtime
 
-- `docker compose --profile notification up -d notification_worker rabbitmq`
+- `docker compose up -d notification_worker rabbitmq`
 
 The `notification_worker` service depends on RabbitMQ health and reads runtime values from `.env`.
+If the configured queue does not exist yet, the worker auto-declares it through RabbitMQ HTTP API and continues polling.
 
 ## Observability Baseline
 

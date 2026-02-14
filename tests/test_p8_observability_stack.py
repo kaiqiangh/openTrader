@@ -6,8 +6,7 @@ def test_compose_includes_observability_stack_services() -> None:
     content = Path("docker-compose.yml").read_text(encoding="utf-8")
     for service_name in ("prometheus", "grafana", "loki", "tempo", "alertmanager"):
         assert f"{service_name}:" in content
-    assert "profiles:" in content
-    assert "- observability" in content
+    assert "profiles:" not in content
 
 
 def test_observability_config_files_exist_and_are_wired() -> None:
@@ -44,4 +43,3 @@ def test_alert_catalog_covers_critical_operational_events() -> None:
     assert re.search(r"alert:\s*RiskDrawdownBreach", alerts)
     assert re.search(r"alert:\s*ElevatedOrderFailures", alerts)
     assert re.search(r"alert:\s*IntegrityResyncEvents", alerts)
-
