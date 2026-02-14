@@ -75,6 +75,22 @@ class ModeResponse(BaseModel):
     reason: str | None = None
 
 
+class ModeAuditRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    mode: ExecutionMode
+    changed_by: str
+    reason: str
+    changed_at: str
+
+
+class ModeHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ModeAuditRecordResponse]
+
+
 class StrategyStateUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

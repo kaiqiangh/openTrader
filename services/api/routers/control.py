@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from services.api.auth import require_operator, require_viewer
 from services.api.dependencies import get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
+    ModeAuditRecordResponse,
+    ModeHistoryResponse,
     ModeResponse,
     ModeUpdateRequest,
     StrategyListResponse,
     StrategyRecordResponse,
     StrategyStateUpdateRequest,
 )
-from services.api.state import ControlPlaneState, StrategyRuntimeRecord
+from services.api.state import ControlPlaneState, ModeAuditRecord, StrategyRuntimeRecord
 
 router = APIRouter(prefix="/control", tags=["control"])
 
@@ -24,6 +26,16 @@ def get_mode(
     state: ControlPlaneState = Depends(get_control_plane_state),
 ) -> ModeResponse:
     return ModeResponse(mode=ExecutionMode(state.mode), updated_at=_last_mode_update_time(state))
+
+
+@router.get("/mode/history", response_model=ModeHistoryResponse)
+def get_mode_history(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> ModeHistoryResponse:
+    records = state.list_mode_history(limit=limit)
+    return ModeHistoryResponse(items=[_mode_audit_model(item) for item in records])
 
 
 @router.put("/mode", response_model=ModeResponse)
@@ -77,8 +89,18 @@ def _strategy_model(item: StrategyRuntimeRecord) -> StrategyRecordResponse:
     )
 
 
+def _mode_audit_model(item: ModeAuditRecord) -> ModeAuditRecordResponse:
+    return ModeAuditRecordResponse(
+        event_id=item.event_id,
+        mode=ExecutionMode(item.mode),
+        changed_by=item.changed_by,
+        reason=item.reason,
+        changed_at=item.changed_at,
+    )
+
+
 def _last_mode_update_time(state: ControlPlaneState) -> str:
-    strategies = state.list_strategies()
-    if not strategies:
+    items = state.list_mode_history(limit=1)
+    if not items:
         return ""
-    return max(item.updated_at for item in strategies)
+    return items[0].changed_at

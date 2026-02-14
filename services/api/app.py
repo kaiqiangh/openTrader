@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from services.api.routers import (
     control_router,
@@ -37,6 +39,9 @@ def create_app(
     )
     app.state.settings = resolved_settings
     app.state.control_plane_state = resolved_state
+
+    static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(system_router)
     app.include_router(control_router)
