@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,3 +61,22 @@ class LLMRetryExhaustedError(LLMGatewayError):
 
 class LLMQuotaExceededError(LLMGatewayError):
     """Raised when hard-limit quota policy blocks a request before dispatch."""
+
+
+class LLMMetricsSink(Protocol):
+    def record_llm_call(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        strategy_id: str,
+        agent_name: str,
+        provider: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        latency_ms: float,
+        estimated_cost: float,
+        status: str,
+    ) -> None: ...
