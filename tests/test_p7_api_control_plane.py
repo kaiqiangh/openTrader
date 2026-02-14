@@ -78,10 +78,13 @@ def test_viewer_can_read_control_endpoints() -> None:
     client = TestClient(app)
 
     mode_response = client.get("/control/mode", headers=_auth_headers(token))
+    mode_history_response = client.get("/control/mode/history", headers=_auth_headers(token))
     strategies_response = client.get("/control/strategies", headers=_auth_headers(token))
 
     assert mode_response.status_code == 200
     assert mode_response.json()["mode"] == "MOCK"
+    assert mode_history_response.status_code == 200
+    assert isinstance(mode_history_response.json()["items"], list)
     assert strategies_response.status_code == 200
     assert isinstance(strategies_response.json()["items"], list)
 
@@ -108,6 +111,11 @@ def test_viewer_cannot_update_mode_but_operator_can() -> None:
     assert operator_attempt.status_code == 200
     assert operator_attempt.json()["mode"] == "REAL"
     assert operator_attempt.json()["changed_by"] == "operator-user"
+
+    mode_history = client.get("/control/mode/history", headers=_auth_headers(viewer_token))
+    assert mode_history.status_code == 200
+    assert mode_history.json()["items"][0]["mode"] == "REAL"
+    assert mode_history.json()["items"][0]["reason"] == "switch for validation"
 
 
 def test_operator_can_update_strategy_state() -> None:

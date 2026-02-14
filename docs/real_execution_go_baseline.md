@@ -76,8 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007`, `P5-005`..`P5-009`, `P6-001`..`P6-007`, and `P7-001`..`P7-006` now delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, `P6-001`..`P6-007`, and `P7-001`..`P7-009` now delivered, next work is:
 
-- `P7-007`: token usage dashboard UI views wired to governance APIs
-- `P7-008`: prompt/response inspector UI for replay drill-down
-- `P7-009`: trading mode panel UI with control/audit surfaces
+- `P7-010`: news panel UI with stream and summary surfaces
+- `P7-011`: notification service runtime core
+- `P7-012`: event publisher integration for notification trigger paths
