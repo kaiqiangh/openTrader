@@ -18,6 +18,7 @@ from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder, 
 
 _VALID_MODES = {"MOCK", "REAL"}
 _VALID_STATES = {"ENABLED", "DISABLED", "PAUSED"}
+_VALID_NOTIFICATION_SEVERITIES = {"INFO", "WARNING", "CRITICAL"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +116,45 @@ class NewsImpactRecord:
     latest_summary: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class NotificationPreferenceRecord:
+    user_id: str
+    min_severity: str
+    gateways: tuple[str, ...]
+    strategy_ids: tuple[str, ...]
+    event_types: tuple[str, ...]
+    updated_at: str
+    updated_by: str
+
+
+@dataclass(frozen=True, slots=True)
+class NotificationDeliveryRecord:
+    notification_event_id: str
+    trace_id: str
+    decision_id: str
+    event_type: str
+    severity: str
+    gateway: str
+    delivery_status: str
+    attempt: int
+    detail: str | None
+    logged_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class NotificationTraceRecord:
+    notification_event_id: str
+    trace_id: str
+    decision_id: str
+    stage: str
+    status: str
+    latency_ms: float
+    gateway: str | None
+    attempt: int | None
+    started_at: str
+    completed_at: str
+
+
 @dataclass(slots=True)
 class ControlPlaneState:
     mode: str
@@ -137,6 +177,10 @@ class ControlPlaneState:
     replay_requests: dict[str, ReplayRequestRecord] = field(default_factory=dict)
     news_items: list[NewsPanelItem] = field(default_factory=list)
     news_summaries: list[NewsPanelSummary] = field(default_factory=list)
+    notification_preferences: dict[str, NotificationPreferenceRecord] = field(default_factory=dict)
+    notification_metrics: dict[str, Any] = field(default_factory=dict)
+    notification_delivery_logs: list[NotificationDeliveryRecord] = field(default_factory=list)
+    notification_trace_spans: list[NotificationTraceRecord] = field(default_factory=list)
 
     def set_mode(self, *, mode: str, actor: str, reason: str) -> tuple[bool, str]:
         normalized_mode = _normalize_mode(mode)
@@ -505,6 +549,125 @@ class ControlPlaneState:
         records.sort(key=lambda item: (item.symbol != "GLOBAL", item.headline_count, item.max_relevance), reverse=True)
         return tuple(records[:safe_limit])
 
+    def list_notification_preferences(
+        self,
+        *,
+        user_id: str | None = None,
+    ) -> tuple[NotificationPreferenceRecord, ...]:
+        if user_id is None:
+            items = list(self.notification_preferences.values())
+            items.sort(key=lambda item: item.user_id)
+            return tuple(items)
+        normalized_user_id = _normalize_user_id(user_id)
+        record = self.notification_preferences.get(normalized_user_id)
+        return (record,) if record is not None else ()
+
+    def upsert_notification_preference(
+        self,
+        *,
+        user_id: str,
+        min_severity: str,
+        gateways: Sequence[str],
+        strategy_ids: Sequence[str],
+        event_types: Sequence[str],
+        actor: str,
+    ) -> NotificationPreferenceRecord:
+        normalized_user_id = _normalize_user_id(user_id)
+        normalized_actor = actor.strip() or "unknown"
+        normalized_severity = _normalize_notification_severity(min_severity)
+        normalized_gateways = _normalize_non_empty_values(gateways, lowercase=True)
+        if not normalized_gateways:
+            raise ValueError("gateways must include at least one value")
+
+        record = NotificationPreferenceRecord(
+            user_id=normalized_user_id,
+            min_severity=normalized_severity,
+            gateways=normalized_gateways,
+            strategy_ids=_normalize_non_empty_values(strategy_ids, lowercase=False),
+            event_types=_normalize_non_empty_values(event_types, lowercase=False),
+            updated_at=_utc_now_iso(),
+            updated_by=normalized_actor,
+        )
+        self.notification_preferences[normalized_user_id] = record
+        return record
+
+    def delete_notification_preference(self, *, user_id: str) -> bool:
+        normalized_user_id = _normalize_user_id(user_id)
+        return self.notification_preferences.pop(normalized_user_id, None) is not None
+
+    def notification_metrics_snapshot(self) -> dict[str, Any]:
+        defaults: dict[str, Any] = {
+            "totals": {
+                "received_total": 0,
+                "filtered_total": 0,
+                "dispatched_total": 0,
+                "delivered_total": 0,
+                "failed_total": 0,
+                "retryable_total": 0,
+                "dlq_total": 0,
+            },
+            "suppression": {"dedupe": 0, "rate_limit": 0},
+            "gateway_status": {},
+            "retry_attempt_histogram": {},
+            "generated_at": _utc_now_iso(),
+        }
+        merged = {**defaults, **self.notification_metrics}
+        merged["totals"] = {**defaults["totals"], **dict(self.notification_metrics.get("totals", {}))}
+        merged["suppression"] = {**defaults["suppression"], **dict(self.notification_metrics.get("suppression", {}))}
+        merged["gateway_status"] = dict(self.notification_metrics.get("gateway_status", {}))
+        merged["retry_attempt_histogram"] = dict(self.notification_metrics.get("retry_attempt_histogram", {}))
+        generated_at = str(self.notification_metrics.get("generated_at", "")).strip()
+        merged["generated_at"] = generated_at or _utc_now_iso()
+        return merged
+
+    def list_notification_delivery_logs(
+        self,
+        *,
+        limit: int = 100,
+        gateway: str | None = None,
+        status: str | None = None,
+        severity: str | None = None,
+    ) -> tuple[NotificationDeliveryRecord, ...]:
+        safe_limit = max(1, int(limit))
+        gateway_filter = gateway.strip().lower() if gateway else None
+        status_filter = status.strip().upper() if status else None
+        severity_filter = severity.strip().upper() if severity else None
+
+        items: list[NotificationDeliveryRecord] = []
+        for item in self.notification_delivery_logs:
+            if gateway_filter and item.gateway.strip().lower() != gateway_filter:
+                continue
+            if status_filter and item.delivery_status.strip().upper() != status_filter:
+                continue
+            if severity_filter and item.severity.strip().upper() != severity_filter:
+                continue
+            items.append(item)
+
+        items.sort(key=lambda row: row.logged_at, reverse=True)
+        return tuple(items[:safe_limit])
+
+    def list_notification_trace_spans(
+        self,
+        *,
+        limit: int = 100,
+        trace_id: str | None = None,
+        stage: str | None = None,
+    ) -> tuple[NotificationTraceRecord, ...]:
+        safe_limit = max(1, int(limit))
+        trace_filter = trace_id.strip() if trace_id else None
+        stage_filter = stage.strip().lower() if stage else None
+
+        items: list[NotificationTraceRecord] = []
+        for item in self.notification_trace_spans:
+            if trace_filter and item.trace_id != trace_filter:
+                continue
+            if stage_filter and item.stage.strip().lower() != stage_filter:
+                continue
+            items.append(item)
+
+        items.sort(key=lambda row: row.completed_at, reverse=True)
+        return tuple(items[:safe_limit])
+
     def _last_risk_event(self) -> RiskControlEvent:
         events = self._capture_risk_events()
         if not events:
@@ -632,6 +795,75 @@ def build_default_state(*, default_mode: str) -> ControlPlaneState:
             avg_sentiment=0.39,
         ),
     ]
+    notification_preferences = {
+        "ops-default": NotificationPreferenceRecord(
+            user_id="ops-default",
+            min_severity="WARNING",
+            gateways=("telegram",),
+            strategy_ids=(),
+            event_types=(),
+            updated_at=now,
+            updated_by="system",
+        ),
+    }
+    notification_event_id = str(uuid.uuid4())
+    notification_trace_id = str(uuid.uuid4())
+    notification_decision_id = str(uuid.uuid4())
+    notification_metrics = {
+        "totals": {
+            "received_total": 8,
+            "filtered_total": 2,
+            "dispatched_total": 6,
+            "delivered_total": 5,
+            "failed_total": 1,
+            "retryable_total": 2,
+            "dlq_total": 1,
+        },
+        "suppression": {"dedupe": 1, "rate_limit": 1},
+        "gateway_status": {"telegram:DELIVERED": 5, "telegram:FAILED": 1},
+        "retry_attempt_histogram": {"1": 4, "2": 1, "3": 1},
+        "generated_at": now,
+    }
+    notification_delivery_logs = [
+        NotificationDeliveryRecord(
+            notification_event_id=notification_event_id,
+            trace_id=notification_trace_id,
+            decision_id=notification_decision_id,
+            event_type="notify.risk.event",
+            severity="CRITICAL",
+            gateway="telegram",
+            delivery_status="DELIVERED",
+            attempt=2,
+            detail=None,
+            logged_at=now,
+        )
+    ]
+    notification_trace_spans = [
+        NotificationTraceRecord(
+            notification_event_id=notification_event_id,
+            trace_id=notification_trace_id,
+            decision_id=notification_decision_id,
+            stage="policy_router",
+            status="routed",
+            latency_ms=1.4,
+            gateway=None,
+            attempt=None,
+            started_at=now,
+            completed_at=now,
+        ),
+        NotificationTraceRecord(
+            notification_event_id=notification_event_id,
+            trace_id=notification_trace_id,
+            decision_id=notification_decision_id,
+            stage="gateway_dispatch",
+            status="succeeded",
+            latency_ms=42.0,
+            gateway="telegram",
+            attempt=2,
+            started_at=now,
+            completed_at=now,
+        ),
+    ]
 
     return ControlPlaneState(
         mode=normalized_mode,
@@ -648,6 +880,10 @@ def build_default_state(*, default_mode: str) -> ControlPlaneState:
         llm_quota_limits=llm_quota_limits,
         news_items=news_items,
         news_summaries=news_summaries,
+        notification_preferences=notification_preferences,
+        notification_metrics=notification_metrics,
+        notification_delivery_logs=notification_delivery_logs,
+        notification_trace_spans=notification_trace_spans,
     )
 
 
@@ -665,11 +901,40 @@ def _normalize_strategy_state(state: str) -> str:
     return normalized_state
 
 
+def _normalize_notification_severity(value: str) -> str:
+    normalized = value.strip().upper()
+    if normalized not in _VALID_NOTIFICATION_SEVERITIES:
+        raise ValueError("notification severity must be INFO, WARNING, or CRITICAL")
+    return normalized
+
+
+def _normalize_user_id(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("user_id must be non-empty")
+    return normalized
+
+
 def _default_symbol(*, strategy_id: str) -> str:
     lowered = strategy_id.lower()
     if "eth" in lowered:
         return "ETH/USDT"
     return "BTC/USDT"
+
+
+def _normalize_non_empty_values(values: Sequence[str], *, lowercase: bool) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        text = str(raw).strip()
+        if not text:
+            continue
+        item = text.lower() if lowercase else text
+        if item in seen:
+            continue
+        seen.add(item)
+        normalized.append(item)
+    return tuple(normalized)
 
 
 def _to_utc(value: datetime | None) -> datetime:

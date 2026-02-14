@@ -22,6 +22,7 @@ class NotificationPolicyRouter:
     rate_limit_per_minute: int = 30
     _dedupe_seen_at: dict[tuple[str, str, str], float] = field(default_factory=dict, init=False)
     _rate_events: dict[tuple[str, str], list[float]] = field(default_factory=dict, init=False)
+    _suppressed_counts: dict[str, int] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         if self.dedupe_window_seconds <= 0:
@@ -31,6 +32,7 @@ class NotificationPolicyRouter:
 
         self._dedupe_seen_at.clear()
         self._rate_events.clear()
+        self._suppressed_counts = {"dedupe": 0, "rate_limit": 0}
 
     def route(self, *, event: NotificationEvent, now_seconds: float) -> tuple[NotificationMessage, ...]:
         active_prefs = self.preferences or (
@@ -46,9 +48,11 @@ class NotificationPolicyRouter:
                 dedupe_key = (pref.user_id, gateway, event.idempotency_key)
                 previous = self._dedupe_seen_at.get(dedupe_key)
                 if previous is not None and (now_seconds - previous) < self.dedupe_window_seconds:
+                    self._suppressed_counts["dedupe"] += 1
                     continue
 
                 if not self._consume_rate_budget(user_id=pref.user_id, gateway=gateway, now_seconds=now_seconds):
+                    self._suppressed_counts["rate_limit"] += 1
                     continue
 
                 self._dedupe_seen_at[dedupe_key] = now_seconds
@@ -75,6 +79,9 @@ class NotificationPolicyRouter:
                 )
 
         return tuple(messages)
+
+    def suppression_counts(self) -> dict[str, int]:
+        return dict(self._suppressed_counts)
 
     def _consume_rate_budget(self, *, user_id: str, gateway: str, now_seconds: float) -> bool:
         key = (user_id, gateway)

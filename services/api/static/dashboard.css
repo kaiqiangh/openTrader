@@ -227,6 +227,18 @@ th {
   gap: 0.55rem;
 }
 
+.mini-card {
+  border: 1px solid rgba(157, 184, 204, 0.24);
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: rgba(8, 29, 44, 0.66);
+}
+
+.mini-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+}
+
 .llm-call {
   display: grid;
   gap: 0.48rem;
