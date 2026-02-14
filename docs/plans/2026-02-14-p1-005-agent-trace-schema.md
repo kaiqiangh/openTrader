@@ -13,8 +13,8 @@
 ### Task 1: Add Failing Tests for Agent Trace Migration
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py`
+- Create: `tests/test_phase1_agent_trace_migration.py`
+- Test: `tests/test_phase1_agent_trace_migration.py`
 
 **Step 1: Write the failing test**
 
@@ -36,7 +36,7 @@ def test_agent_trace_migration_has_required_tables() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py -v`
+Run: `uv run pytest tests/test_phase1_agent_trace_migration.py -v`
 Expected: FAIL because migration file does not exist.
 
 **Step 3: Write minimal implementation**
@@ -45,21 +45,21 @@ Create migration file with required table names and Alembic metadata.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py -v`
+Run: `uv run pytest tests/test_phase1_agent_trace_migration.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py /Users/kai/Desktop/openTrader/migrations/versions/20260214_0003_agent_trace_schema.py
+git add tests/test_phase1_agent_trace_migration.py migrations/versions/20260214_0003_agent_trace_schema.py
 git commit -m "feat(db): add agent trace schema migration"
 ```
 
 ### Task 2: Implement Agent Trace Migration Schema
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/migrations/versions/20260214_0003_agent_trace_schema.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py`
+- Create: `migrations/versions/20260214_0003_agent_trace_schema.py`
+- Test: `tests/test_phase1_agent_trace_migration.py`
 
 **Step 1: Write the failing test**
 
@@ -74,7 +74,7 @@ def test_agent_trace_migration_has_fk_and_indexes() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py -v`
+Run: `uv run pytest tests/test_phase1_agent_trace_migration.py -v`
 Expected: FAIL because FK/index strings are missing.
 
 **Step 3: Write minimal implementation**
@@ -89,22 +89,22 @@ op.create_index("idx_agent_messages_agent_run_id_created_at", ...)
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py -v`
+Run: `uv run pytest tests/test_phase1_agent_trace_migration.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/migrations/versions/20260214_0003_agent_trace_schema.py /Users/kai/Desktop/openTrader/tests/test_phase1_agent_trace_migration.py
+git add migrations/versions/20260214_0003_agent_trace_schema.py tests/test_phase1_agent_trace_migration.py
 git commit -m "feat(db): add foreign keys and indexes for agent trace schema"
 ```
 
 ### Task 3: Update Project Documentation and Progress Tracking
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_phase1_migrations.py`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
+- Modify: `README.md`
+- Test: `tests/test_phase1_migrations.py`
 
 **Step 1: Write the failing test**
 
@@ -116,7 +116,7 @@ def test_readme_mentions_agent_trace_migration() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_phase1_migrations.py -v`
+Run: `uv run pytest tests/test_phase1_migrations.py -v`
 Expected: FAIL if docs line missing.
 
 **Step 3: Write minimal implementation**
@@ -129,12 +129,12 @@ Expected: FAIL if docs line missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS for full suite.
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md /Users/kai/Desktop/openTrader/tests
+git add README.md docs/IMPLEMENTATION_PLAN.md tests
 git commit -m "docs: record P1-005 completion and update migration references"
 ```

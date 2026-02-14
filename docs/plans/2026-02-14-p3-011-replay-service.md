@@ -13,7 +13,7 @@
 ### Task 1: Add failing replay-service tests
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py`
+- Create: `tests/test_p3_replay_service.py`
 
 **Step 1: Write the failing test**
 
@@ -27,7 +27,7 @@ async def test_replay_service_reconstructs_decision_graph_and_payloads() -> None
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py -v`
+Run: `uv run pytest tests/test_p3_replay_service.py -v`
 Expected: FAIL because replay service module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -40,21 +40,21 @@ class DecisionReplayService:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py -v`
+Run: `uv run pytest tests/test_p3_replay_service.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py
+git add tests/test_p3_replay_service.py
 git commit -m "test(agent-runtime): add replay service coverage"
 ```
 
 ### Task 2: Implement replay service contracts and deterministic digest
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/replay_service.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py`
+- Create: `services/agent_orchestrator/replay_service.py`
+- Modify: `services/agent_orchestrator/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -68,7 +68,7 @@ async def test_replay_service_digest_is_deterministic_for_same_payload() -> None
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py -v`
+Run: `uv run pytest tests/test_p3_replay_service.py -v`
 Expected: FAIL until service and contracts are implemented.
 
 **Step 3: Write minimal implementation**
@@ -86,24 +86,24 @@ class DecisionReplayService:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py -v`
+Run: `uv run pytest tests/test_p3_replay_service.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/agent_orchestrator/replay_service.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py /Users/kai/Desktop/openTrader/tests/test_p3_replay_service.py
+git add services/agent_orchestrator/replay_service.py services/agent_orchestrator/__init__.py tests/test_p3_replay_service.py
 git commit -m "feat(agent-runtime): add deterministic decision replay service"
 ```
 
 ### Task 3: Documentation and tracker updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-replay-service-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `tests/test_p3_agent_runtime_docs.py`
+- Modify: `docs/agent_runtime_baseline.md`
+- Modify: `README.md`
+- Create: `docs/learning/2026-02-14-p3-replay-service-instincts.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -115,7 +115,7 @@ def test_agent_runtime_doc_mentions_replay_service_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because replay service references are missing.
 
 **Step 3: Write minimal implementation**
@@ -129,12 +129,12 @@ Expected: FAIL because replay service references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-replay-service-instincts.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add tests/test_p3_agent_runtime_docs.py docs/agent_runtime_baseline.md README.md docs/learning/2026-02-14-p3-replay-service-instincts.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-011 replay service completion"
 ```

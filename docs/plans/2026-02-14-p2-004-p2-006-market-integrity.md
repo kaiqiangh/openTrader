@@ -13,9 +13,9 @@
 ### Task 1: P2-004 Gap Detection Module
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_gap_detection.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/gap_detection.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
+- Create: `tests/test_p2_gap_detection.py`
+- Create: `services/market_ingestion/gap_detection.py`
+- Modify: `services/market_ingestion/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -28,7 +28,7 @@ def test_detect_gap_when_sequence_start_skips_expected() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_gap_detection.py -v`
+Run: `uv run pytest tests/test_p2_gap_detection.py -v`
 Expected: FAIL because gap detection module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -44,22 +44,22 @@ class GapDetectionModule:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_gap_detection.py -v`
+Run: `uv run pytest tests/test_p2_gap_detection.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_gap_detection.py /Users/kai/Desktop/openTrader/services/market_ingestion/gap_detection.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py
+git add tests/test_p2_gap_detection.py services/market_ingestion/gap_detection.py services/market_ingestion/__init__.py
 git commit -m "feat(ingestion): add sequence gap detection and resync signal builder"
 ```
 
 ### Task 2: P2-005 K-line Reconstruction Validator
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_kline_validator.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/kline_validator.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
+- Create: `tests/test_p2_kline_validator.py`
+- Create: `services/market_ingestion/kline_validator.py`
+- Modify: `services/market_ingestion/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -72,7 +72,7 @@ def test_validator_detects_missing_interval() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_kline_validator.py -v`
+Run: `uv run pytest tests/test_p2_kline_validator.py -v`
 Expected: FAIL because kline validator module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -90,22 +90,22 @@ class KlineReconstructionValidator:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_kline_validator.py -v`
+Run: `uv run pytest tests/test_p2_kline_validator.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_kline_validator.py /Users/kai/Desktop/openTrader/services/market_ingestion/kline_validator.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py
+git add tests/test_p2_kline_validator.py services/market_ingestion/kline_validator.py services/market_ingestion/__init__.py
 git commit -m "feat(ingestion): add kline reconstruction validator"
 ```
 
 ### Task 3: P2-006 Canonical Normalization + Publisher
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_canonical_pipeline.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/canonical_pipeline.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
+- Create: `tests/test_p2_canonical_pipeline.py`
+- Create: `services/market_ingestion/canonical_pipeline.py`
+- Modify: `services/market_ingestion/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -119,7 +119,7 @@ async def test_publish_order_book_delta_to_market_canonical() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_canonical_pipeline.py -v`
+Run: `uv run pytest tests/test_p2_canonical_pipeline.py -v`
 Expected: FAIL because canonical pipeline module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -135,24 +135,24 @@ class CanonicalNormalizationPipeline:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_canonical_pipeline.py -v`
+Run: `uv run pytest tests/test_p2_canonical_pipeline.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_canonical_pipeline.py /Users/kai/Desktop/openTrader/services/market_ingestion/canonical_pipeline.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py
+git add tests/test_p2_canonical_pipeline.py services/market_ingestion/canonical_pipeline.py services/market_ingestion/__init__.py
 git commit -m "feat(ingestion): add canonical normalization and publisher pipeline"
 ```
 
 ### Task 4: Docs + Progress Tracker Updates
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_integrity_docs.py`
-- Modify: `/Users/kai/Desktop/openTrader/docs/market_ingestion_foundation.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p2-integrity-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
+- Create: `tests/test_p2_integrity_docs.py`
+- Modify: `docs/market_ingestion_foundation.md`
+- Create: `docs/learning/2026-02-14-p2-integrity-instincts.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
+- Modify: `README.md`
 
 **Step 1: Write the failing test**
 
@@ -164,7 +164,7 @@ def test_readme_mentions_p2_integrity_modules() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_integrity_docs.py -v`
+Run: `uv run pytest tests/test_p2_integrity_docs.py -v`
 Expected: FAIL because docs and references are missing.
 
 **Step 3: Write minimal implementation**
@@ -178,12 +178,12 @@ Expected: FAIL because docs and references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_integrity_docs.py /Users/kai/Desktop/openTrader/docs/market_ingestion_foundation.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p2-integrity-instincts.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md /Users/kai/Desktop/openTrader/README.md
+git add tests/test_p2_integrity_docs.py docs/market_ingestion_foundation.md docs/learning/2026-02-14-p2-integrity-instincts.md docs/IMPLEMENTATION_PLAN.md README.md
 git commit -m "docs: record p2 integrity and canonical pipeline completion"
 ```

@@ -13,10 +13,10 @@
 ### Task 1: Queue consumer skeleton (`P4-004`)
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/services/real_execution_go/main.go`
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/consumer/contracts.go`
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/runner.go`
-- Test: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/runner_test.go`
+- Modify: `services/real_execution_go/main.go`
+- Create: `services/real_execution_go/internal/consumer/contracts.go`
+- Create: `services/real_execution_go/internal/service/runner.go`
+- Test: `services/real_execution_go/internal/service/runner_test.go`
 
 **Step 1: Write the failing test**
 
@@ -28,7 +28,7 @@ func TestRunnerReceivesAndAcksDelivery(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: FAIL because runner/consumer packages do not exist.
 
 **Step 3: Write minimal implementation**
@@ -39,21 +39,21 @@ Expected: FAIL because runner/consumer packages do not exist.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: PASS for runner behavior.
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/real_execution_go/main.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/consumer/contracts.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/runner.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/runner_test.go
+git add services/real_execution_go/main.go services/real_execution_go/internal/consumer/contracts.go services/real_execution_go/internal/service/runner.go services/real_execution_go/internal/service/runner_test.go
 git commit -m "feat(p4-004): add real execution queue consumer runner skeleton"
 ```
 
 ### Task 2: Go<->Python bridge contracts (`P4-005`)
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/bridge/contracts.go`
-- Test: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/bridge/contracts_test.go`
+- Create: `services/real_execution_go/internal/bridge/contracts.go`
+- Test: `services/real_execution_go/internal/bridge/contracts_test.go`
 
 **Step 1: Write the failing test**
 
@@ -65,7 +65,7 @@ func TestNewCreateOrderCommandBuildsValidatedContract(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: FAIL because bridge contract package does not exist.
 
 **Step 3: Write minimal implementation**
@@ -76,24 +76,24 @@ Expected: FAIL because bridge contract package does not exist.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: PASS for bridge contract validations.
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/real_execution_go/internal/bridge/contracts.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/bridge/contracts_test.go
+git add services/real_execution_go/internal/bridge/contracts.go services/real_execution_go/internal/bridge/contracts_test.go
 git commit -m "feat(p4-005): add Go-Python execution bridge contracts"
 ```
 
 ### Task 3: Idempotent dispatch and dedupe (`P4-006`)
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/idempotency/store.go`
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/handler.go`
-- Create: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/envelope.go`
-- Test: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/idempotency/store_test.go`
-- Test: `/Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/handler_test.go`
+- Create: `services/real_execution_go/internal/idempotency/store.go`
+- Create: `services/real_execution_go/internal/service/handler.go`
+- Create: `services/real_execution_go/internal/service/envelope.go`
+- Test: `services/real_execution_go/internal/idempotency/store_test.go`
+- Test: `services/real_execution_go/internal/service/handler_test.go`
 
 **Step 1: Write the failing test**
 
@@ -105,7 +105,7 @@ func TestHandlerDedupesDuplicateCreateIntent(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: FAIL because idempotency and handler modules do not exist.
 
 **Step 3: Write minimal implementation**
@@ -117,22 +117,22 @@ Expected: FAIL because idempotency and handler modules do not exist.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/kai/Desktop/openTrader/services/real_execution_go && go test ./...`
+Run: `cd services/real_execution_go && go test ./...`
 Expected: PASS for dedupe and command routing behavior.
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/real_execution_go/internal/idempotency/store.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/handler.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/envelope.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/idempotency/store_test.go /Users/kai/Desktop/openTrader/services/real_execution_go/internal/service/handler_test.go
+git add services/real_execution_go/internal/idempotency/store.go services/real_execution_go/internal/service/handler.go services/real_execution_go/internal/service/envelope.go services/real_execution_go/internal/idempotency/store_test.go services/real_execution_go/internal/service/handler_test.go
 git commit -m "feat(p4-006): add idempotent dispatch and dedupe handler"
 ```
 
 ### Task 4: Documentation and plan updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/real_execution_go_baseline.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
+- Modify: `README.md`
+- Create: `docs/real_execution_go_baseline.md`
 
 **Step 1: Write the failing test**
 
@@ -143,7 +143,7 @@ def test_implementation_plan_marks_p4_004_to_p4_006_progress():
 
 **Step 2: Run test to verify it fails**
 
-Run: `rg -n "P4-004|P4-005|P4-006" /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+Run: `rg -n "P4-004|P4-005|P4-006" docs/IMPLEMENTATION_PLAN.md`
 Expected: still `NOT_STARTED` and missing baseline doc references.
 
 **Step 3: Write minimal implementation**
@@ -154,13 +154,13 @@ Expected: still `NOT_STARTED` and missing baseline doc references.
 
 **Step 4: Run test to verify it passes**
 
-Run: `rg -n "P4-004|P4-005|P4-006|real_execution_go_baseline" /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/real_execution_go_baseline.md`
+Run: `rg -n "P4-004|P4-005|P4-006|real_execution_go_baseline" docs/IMPLEMENTATION_PLAN.md README.md docs/real_execution_go_baseline.md`
 Expected: required status and references are present.
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/real_execution_go_baseline.md
+git add docs/IMPLEMENTATION_PLAN.md README.md docs/real_execution_go_baseline.md
 git commit -m "docs(p4): add real execution baseline and update plan status"
 ```
 

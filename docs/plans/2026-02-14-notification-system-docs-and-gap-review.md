@@ -13,9 +13,9 @@
 ### Task 1: Notification architecture document updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/PRD_Consolidated.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/ARD_Consolidated.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `docs/PRD_Consolidated.md`
+- Modify: `docs/ARD_Consolidated.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -43,14 +43,14 @@ Expected: all required sections present.
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/PRD_Consolidated.md /Users/kai/Desktop/openTrader/docs/ARD_Consolidated.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add docs/PRD_Consolidated.md docs/ARD_Consolidated.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: add extensible notification architecture and implementation roadmap"
 ```
 
 ### Task 2: Phase 0-3 completeness gap analysis report
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/docs/reviews/2026-02-14-phase0-3-gap-analysis.md`
+- Create: `docs/reviews/2026-02-14-phase0-3-gap-analysis.md`
 
 **Step 1: Write the failing test**
 
@@ -78,20 +78,20 @@ Expected: report sections present.
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/reviews/2026-02-14-phase0-3-gap-analysis.md
+git add docs/reviews/2026-02-14-phase0-3-gap-analysis.md
 git commit -m "docs(review): add phase 0-3 completeness gap analysis"
 ```
 
 ### Task 3: Root and nested AGENT.md rollout
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/config/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/services/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/tests/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/migrations/AGENT.md`
-- Create: `/Users/kai/Desktop/openTrader/scripts/AGENT.md`
+- Create: `AGENT.md`
+- Create: `config/AGENT.md`
+- Create: `services/AGENT.md`
+- Create: `tests/AGENT.md`
+- Create: `docs/AGENT.md`
+- Create: `migrations/AGENT.md`
+- Create: `scripts/AGENT.md`
 - Create: service-level `AGENT.md` files for core service modules
 
 **Step 1: Write the failing test**
@@ -121,7 +121,7 @@ Expected: root + core nested AGENT docs present.
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/AGENT.md /Users/kai/Desktop/openTrader/config/AGENT.md /Users/kai/Desktop/openTrader/services/AGENT.md /Users/kai/Desktop/openTrader/tests/AGENT.md /Users/kai/Desktop/openTrader/docs/AGENT.md /Users/kai/Desktop/openTrader/migrations/AGENT.md /Users/kai/Desktop/openTrader/scripts/AGENT.md
+git add AGENT.md config/AGENT.md services/AGENT.md tests/AGENT.md docs/AGENT.md migrations/AGENT.md scripts/AGENT.md
 git commit -m "docs(agent): add root and module-level AGENT guidance"
 ```
 

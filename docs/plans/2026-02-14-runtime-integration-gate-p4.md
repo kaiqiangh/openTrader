@@ -13,10 +13,10 @@
 ### Task 1: Runtime integration gate foundations
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/shared/runtime/__init__.py`
-- Create: `/Users/kai/Desktop/openTrader/services/shared/runtime/broker.py`
-- Create: `/Users/kai/Desktop/openTrader/services/workers/runtime_pipeline.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_runtime_pipeline.py`
+- Create: `services/shared/runtime/__init__.py`
+- Create: `services/shared/runtime/broker.py`
+- Create: `services/workers/runtime_pipeline.py`
+- Test: `tests/test_runtime_pipeline.py`
 
 **Step 1: Write the failing test**
 
@@ -51,13 +51,13 @@ git commit -m "feat(runtime): add in-process broker and worker pipeline runtime"
 ### Task 2: Concrete persistence and LLM provider adapters
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/shared/runtime/sqlalchemy_utils.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/sqlalchemy_store.py`
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/sqlalchemy_memory_store.py`
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/sqlalchemy_stores.py`
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/litellm_http_adapter.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_runtime_persistence_adapters.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_litellm_http_adapter.py`
+- Create: `services/shared/runtime/sqlalchemy_utils.py`
+- Create: `services/market_ingestion/sqlalchemy_store.py`
+- Create: `services/agent_orchestrator/sqlalchemy_memory_store.py`
+- Create: `services/llm_gateway/sqlalchemy_stores.py`
+- Create: `services/llm_gateway/litellm_http_adapter.py`
+- Test: `tests/test_runtime_persistence_adapters.py`
+- Test: `tests/test_litellm_http_adapter.py`
 
 **Step 1: Write the failing test**
 
@@ -91,13 +91,13 @@ git commit -m "feat(runtime): add concrete persistence and LiteLLM HTTP adapters
 ### Task 3: Implement P4-001, P4-002, P4-003
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/simulation_execution/mode_routing.py`
-- Create: `/Users/kai/Desktop/openTrader/services/simulation_execution/engine.py`
-- Create: `/Users/kai/Desktop/openTrader/services/simulation_execution/safety_guard.py`
-- Create: `/Users/kai/Desktop/openTrader/services/simulation_execution/worker.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_p4_mode_routing.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_p4_simulation_engine.py`
-- Test: `/Users/kai/Desktop/openTrader/tests/test_p4_simulation_safety_guard.py`
+- Create: `services/simulation_execution/mode_routing.py`
+- Create: `services/simulation_execution/engine.py`
+- Create: `services/simulation_execution/safety_guard.py`
+- Create: `services/simulation_execution/worker.py`
+- Test: `tests/test_p4_mode_routing.py`
+- Test: `tests/test_p4_simulation_engine.py`
+- Test: `tests/test_p4_simulation_safety_guard.py`
 
 **Step 1: Write the failing test**
 
@@ -133,9 +133,9 @@ git commit -m "feat(p4): add mode routing, simulation engine, and mock safety gu
 ### Task 4: Plan/documentation alignment and validation gate updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/runtime/runtime-integration-gate-2026-02-14.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
+- Modify: `docs/agent_runtime_baseline.md`
+- Create: `docs/runtime/runtime-integration-gate-2026-02-14.md`
 
 **Step 1: Write the failing test**
 

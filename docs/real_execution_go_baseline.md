@@ -76,8 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001` now delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001`..`P6-004` now delivered, next work is:
 
-- `P6-002`: news ingestion service for pull/normalize/deduplicate persistence flow
-- `P6-003`: news tagging/relevance pipeline
-- `P6-004`: rolling news summarizer service
+- `P6-005`: context injection bridge from news summaries into market context runtime inputs
+- `P6-006`: resilience behavior and `news_unavailable` alert paths
+- `P6-007`: news quality dashboard metrics surfaces

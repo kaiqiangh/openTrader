@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-This repository follows `/Users/kai/Desktop/openTrader/docs/ARD_Consolidated.md` as architecture source of truth.
+This repository follows `docs/ARD_Consolidated.md` as architecture source of truth.
 
 ## Decision
 Adopt Python 3.13+, Go for performance-critical execution services, RabbitMQ, Redis, PostgreSQL + TimescaleDB, Docker Compose, and `.env`-based configuration.

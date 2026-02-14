@@ -13,10 +13,10 @@
 ### Task 1: P2-001 CCXT-Style Ingestion Adapter + Snapshot Bootstrap
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_ingestion_adapter.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/contracts.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/exchange_adapter.py`
+- Create: `tests/test_p2_ingestion_adapter.py`
+- Create: `services/market_ingestion/__init__.py`
+- Create: `services/market_ingestion/contracts.py`
+- Create: `services/market_ingestion/exchange_adapter.py`
 
 **Step 1: Write the failing test**
 
@@ -30,7 +30,7 @@ async def test_bootstrap_snapshot_normalizes_levels() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_ingestion_adapter.py -v`
+Run: `uv run pytest tests/test_p2_ingestion_adapter.py -v`
 Expected: FAIL because adapter module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -43,22 +43,22 @@ class CCXTIngestionAdapter:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_ingestion_adapter.py -v`
+Run: `uv run pytest tests/test_p2_ingestion_adapter.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_ingestion_adapter.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py /Users/kai/Desktop/openTrader/services/market_ingestion/contracts.py /Users/kai/Desktop/openTrader/services/market_ingestion/exchange_adapter.py
+git add tests/test_p2_ingestion_adapter.py services/market_ingestion/__init__.py services/market_ingestion/contracts.py services/market_ingestion/exchange_adapter.py
 git commit -m "feat(ingestion): add ccxt-style adapter and snapshot bootstrap"
 ```
 
 ### Task 2: P2-002 Connection Resilience + Reconnect Backoff
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_connection_resilience.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/connection_resilience.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
+- Create: `tests/test_p2_connection_resilience.py`
+- Create: `services/market_ingestion/connection_resilience.py`
+- Modify: `services/market_ingestion/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -70,7 +70,7 @@ def test_next_backoff_grows_with_attempts_and_cap() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_connection_resilience.py -v`
+Run: `uv run pytest tests/test_p2_connection_resilience.py -v`
 Expected: FAIL because resilience module is missing.
 
 **Step 3: Write minimal implementation**
@@ -87,22 +87,22 @@ class ConnectionResilienceManager:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_connection_resilience.py -v`
+Run: `uv run pytest tests/test_p2_connection_resilience.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_connection_resilience.py /Users/kai/Desktop/openTrader/services/market_ingestion/connection_resilience.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py
+git add tests/test_p2_connection_resilience.py services/market_ingestion/connection_resilience.py services/market_ingestion/__init__.py
 git commit -m "feat(ingestion): add connection resilience and reconnect backoff"
 ```
 
 ### Task 3: P2-003 Order Book Sync Engine with Sequence Handling
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p2_order_book_sync.py`
-- Create: `/Users/kai/Desktop/openTrader/services/market_ingestion/order_book_sync.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py`
+- Create: `tests/test_p2_order_book_sync.py`
+- Create: `services/market_ingestion/order_book_sync.py`
+- Modify: `services/market_ingestion/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -115,7 +115,7 @@ def test_apply_delta_raises_gap_error_when_sequence_skips() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_order_book_sync.py -v`
+Run: `uv run pytest tests/test_p2_order_book_sync.py -v`
 Expected: FAIL because sync engine module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -128,23 +128,23 @@ class OrderBookSyncEngine:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_order_book_sync.py -v`
+Run: `uv run pytest tests/test_p2_order_book_sync.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p2_order_book_sync.py /Users/kai/Desktop/openTrader/services/market_ingestion/order_book_sync.py /Users/kai/Desktop/openTrader/services/market_ingestion/__init__.py
+git add tests/test_p2_order_book_sync.py services/market_ingestion/order_book_sync.py services/market_ingestion/__init__.py
 git commit -m "feat(ingestion): add order book sync engine with sequence gap detection"
 ```
 
 ### Task 4: Update Docs + Learning Artifacts + Progress Tracker
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/docs/market_ingestion_foundation.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p2-ingestion-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
+- Create: `docs/market_ingestion_foundation.md`
+- Create: `docs/learning/2026-02-14-p2-ingestion-instincts.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
+- Modify: `README.md`
 
 **Step 1: Write the failing test**
 
@@ -155,7 +155,7 @@ def test_market_ingestion_foundation_doc_exists() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p2_ingestion_docs.py -v`
+Run: `uv run pytest tests/test_p2_ingestion_docs.py -v`
 Expected: FAIL because docs are missing.
 
 **Step 3: Write minimal implementation**
@@ -167,12 +167,12 @@ Expected: FAIL because docs are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/market_ingestion_foundation.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p2-ingestion-instincts.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/tests
+git add docs/market_ingestion_foundation.md docs/learning/2026-02-14-p2-ingestion-instincts.md docs/IMPLEMENTATION_PLAN.md README.md tests
 git commit -m "docs: record p2 market ingestion foundation and progress"
 ```

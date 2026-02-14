@@ -10,7 +10,7 @@ fmt:
 	uv run ruff format .
 
 env-validate:
-	uv run python /Users/kai/Desktop/openTrader/scripts/validate_env.py
+	uv run python scripts/validate_env.py
 
 migrate-up:
 	uv run alembic upgrade head

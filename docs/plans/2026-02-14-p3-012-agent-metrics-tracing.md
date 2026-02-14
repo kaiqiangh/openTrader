@@ -13,9 +13,9 @@
 ### Task 1: Add failing tests for metrics/tracing behavior
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py`
+- Create: `tests/test_p3_metrics_tracing.py`
+- Modify: `tests/test_p3_orchestrator.py`
+- Modify: `tests/test_p3_llm_gateway.py`
 
 **Step 1: Write the failing test**
 
@@ -29,7 +29,7 @@ async def test_orchestrator_records_stage_latency_and_failures() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_metrics_tracing.py tests/test_p3_orchestrator.py tests/test_p3_llm_gateway.py -v`
 Expected: FAIL because metrics module and instrumentation wiring do not exist.
 
 **Step 3: Write minimal implementation**
@@ -43,24 +43,24 @@ class AgentRuntimeMetrics:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_metrics_tracing.py tests/test_p3_orchestrator.py tests/test_p3_llm_gateway.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py
+git add tests/test_p3_metrics_tracing.py tests/test_p3_orchestrator.py tests/test_p3_llm_gateway.py
 git commit -m "test(agent-runtime): add metrics and tracing coverage"
 ```
 
 ### Task 2: Implement metrics module and runtime integrations
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/metrics_tracing.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py`
+- Create: `services/agent_orchestrator/metrics_tracing.py`
+- Modify: `services/agent_orchestrator/orchestrator.py`
+- Modify: `services/llm_gateway/contracts.py`
+- Modify: `services/llm_gateway/gateway.py`
+- Modify: `services/agent_orchestrator/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -73,7 +73,7 @@ def test_metrics_snapshot_exposes_latency_failure_and_token_totals() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py -v`
+Run: `uv run pytest tests/test_p3_metrics_tracing.py -v`
 Expected: FAIL until module contracts and integrations are implemented.
 
 **Step 3: Write minimal implementation**
@@ -91,24 +91,24 @@ class LLMGateway:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_metrics_tracing.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_metrics_tracing.py tests/test_p3_orchestrator.py tests/test_p3_llm_gateway.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/agent_orchestrator/metrics_tracing.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py /Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py /Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py
+git add services/agent_orchestrator/metrics_tracing.py services/agent_orchestrator/orchestrator.py services/llm_gateway/contracts.py services/llm_gateway/gateway.py services/agent_orchestrator/__init__.py
 git commit -m "feat(agent-runtime): add metrics and tracing instrumentation baseline"
 ```
 
 ### Task 3: Documentation and tracker updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-metrics-tracing-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `tests/test_p3_agent_runtime_docs.py`
+- Modify: `docs/agent_runtime_baseline.md`
+- Modify: `README.md`
+- Create: `docs/learning/2026-02-14-p3-metrics-tracing-instincts.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -120,7 +120,7 @@ def test_agent_runtime_doc_mentions_metrics_tracing_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because P3-012 references are missing.
 
 **Step 3: Write minimal implementation**
@@ -134,12 +134,12 @@ Expected: FAIL because P3-012 references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-metrics-tracing-instincts.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add tests/test_p3_agent_runtime_docs.py docs/agent_runtime_baseline.md README.md docs/learning/2026-02-14-p3-metrics-tracing-instincts.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-012 metrics and tracing completion"
 ```

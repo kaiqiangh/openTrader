@@ -69,6 +69,7 @@ Use this exact format in each update:
 | 26   | 2026-02-14 | P5-002,P5-003,P5-004 | - | - | Added OMS fill reconciliation, position engine, and portfolio snapshot engine; fixed `uv run pytest` parity with root-level pass | 100% |
 | 27   | 2026-02-14 | P5-005,P5-006,P5-007 | - | - | Added OMS core risk rules, drawdown/daily-loss guards, and circuit-breaker/kill-switch controls with composed policy engine; Python/Go suites green | 100% |
 | 28   | 2026-02-14 | P5-008,P5-009,P6-001 | - | - | Added risk observability telemetry, risk regression scenario suite, and pluggable news source connector framework; Python/Go suites green | 100% |
+| 29   | 2026-02-14 | P6-002,P6-003,P6-004 | - | - | Added news ingestion + dedupe persistence, tagging/relevance pipeline, and rolling summarizer service with deterministic fallback behavior | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -322,6 +323,15 @@ Use this exact format in each update:
 - Next Task IDs: [P6-002, P6-003, P6-004]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 17:55
+
+- Completed Task IDs: [P6-002, P6-003, P6-004]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; deterministic baseline summaries are non-LLM and should be upgraded in later phases when quality/cost targets are finalized.
+- Next Task IDs: [P6-005, P6-006, P6-007]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -569,9 +579,9 @@ Integrate news/social signals into the agent context pipeline safely and observa
 | ID     | Pri | Task                           | Actionable Steps                                                         | Dependencies  | Deliverable                 | Status      |
 | ------ | --- | ------------------------------ | ------------------------------------------------------------------------ | ------------- | --------------------------- | ----------- |
 | P6-001 | P1  | Source connector framework     | Implement pluggable source connectors for RSS/APIs/social feeds          | P1-007        | Connector framework         | DONE |
-| P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | NOT_STARTED |
-| P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | NOT_STARTED |
-| P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | NOT_STARTED |
+| P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | DONE |
+| P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | DONE |
+| P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | DONE |
 | P6-005 | P1  | Context injection bridge       | Publish summaries to strategy context queue and MCTX agent input         | P6-004,P3-005 | News-aware strategy context | NOT_STARTED |
 | P6-006 | P1  | News resilience behavior       | Implement `news_unavailable` fallback and alerting                       | P6-002,P6-004 | Non-blocking news module    | NOT_STARTED |
 | P6-007 | P2  | News quality dashboard         | Coverage, freshness, summarization lag, error rates                      | P6-002,P6-004 | News ops visibility         | NOT_STARTED |
@@ -832,6 +842,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P5-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P5-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -842,6 +855,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P6-002` news ingestion service with pull/normalize/deduplicate persistence.
-2. Start `P6-003` tagging and relevance pipeline for symbols/topics.
-3. Start `P6-004` rolling news summarizer service.
+1. Start `P6-005` context injection bridge between news summaries and market context agent inputs.
+2. Start `P6-006` resilience behavior with `news_unavailable` propagation and alerting paths.
+3. Start `P6-007` news quality dashboard metrics (coverage/freshness/summarization lag/error rate).
