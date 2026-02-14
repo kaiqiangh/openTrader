@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-006)
+# Agent Runtime Baseline (P3-001..P3-008)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -9,6 +9,8 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/agent_orchestrator/execution_decision_agent.py` (`P3-004`)
 - `services/agent_orchestrator/market_context_agent.py` (`P3-005`)
 - `services/llm_gateway/gateway.py` (`P3-006`)
+- `services/llm_gateway/persistence.py` (`P3-007`)
+- `services/llm_gateway/quota.py` (`P3-008`)
 
 ## Component Boundaries
 
@@ -55,6 +57,14 @@ This document defines the first Phase 3 decision runtime modules:
   - bounded retry policy
   - ordered fallback across providers.
 - Runtime integration with planner/risk/execution agents is deferred to follow-up tasks while contract and reliability behavior are now established.
+
+8. `llm_gateway/persistence.py`
+- Defines immutable `LLMCallRecord` and storage boundary `LLMCallStore`.
+- Captures full prompt/response payloads plus token/cost/latency metadata for successful and terminal failure gateway outcomes.
+
+9. `llm_gateway/quota.py`
+- Defines hard-limit quota contracts (`QuotaLimits`, `QuotaUsage`, `LLMQuotaStore`).
+- Gateway now performs pre-dispatch hard-limit enforcement and post-success usage increments, with quota-blocked audit records persisted through call-record infrastructure.
 
 ## Decision Lifecycle
 

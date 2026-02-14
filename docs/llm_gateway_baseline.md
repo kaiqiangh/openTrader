@@ -4,6 +4,8 @@ This document defines the initial centralized LLM gateway skeleton:
 
 - `services/llm_gateway/contracts.py`
 - `services/llm_gateway/gateway.py`
+- `services/llm_gateway/persistence.py`
+- `services/llm_gateway/quota.py`
 - `services/llm_gateway/__init__.py`
 
 ## Objective
@@ -33,6 +35,16 @@ Provide one service-layer contract for model requests that supports:
 - `ProviderNotConfiguredError`
 - `LLMRetryExhaustedError`
 
+6. Persistence contracts
+- `LLMCallRecord`
+- `LLMCallStore` protocol
+
+7. Quota contracts
+- `QuotaLimits`
+- `QuotaUsage`
+- `LLMQuotaStore` protocol
+- `LLMQuotaExceededError`
+
 ## Runtime Flow
 
 1. Receive `LLMRequest` from caller.
@@ -44,6 +56,8 @@ Provide one service-layer contract for model requests that supports:
 - on exhaustion, move to next provider alias.
 4. Return first successful `LLMResponse`.
 5. If all providers fail, raise `LLMRetryExhaustedError` with summarized failure context.
+6. Persist immutable call record for both successful and terminal-failure outcomes.
+7. Enforce hard-limit quota checks before dispatch and increment quota usage on successful outcomes.
 
 ## Extract/Normalization Rules
 
@@ -53,6 +67,20 @@ Provide one service-layer contract for model requests that supports:
   3. `choices[0].text`
 - Usage defaults to zero tokens when provider payload omits usage fields.
 - Retry delay uses bounded exponential backoff from `GatewaySettings`.
+
+## Persistence Record Shape
+
+`LLMCallRecord` captures:
+
+- identifiers: `llm_call_id`, `trace_id`, `decision_id`, `strategy_id`, `agent_name`
+- routing: `provider`, `model`
+- payloads: full `prompt_payload` and full `response_payload`
+- metrics: `prompt_tokens`, `completion_tokens`, `total_tokens`, `latency_ms`, `estimated_cost`
+- timestamp: `created_at`
+
+Failure records use `response_payload.status = \"failed\"` and include provider error summary list.
+
+Quota-blocked records use `response_payload.status = \"quota_blocked\"` with reason and projected usage/cost values.
 
 ## Notes for Next Phases
 

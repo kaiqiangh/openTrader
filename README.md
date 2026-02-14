@@ -75,8 +75,12 @@ Phase 3 LLM gateway baseline:
 
 - `services/llm_gateway/contracts.py` (typed provider/request/response contracts)
 - `services/llm_gateway/gateway.py` (provider timeout/retry/fallback orchestration)
+- `services/llm_gateway/persistence.py` (full prompt/response call-record persistence boundary)
+- `services/llm_gateway/quota.py` (daily token and monthly cost hard-limit quota contracts)
 - `docs/llm_gateway_baseline.md` (gateway architecture and contract guide)
 - `docs/learning/2026-02-14-p3-llm-gateway-instincts.md` (continuous-learning-v2 gateway notes)
+- `docs/learning/2026-02-14-p3-llm-persistence-instincts.md` (continuous-learning-v2 prompt-response persistence notes)
+- `docs/learning/2026-02-14-p3-llm-quota-instincts.md` (continuous-learning-v2 quota enforcement notes)
 
 Runtime verification evidence:
 
