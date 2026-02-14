@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,8 +20,6 @@ services:
     image: redis:7-alpine
     container_name: ot_redis
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -40,9 +36,6 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
-    ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -81,15 +74,120 @@ services:
     restart: unless-stopped
     networks:
       - internal
+      - public
     profiles:
       - app
       - notification
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: ot_prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./config/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - app
+      - observability
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: ot_alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./config/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - app
+      - observability
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: ot_loki
+    command:
+      - -config.file=/etc/loki/config.yml
+    volumes:
+      - ./config/observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - app
+      - observability
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: ot_tempo
+    command:
+      - -config.file=/etc/tempo/tempo.yml
+    volumes:
+      - ./config/observability/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - app
+      - observability
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ot_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change_me}
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./config/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/observability/grafana/dashboard-definitions:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - internal
+      - public
+    profiles:
+      - app
+      - observability
 
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  prometheus_data:
+  alertmanager_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
 
 networks:
+  public:
+    driver: bridge
   internal:
     driver: bridge
+    internal: true
