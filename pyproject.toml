@@ -5,12 +5,14 @@ description = "LLM-based multi-exchange crypto trading platform"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.13.2",
+    "fastapi>=0.116.0",
     "psycopg[binary]>=3.2.1",
     "sqlalchemy>=2.0.36",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.2.0",
     "ruff>=0.13.0",
