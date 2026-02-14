@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from urllib import error, request
 
 from services.notification_service.models import DeliveryResult, NotificationMessage
+from services.shared.runtime.env_loader import load_dotenv_file
 
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _MARKDOWN_V2_RESERVED = r"_*[]()~`>#+-=|{}.!"
@@ -117,6 +118,7 @@ def render_telegram_message_text(message: NotificationMessage) -> str:
 
 
 def load_telegram_gateway_from_env() -> TelegramGateway | None:
+    load_dotenv_file()
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     default_chat_id = os.getenv("TELEGRAM_DEFAULT_CHAT_ID", "").strip()
     if not bot_token or not default_chat_id:

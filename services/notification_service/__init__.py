@@ -28,12 +28,6 @@ from services.notification_service.settings import (
     NotificationWorkerSettings,
     load_notification_worker_settings,
 )
-from services.notification_service.worker import (
-    InMemoryNotificationEnvelopeConsumer,
-    NotificationWorker,
-    RabbitMQHTTPConsumer,
-    build_notification_worker_from_settings,
-)
 
 __all__ = [
     "NotificationEvent",
@@ -64,3 +58,27 @@ __all__ = [
     "NotificationService",
     "NotificationEventBridge",
 ]
+
+
+def __getattr__(name: str):  # pragma: no cover - thin compatibility shim
+    if name in {
+        "InMemoryNotificationEnvelopeConsumer",
+        "NotificationWorker",
+        "RabbitMQHTTPConsumer",
+        "build_notification_worker_from_settings",
+    }:
+        from services.notification_service.worker import (
+            InMemoryNotificationEnvelopeConsumer,
+            NotificationWorker,
+            RabbitMQHTTPConsumer,
+            build_notification_worker_from_settings,
+        )
+
+        mapping = {
+            "InMemoryNotificationEnvelopeConsumer": InMemoryNotificationEnvelopeConsumer,
+            "NotificationWorker": NotificationWorker,
+            "RabbitMQHTTPConsumer": RabbitMQHTTPConsumer,
+            "build_notification_worker_from_settings": build_notification_worker_from_settings,
+        }
+        return mapping[name]
+    raise AttributeError(name)
