@@ -8,10 +8,12 @@ Collects and normalizes external news/social content for downstream summarizatio
 
 - Owns source connector logic and dedup normalization.
 - Must not implement strategy decisioning.
+- Connector failures must be isolated so one source outage does not block other sources.
 
 ## Coding Conventions
 
 - Preserve source metadata and dedupe fingerprints.
+- Keep connector identity (`connector_id`, `connector_kind`) explicit in normalized outputs.
 
 ## Dependency Rules
 
@@ -24,6 +26,7 @@ Collects and normalizes external news/social content for downstream summarizatio
 ## Integration Contracts
 
 - Emits normalized news records for persistence/tagging/summarization.
+- `source_connectors.py` provides protocol, registry, and cycle runner contracts for RSS/API/social sources.
 
 ## Testing Expectations
 
