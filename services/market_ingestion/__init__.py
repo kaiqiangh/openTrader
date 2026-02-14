@@ -10,6 +10,7 @@ from services.market_ingestion.exchange_adapter import (
     WsOrderBookClient,
 )
 from services.market_ingestion.gap_detection import GapDetectionModule, GapDetectionResult
+from services.market_ingestion.integration_harness import IngestionIntegrationHarness, ReplayRunResult
 from services.market_ingestion.kline_validator import (
     KlineBar,
     KlineReconstructionValidator,
@@ -21,6 +22,8 @@ from services.market_ingestion.order_book_sync import (
     OrderBookSyncEngine,
     OrderBookSyncError,
 )
+from services.market_ingestion.persistence_writers import TimescalePersistenceWriters, TimeseriesStore
+from services.market_ingestion.pipeline_metrics import MarketPipelineMetrics
 
 __all__ = [
     "AdapterPayloadError",
@@ -34,6 +37,7 @@ __all__ = [
     "KlineBar",
     "KlineReconstructionValidator",
     "KlineValidationResult",
+    "MarketPipelineMetrics",
     "OrderBookDelta",
     "OrderBookLevel",
     "OrderBookNotInitializedError",
@@ -41,6 +45,10 @@ __all__ = [
     "OrderBookSnapshot",
     "OrderBookSyncEngine",
     "OrderBookSyncError",
+    "ReplayRunResult",
     "RestOrderBookClient",
+    "TimescalePersistenceWriters",
+    "TimeseriesStore",
     "WsOrderBookClient",
+    "IngestionIntegrationHarness",
 ]
