@@ -162,6 +162,11 @@ LLM env notes:
 - `LITELLM_BASE_URL`, `LITELLM_API_KEY`, and `LITELLM_TIMEOUT_SECONDS` are consumed by openTrader runtime modules.
 - `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment and are not directly read by openTrader runtime today.
 
+API auth env notes:
+
+- `JWT_SECRET_KEY` is required for FastAPI bearer-token verification.
+- `JWT_ISSUER` and `JWT_AUDIENCE` are optional and default to `open-trader` and `open-trader-api`.
+
 Runtime integration gate + Phase 4 foundations:
 
 - `services/shared/runtime/broker.py` (concrete in-process topic broker adapter)
@@ -210,6 +215,17 @@ News pipeline baseline (`P6-001`..`P6-007`):
 - `services/news_summarizer/context_injection_bridge.py` (`P6-005` summary context envelope publisher + market payload injection helper)
 - `services/news_summarizer/resilience.py` (`P6-006` stale/missing summary fallback policy with alert envelope publisher)
 - `services/news_ingestion/quality_metrics.py` (`P6-007` coverage/freshness/lag/error metric snapshot contracts for news ops visibility)
+
+API control-plane baseline (`P7-001`..`P7-003`):
+
+- `services/api/app.py` (`P7-001` FastAPI app factory, lifespan wiring, and router registration)
+- `services/api/settings.py` (`P7-001` API settings contract for mode/auth defaults)
+- `services/api/auth.py` (`P7-001`/`P7-002` JWT bearer validation and role-gated dependencies)
+- `services/api/state.py` (`P7-001`/`P7-003` in-memory control-plane and trading-ops state adapters)
+- `services/api/models.py` (`P7-001`/`P7-003` typed request/response schemas)
+- `services/api/routers/system.py` (`P7-001` liveness/readiness and metadata endpoints)
+- `services/api/routers/control.py` (`P7-001`/`P7-002` mode and strategy control endpoints with RBAC)
+- `services/api/routers/ops.py` (`P7-003` orders/positions/portfolio/risk status and circuit-breaker/kill-switch controls)
 
 Runtime verification evidence:
 

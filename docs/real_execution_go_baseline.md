@@ -76,8 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001`..`P6-007` now delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, `P6-001`..`P6-007`, and `P7-001`..`P7-003` now delivered, next work is:
 
-- `P7-001`: FastAPI control-plane service baseline
-- `P7-002`: RBAC enforcement for control-plane endpoints
-- `P7-003`: trading operations endpoints for orders/positions/portfolio/risk controls
+- `P7-004`: LLM governance endpoints (usage/cost/quota/breach history)
+- `P7-005`: replay endpoints and decision-trace retrieval
+- `P7-006`: dashboard shell baseline for operator workflows
