@@ -47,8 +47,12 @@ Phase 2 market ingestion foundation:
 - `services/market_ingestion/exchange_adapter.py` (CCXT-style adapter + snapshot bootstrap)
 - `services/market_ingestion/connection_resilience.py` (heartbeat/reconnect/backoff manager)
 - `services/market_ingestion/order_book_sync.py` (snapshot + delta sync engine)
+- `services/market_ingestion/gap_detection.py` (sequence gap classification and resync signaling)
+- `services/market_ingestion/kline_validator.py` (k-line continuity and quality validation)
+- `services/market_ingestion/canonical_pipeline.py` (canonical normalization + envelope-validated publisher)
 - `docs/market_ingestion_foundation.md` (module architecture and contracts)
 - `docs/learning/2026-02-14-p2-ingestion-instincts.md` (continuous-learning-v2 notes)
+- `docs/learning/2026-02-14-p2-integrity-instincts.md` (continuous-learning-v2 integrity notes)
 
 Runtime verification evidence:
 
