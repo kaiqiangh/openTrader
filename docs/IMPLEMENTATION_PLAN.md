@@ -60,6 +60,8 @@ Use this exact format in each update:
 | 17   | 2026-02-14 | P3-010 | - | - | Memory layer integration delivered with Redis short-term slots and Postgres long-term summary persistence; tests green | 100% |
 | 18   | 2026-02-14 | P3-011 | - | - | Replay service delivered with deterministic decision graph reconstruction and digest validation; tests green | 100% |
 | 19   | 2026-02-14 | P3-012 | - | - | Agent metrics/tracing baseline delivered with stage latency/failure instrumentation and LLM token telemetry hooks; tests green | 100% |
+| 20   | 2026-02-14 | - | - | - | PRD/ARD/plan updated with extensible notification architecture and Telegram-first delivery roadmap | 100% |
+| 21   | 2026-02-14 | - | - | - | Added Phase 0-3 completeness gap review and AGENT.md documentation rollout; identified critical runtime integration gaps before Phase 4 | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -232,6 +234,24 @@ Use this exact format in each update:
 - Next Task IDs: [P4-001, P4-002, P4-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 15:20
+
+- Completed Task IDs: [-]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P4-001, P4-002, P4-003]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 15:27
+
+- Completed Task IDs: [-]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Phase 0-3 audit found critical runtime integration gaps (exchange adapters, broker workers, persistence adapters) despite contract-level task completion.
+- Next Task IDs: [P4-001, P4-002, P4-003]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -243,7 +263,7 @@ Use this exact format in each update:
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | NOT_STARTED |
-| 7     | API + Dashboard                    | Control plane and observability UI, token governance dashboards | Operator workflows usable end-to-end         | NOT_STARTED |
+| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
 
@@ -258,6 +278,7 @@ Use this exact format in each update:
 - WS-G: API + UI
 - WS-H: Observability + Security + Reliability
 - WS-I: QA + Performance + Release
+- WS-J: Notification and Operator Communication
 
 ## 4. Detailed Phase Plan
 
@@ -456,17 +477,18 @@ Integrate news/social signals into the agent context pipeline safely and observa
 
 ---
 
-## Phase 7 - API + Dashboard
+## Phase 7 - API + Dashboard + Notifications
 
 ### Objective
 
-Deliver operational control plane and dashboards for trading operations, risk, and LLM governance.
+Deliver operational control plane, dashboards, and notification workflows for trading operations, risk, and LLM governance.
 
 ### Exit Criteria
 
 - Operators can monitor/control modes, strategies, risks, and execution.
 - Token governance dashboard meets ARD requirements.
 - Prompt/response inspector and replay UI/API available.
+- Severity-classified notifications are delivered through Telegram and extensible gateway contracts.
 
 ### Tasks
 
@@ -482,6 +504,14 @@ Deliver operational control plane and dashboards for trading operations, risk, a
 | P7-008 | P1  | Prompt/response inspector UI | Drill-down by decision and agent with raw payload views                       | P7-005               | Explainability UI    | NOT_STARTED |
 | P7-009 | P1  | Trading mode panel UI        | Explicit mode display/control with audit history                              | P7-001,P4-001        | Mode control UI      | NOT_STARTED |
 | P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                | P6-004               | News operations UI   | NOT_STARTED |
+| P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton | P1-008,P1-009    | Notification runtime core | NOT_STARTED |
+| P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines    | P7-011,P5-001        | End-to-end event routing | NOT_STARTED |
+| P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling    | P7-011               | Telegram delivery channel | NOT_STARTED |
+| P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation        | P7-001,P7-011        | Notification preference control plane | NOT_STARTED |
+| P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ        | P7-011,P1-008        | Resilient notification delivery | NOT_STARTED |
+| P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                          | P7-011,P8-004        | Notification telemetry | NOT_STARTED |
+| P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow | P7-011,P7-013 | Notification validation suite | NOT_STARTED |
+| P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack | NOT_STARTED |
 
 ---
 
@@ -546,7 +576,8 @@ Run integration, replay, load, and reliability validation; finalize release read
 3. P3-001 -> P3-006 -> P3-007/P3-008/P3-009/P3-010/P3-011/P3-012
 4. P4-001 -> P4-002 and P4-004 -> P5-001/P5-002
 5. P5-005/P5-006 -> P7-003 -> P9-001/P9-002
-6. P8-004/P8-005 spans all operational readiness gates
+6. P7-011 -> P7-012/P7-013/P7-015 -> P7-016/P7-017
+7. P8-004/P8-005 spans all operational readiness gates
 
 ## 6. Definition of Done by Capability
 
@@ -580,6 +611,13 @@ Run integration, replay, load, and reliability validation; finalize release read
 - Summaries injected into context.
 - Module failure does not block trading.
 
+### 6.6 Notification DoD
+
+- Severity-classified notification events are published from strategy, OMS, risk, and system-health domains.
+- Telegram delivery path works with retry, dedupe, and rate-limit protections.
+- User preference filters correctly control route/threshold/suppression behavior.
+- Delivery outcomes are observable with metrics/logs/traces and replayable audit records.
+
 ## 7. Test Strategy Matrix
 
 | Layer             | Test Type                        | Minimum Coverage                    |
@@ -590,6 +628,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 | Execution engines | Unit + integration               | MOCK and REAL engines               |
 | Risk controls     | Scenario/regression tests        | All hard rules and circuit breakers |
 | API/UI            | Contract + role tests            | All privileged endpoints            |
+| Notifications     | Unit + integration + fault tests | Gateway routing, retry, dedupe, DLQ |
 | Observability     | Smoke + rule tests               | Metrics/logs/traces/alerts          |
 | Replay            | Determinism tests                | Core decision flows                 |
 
@@ -603,6 +642,7 @@ Run integration, replay, load, and reliability validation; finalize release read
 | Queue backlog under volatility | High     | Backpressure controls, scaling consumers, DLQs                     |
 | Data drift/integrity issues    | High     | Validation service, resync workflows, integrity alerts             |
 | Replay inconsistency           | Medium   | Immutable payload persistence + deterministic reconstruction tests |
+| Notification storm/noise       | Medium   | Severity thresholds, dedupe windows, per-user/gateway rate limits |
 
 ## 9. First 3 Execution Sprints (Actionable)
 
@@ -664,6 +704,8 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 

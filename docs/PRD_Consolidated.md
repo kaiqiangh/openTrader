@@ -60,6 +60,7 @@ The following decisions are mandatory and final:
 - Token usage and LLM governance dashboards
 - Prompt/response observability, traceability, and replay
 - Crypto news ingestion and strategy context injection
+- Extensible operator notification system with Telegram as first gateway
 
 ### 5.2 Out of Scope (Current Release)
 
@@ -133,6 +134,33 @@ The following decisions are mandatory and final:
 - FR-030: System must enforce network isolation between public and internal services.
 - FR-031: If UI is enabled, system must enforce role-based access control.
 
+### 6.9 Notification and Alerting Delivery
+
+- FR-032: System must provide a generalized notification service with pluggable gateway abstraction.
+- FR-033: Initial gateway implementation must support Telegram Bot delivery.
+- FR-034: Gateway abstraction must support future providers without core pipeline rewrites, including Email, Slack, Webhook, SMS, mobile push, and custom API endpoints.
+- FR-035: Notification events must include at minimum:
+  - trading signals generated
+  - order created / partially filled / filled / canceled / rejected
+  - risk triggers (drawdown threshold, liquidation risk, margin alert)
+  - strategy state changes (enabled/disabled/paused)
+  - exchange connectivity issues and reconnect storms
+  - system critical errors and degraded dependencies
+  - manual intervention actions (kill switch, forced close, mode override)
+- FR-036: Notification events must be classified by severity (`INFO`, `WARNING`, `CRITICAL`) with configurable routing rules per user.
+- FR-037: Users must be able to configure notification preferences by:
+  - strategy scope
+  - event type
+  - severity threshold
+  - gateway/channel target
+  - quiet hours / maintenance suppressions
+- FR-038: Notification service must enforce anti-spam controls:
+  - per-event deduplication window
+  - per-user and per-gateway rate limits
+  - burst protection and coalescing for repeated events.
+- FR-039: Delivery failures must follow bounded retry policy with backoff, DLQ persistence, and operator-visible failure status.
+- FR-040: Critical notification delivery failures must produce secondary internal alerts and audit logs.
+
 ## 7. Non-Functional Requirements
 
 ### 7.1 Latency and Performance
@@ -160,6 +188,12 @@ The following decisions are mandatory and final:
 - NFR-012: Order book resync and gap detection must be implemented.
 - NFR-013: K-line reconstruction validation must detect missing/invalid bars.
 
+### 7.5 Notification Quality
+
+- NFR-014: Critical notifications should be dispatched within 5 seconds p95 from source event ingestion.
+- NFR-015: Notification dedupe/rate-limit controls must prevent alert storms during high-volatility bursts.
+- NFR-016: Notification delivery attempts and outcomes must be fully auditable.
+
 ## 8. Product Data Requirements
 
 Required persisted domains:
@@ -170,6 +204,7 @@ Required persisted domains:
 - LLM prompts/responses, token and cost metrics
 - Agent runs, agent messages, memory snapshots
 - News items and summaries
+- Notification preferences, event records, delivery attempts, and delivery outcomes
 
 ## 9. Dashboard Requirements
 
@@ -182,6 +217,7 @@ The UI must include:
 - Token usage dashboard (strategy, agent, day/month, quota)
 - Prompt/response inspector with replay support
 - News feed and summary impact panel
+- Notification preference management and delivery status timeline
 
 ## 10. Acceptance Criteria
 
@@ -205,9 +241,16 @@ The UI must include:
 - Risk controls block violating orders in both modes.
 - Circuit breakers and kill switch are validated in staged failure tests.
 
+### 10.5 Notifications
+
+- Notification service publishes and routes required event classes with severity-aware policies.
+- Telegram delivery is operational end-to-end with retry and failure visibility.
+- Rate limiting and deduplication protections are validated under burst scenarios.
+- User preference rules correctly filter/suppress delivery by scope and severity.
+
 ## 11. Delivery Phases
 
 - Phase 1: Core ingestion, data model, mock mode, baseline agents
 - Phase 2: Real execution (Go engine), risk hardening, OMS reconciliation
 - Phase 3: LLM governance dashboard, full prompt/response replay, news module
-- Phase 4: Performance tuning, reliability hardening, operational readiness
+- Phase 4: Performance tuning, reliability hardening, operator notifications, and operational readiness
