@@ -9,6 +9,7 @@ Collects and normalizes external news/social content for downstream summarizatio
 - Owns source connector logic and dedup normalization.
 - Owns ingestion normalization + dedupe persistence contracts for `news_items`.
 - Owns tagging/relevance scoring contracts for `news_tags`.
+- Owns quality metric snapshots for ingestion coverage/freshness/error visibility.
 - Must not implement strategy decisioning.
 - Connector failures must be isolated so one source outage does not block other sources.
 
@@ -33,10 +34,12 @@ Collects and normalizes external news/social content for downstream summarizatio
 - `source_connectors.py` provides protocol, registry, and cycle runner contracts for RSS/API/social sources.
 - `ingestion_service.py` provides normalized item contracts and dedupe-aware ingest workflow.
 - `tagging_relevance.py` provides symbol/topic/relevance/sentiment tagging contracts.
+- `quality_metrics.py` provides counters + quality snapshot contracts consumed by dashboard/ops surfaces.
 
 ## Testing Expectations
 
 - Include connector-level parsing and dedupe tests.
+- Include quality metric snapshot tests for freshness/coverage/lag/error calculations.
 
 ## Operational Notes
 
