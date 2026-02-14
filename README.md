@@ -29,10 +29,18 @@ Initial migration files:
 - `migrations/versions/20260214_0002_timeseries_schema.py`
 - `migrations/versions/20260214_0003_agent_trace_schema.py`
 - `migrations/versions/20260214_0004_llm_governance_schema.py`
+- `migrations/versions/20260214_0005_news_schema.py`
 
 RabbitMQ topology declaration:
 
 - `config/rabbitmq/topology.json` (exchanges, queues, DLQs, bindings)
+- `config/contracts/message_envelope.schema.json` (canonical event envelope schema)
+- `services/shared/contracts/message_envelope.py` (envelope validator)
+
+Redis keyspace strategy:
+
+- `config/redis/namespaces.json` (machine-readable namespace/TTL spec)
+- `docs/redis_namespace_strategy.md` (operator guide)
 
 Runtime verification evidence:
 
