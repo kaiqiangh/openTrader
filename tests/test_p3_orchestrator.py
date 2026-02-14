@@ -43,10 +43,15 @@ def _market_event(*, mode: str = "MOCK") -> dict[str, object]:
     }
 
 
-def _strategy(*, mode: str = "MOCK", max_notional: float = 20_000.0) -> StrategyConfig:
+def _strategy(
+    *,
+    mode: str = "MOCK",
+    max_notional: float = 20_000.0,
+    symbol: str = "BTC/USDT",
+) -> StrategyConfig:
     return StrategyConfig(
         strategy_id="scalp-long-short",
-        symbol="BTC/USDT",
+        symbol=symbol,
         mode=mode,
         order_size=0.1,
         planner_buy_threshold=0.2,
@@ -72,6 +77,7 @@ async def test_orchestrator_consumes_market_event_and_publishes_lifecycle_and_in
         "agent.decision.planned",
         "agent.decision.risk_approved",
         "agent.decision.action_proposed",
+        "agent.decision.guardrail_passed",
         "agent.decision.intent_published",
     ]
 
@@ -102,8 +108,26 @@ async def test_orchestrator_marks_decision_rejected_when_risk_fails() -> None:
     assert "agent.decision.risk_rejected" in [item["event_type"] for item in result.lifecycle]
     assert "agent.decision.context_enriched" in [item["event_type"] for item in result.lifecycle]
     assert "agent.decision.action_proposed" in [item["event_type"] for item in result.lifecycle]
+    assert "agent.decision.guardrail_passed" in [item["event_type"] for item in result.lifecycle]
     assert result.execution_decision is not None
     assert result.execution_decision.action == "HOLD"
+    intent_messages = [item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"]
+    assert intent_messages == []
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_marks_guardrail_rejected_when_symbol_constraint_fails() -> None:
+    publisher = _FakePublisher()
+    orchestrator = AgentOrchestrator(publisher=publisher)
+
+    result = await orchestrator.handle_market_event(
+        _market_event(mode="MOCK"),
+        strategy=_strategy(symbol="ETH/USDT"),
+    )
+
+    assert result.status == "GUARDRAIL_REJECTED"
+    assert "agent.decision.guardrail_rejected" in [item["event_type"] for item in result.lifecycle]
+    assert "symbol_constraint" in result.guardrail.blocked_by
     intent_messages = [item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"]
     assert intent_messages == []
 
