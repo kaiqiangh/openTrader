@@ -105,6 +105,16 @@ Runtime integration gate + Phase 4 foundations:
 - `services/simulation_execution/worker.py` (mock intent consumer -> OMS event publisher)
 - `docs/runtime/runtime-integration-gate-2026-02-14.md` (runtime gate verification evidence)
 
+Real execution Go baseline (`P4-004`/`P4-005`/`P4-006`):
+
+- `services/real_execution_go/internal/consumer/contracts.go` (queue consumer interface and delivery contract)
+- `services/real_execution_go/internal/service/runner.go` (queue poll loop with ack/nack handling)
+- `services/real_execution_go/internal/service/envelope.go` (REAL-mode execution intent envelope decoder/validator)
+- `services/real_execution_go/internal/service/handler.go` (bridge command mapping and idempotent dispatch flow)
+- `services/real_execution_go/internal/bridge/contracts.go` (Go<->Python execution bridge command/result contracts)
+- `services/real_execution_go/internal/idempotency/store.go` (in-memory dedupe store for create/cancel dispatch)
+- `docs/real_execution_go_baseline.md` (architecture and validation notes for real execution skeleton)
+
 Runtime verification evidence:
 
 - `docs/runtime/runtime-verification-2026-02-14.md`
