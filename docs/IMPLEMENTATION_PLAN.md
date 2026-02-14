@@ -46,6 +46,7 @@ Use this exact format in each update:
 | 3    | 2026-02-14 | P1-003,P1-004,P1-008 | P1-001 | P0-003 | Added schema migrations and RabbitMQ topology; tests green | 22% |
 | 4    | 2026-02-14 | P1-005 | P1-001 | P0-003 | Agent trace schema migration delivered; tests green | 26% |
 | 5    | 2026-02-14 | P1-001,P0-003,P1-006 | - | - | Runtime verification succeeded; Go tests unblocked locally; LLM governance schema added | 36% |
+| 6    | 2026-02-14 | P1-007,P1-009,P1-010 | - | - | News schema, envelope contract, and Redis namespace strategy delivered; tests green | 45% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -92,12 +93,21 @@ Use this exact format in each update:
 - Next Task IDs: [P1-007, P1-009, P1-010]
 - Overall Progress: 36%
 
+### Turn Update 2026-02-14 12:20
+
+- Completed Task IDs: [P1-007, P1-009, P1-010]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified.
+- Next Task IDs: [P2-001, P2-002, P2-003]
+- Overall Progress: 45%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
 | ----- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- | ----------- |
 | 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts             | CI passes on scaffold; standards documented  | DONE |
-| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | IN_PROGRESS |
+| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events      | Core infra online via Docker Compose         | DONE |
 | 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | NOT_STARTED |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | NOT_STARTED |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | NOT_STARTED |
@@ -169,10 +179,10 @@ Implement foundational infrastructure: PostgreSQL+TimescaleDB, Redis, RabbitMQ, 
 | P1-004 | P0  | Time-series schema            | Implement Timescale hypertables for `klines`, `orderbook_snapshots`                                         | P1-002       | Time-series schema v1               | DONE |
 | P1-005 | P0  | Agent trace schema            | Implement `decision_traces`, `agent_runs`, `agent_messages`                                                 | P1-002       | Agent trace persistence             | DONE |
 | P1-006 | P0  | LLM governance schema         | Implement `llm_calls`, `llm_usage_daily`, `llm_usage_monthly`, `llm_quota_limits`                           | P1-002       | LLM observability schema            | DONE |
-| P1-007 | P1  | News schema                   | Implement `news_items`, `news_tags`, `news_summaries`, `decision_news_links`                                | P1-002       | News persistence schema             | NOT_STARTED |
+| P1-007 | P1  | News schema                   | Implement `news_items`, `news_tags`, `news_summaries`, `decision_news_links`                                | P1-002       | News persistence schema             | DONE |
 | P1-008 | P0  | RabbitMQ topology declaration | Define exchanges, routing keys, queues, DLQs (`market.canonical`, `execution.intent.*`, `oms.events`, etc.) | P1-001       | Versioned broker topology           | DONE |
-| P1-009 | P1  | Message envelope contract     | Define shared envelope (`trace_id`, `decision_id`, `mode`, `idempotency_key`) and schema validators         | P1-008       | Canonical event contract package    | NOT_STARTED |
-| P1-010 | P1  | Redis namespace strategy      | Define keys/TTL for short-term memory, snapshots, rate limits, locks                                        | P1-001       | Redis keyspace spec                 | NOT_STARTED |
+| P1-009 | P1  | Message envelope contract     | Define shared envelope (`trace_id`, `decision_id`, `mode`, `idempotency_key`) and schema validators         | P1-008       | Canonical event contract package    | DONE |
+| P1-010 | P1  | Redis namespace strategy      | Define keys/TTL for short-term memory, snapshots, rate limits, locks                                        | P1-001       | Redis keyspace spec                 | DONE |
 
 ---
 
@@ -495,7 +505,10 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P1-004  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P1-005  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P1-006  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-007  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P1-008  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-009  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
+| P1-010  | TBD   | 2026-02-14 | -           | DONE | 100   | -       | 2026-02-14  |
 | P2-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P3-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P4-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -509,6 +522,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P1-007` news schema migration.
-2. Start `P1-009` message envelope contract definitions and validators.
-3. Start `P1-010` Redis namespace strategy documentation and key conventions.
+1. Start `P2-001` CCXT Pro ingestion adapter scaffolding.
+2. Start `P2-002` connection resilience manager design + tests.
+3. Start `P2-003` order book sync engine sequence model.
