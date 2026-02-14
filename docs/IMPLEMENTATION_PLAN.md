@@ -72,6 +72,7 @@ Use this exact format in each update:
 | 29   | 2026-02-14 | P6-002,P6-003,P6-004 | - | - | Added news ingestion + dedupe persistence, tagging/relevance pipeline, and rolling summarizer service with deterministic fallback behavior | 100% |
 | 30   | 2026-02-14 | P6-005,P6-006,P6-007 | - | - | Added summary context injection bridge, resilience fallback/alert policy, and quality metrics snapshot contracts; Python/Go suites green | 100% |
 | 31   | 2026-02-14 | P7-001,P7-002,P7-003 | - | - | Added FastAPI control-plane baseline with JWT RBAC and trading ops endpoints for orders/positions/portfolio/risk controls; Python/Go suites green | 100% |
+| 32   | 2026-02-14 | P7-004,P7-005,P7-006 | - | - | Added LLM governance APIs, replay APIs, and dashboard shell routes on top of control-plane baseline; targeted/full Python suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -352,6 +353,15 @@ Use this exact format in each update:
 - Next Task IDs: [P7-004, P7-005, P7-006]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 19:05
+
+- Completed Task IDs: [P7-004, P7-005, P7-006]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; governance/replay/dashboard surfaces are currently backed by in-memory API state adapters and should be persisted in a later increment.
+- Next Task IDs: [P7-007, P7-008, P7-009]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -628,9 +638,9 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 | P7-001 | P0  | FastAPI control plane        | Implement auth, strategy control, mode control, health and metadata endpoints | P0-002,P1-003        | API service baseline | DONE |
 | P7-002 | P0  | RBAC enforcement             | Implement `viewer/operator/admin` role checks on sensitive endpoints          | P7-001               | RBAC control plane   | DONE |
 | P7-003 | P1  | Trading ops endpoints        | Orders, positions, portfolio snapshots, risk status, circuit breaker controls | P5-001,P5-004,P5-007 | Operator APIs        | DONE |
-| P7-004 | P1  | LLM governance endpoints     | Expose per-strategy/per-agent usage, cost, quota and breach history           | P3-007,P3-008        | Governance APIs      | NOT_STARTED |
-| P7-005 | P1  | Replay endpoints             | Expose replay request and decision trace retrieval endpoints                  | P3-011               | Replay APIs          | NOT_STARTED |
-| P7-006 | P1  | Dashboard shell              | Implement UI navigation and live status pages                                 | P7-001               | Dashboard baseline   | NOT_STARTED |
+| P7-004 | P1  | LLM governance endpoints     | Expose per-strategy/per-agent usage, cost, quota and breach history           | P3-007,P3-008        | Governance APIs      | DONE |
+| P7-005 | P1  | Replay endpoints             | Expose replay request and decision trace retrieval endpoints                  | P3-011               | Replay APIs          | DONE |
+| P7-006 | P1  | Dashboard shell              | Implement UI navigation and live status pages                                 | P7-001               | Dashboard baseline   | DONE |
 | P7-007 | P1  | Token usage dashboard UI     | Per strategy/agent daily/monthly cost and quota views                         | P7-004               | Governance UI        | NOT_STARTED |
 | P7-008 | P1  | Prompt/response inspector UI | Drill-down by decision and agent with raw payload views                       | P7-005               | Explainability UI    | NOT_STARTED |
 | P7-009 | P1  | Trading mode panel UI        | Explicit mode display/control with audit history                              | P7-001,P4-001        | Mode control UI      | NOT_STARTED |
@@ -871,6 +881,12 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P7-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-007  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-008  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-009  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -880,6 +896,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P7-004` LLM governance endpoints (usage/cost/quota/breach history APIs).
-2. Start `P7-005` replay endpoints (decision graph request and trace retrieval APIs).
-3. Start `P7-006` dashboard shell baseline for operator workflows and service status views.
+1. Start `P7-007` token usage dashboard UI views using governance API surfaces.
+2. Start `P7-008` prompt/response inspector UI with replay drill-down support.
+3. Start `P7-009` trading mode panel UI with explicit mode controls and audit-facing status.
