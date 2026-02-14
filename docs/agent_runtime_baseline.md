@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P5-004)
+# Agent Runtime Baseline (P3-001..P6-001)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -31,6 +31,12 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/oms/fill_reconciliation.py` (`P5-002`)
 - `services/oms/position_engine.py` (`P5-003`)
 - `services/oms/portfolio_snapshot.py` (`P5-004`)
+- `services/oms/risk_rules.py` (`P5-005`)
+- `services/oms/risk_guards.py` (`P5-006`)
+- `services/oms/risk_controls.py` (`P5-007`)
+- `services/oms/risk_policy.py` (`P5-005`/`P5-006`/`P5-007`)
+- `services/oms/risk_observability.py` (`P5-008`)
+- `services/news_ingestion/source_connectors.py` (`P6-001`)
 
 ## Component Boundaries
 
@@ -137,6 +143,20 @@ This document defines the first Phase 3 decision runtime modules:
 - `oms/position_engine.py` applies normalized fill events into netted position state with realized PnL handling.
 - `oms/portfolio_snapshot.py` computes mode-tagged NAV and unrealized/realized PnL snapshots from balances + marked positions.
 
+18. P5 OMS risk modules
+- `oms/risk_rules.py` enforces projected position/notional/leverage limits.
+- `oms/risk_guards.py` enforces drawdown and daily-loss account guardrails from portfolio snapshots.
+- `oms/risk_controls.py` manages kill-switch and circuit-breaker emergency controls with event records.
+- `oms/risk_policy.py` composes core rules, guards, and controls into deterministic allow/deny policy outcomes.
+
+19. P5 risk observability module
+- `oms/risk_observability.py` tracks policy evaluation totals, denied reason counters, and severity-classified risk events.
+- `RiskPolicyEngine` can emit observability sink callbacks for decision evaluations and drained control events.
+
+20. P6 source connector framework module
+- `news_ingestion/source_connectors.py` defines pluggable source connector protocol and registration framework.
+- Connector cycle runner isolates per-source failure and returns degraded-source markers without blocking healthy sources.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -206,6 +226,14 @@ Metrics/tracing notes:
   - `FillReconciliationEngine.reconcile(...)` produces canonical order status/fill convergence using queue events first with exchange fallback.
   - `PositionEngine.apply_fill(...)` updates signed position quantity, average entry price, and realized PnL from each normalized fill.
   - `PortfolioSnapshotEngine.build_snapshot(...)` emits `portfolio_snapshots`-compatible records (`total_balance_usd`, `available_balance_usd`, `locked_balance_usd`, `unrealized_pnl`, `realized_pnl_today`).
+  - `CoreRiskRuleEngine.evaluate(...)` enforces projected position/notional/leverage bounds for each proposed order.
+  - `DrawdownDailyLossGuardEngine.evaluate(...)` enforces drawdown and daily-loss guardrails from current account state.
+  - `RiskControlPlane` controls circuit-breaker and kill-switch block status with structured control events.
+  - `RiskPolicyEngine.evaluate(...)` combines rules + guards + controls into a single policy decision artifact.
+  - `RiskObservabilityCollector` records policy/control telemetry snapshots and structured events for downstream alerting and APIs.
+- News connector contract:
+  - `SourceConnectorRegistry` manages connector discovery/lookup by stable connector IDs.
+  - `NewsSourceConnectorFramework.fetch_cycle(...)` executes per-source fetch with fault isolation and normalized cycle summaries.
 
 ## Usage Flow
 

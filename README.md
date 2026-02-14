@@ -141,6 +141,11 @@ Phase 3 LLM gateway baseline:
 - `docs/learning/2026-02-14-p3-llm-persistence-instincts.md` (continuous-learning-v2 prompt-response persistence notes)
 - `docs/learning/2026-02-14-p3-llm-quota-instincts.md` (continuous-learning-v2 quota enforcement notes)
 
+LLM env notes:
+
+- `LITELLM_BASE_URL`, `LITELLM_API_KEY`, and `LITELLM_TIMEOUT_SECONDS` are consumed by openTrader runtime modules.
+- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment and are not directly read by openTrader runtime today.
+
 Runtime integration gate + Phase 4 foundations:
 
 - `services/shared/runtime/broker.py` (concrete in-process topic broker adapter)
@@ -168,12 +173,21 @@ Real execution Go baseline (`P4-004`/`P4-005`/`P4-006`):
 - `services/real_execution_go/internal/idempotency/store.go` (in-memory dedupe store for create/cancel dispatch)
 - `docs/real_execution_go_baseline.md` (architecture and validation notes for real execution skeleton)
 
-OMS lifecycle baseline (`P5-001`):
+OMS lifecycle + risk baseline (`P5-001`..`P5-007`):
 
 - `services/oms/state_machine.py` (explicit order-state transition matrix with idempotent replay handling)
 - `services/oms/fill_reconciliation.py` (`P5-002` queue + exchange fallback fill reconciliation)
 - `services/oms/position_engine.py` (`P5-003` position netting and realized PnL updates from fills)
 - `services/oms/portfolio_snapshot.py` (`P5-004` NAV/unrealized/realized snapshot builder)
+- `services/oms/risk_rules.py` (`P5-005` core limits: position/notional/leverage checks)
+- `services/oms/risk_guards.py` (`P5-006` portfolio guards: drawdown and daily-loss thresholds)
+- `services/oms/risk_controls.py` (`P5-007` circuit-breaker + kill-switch emergency controls)
+- `services/oms/risk_policy.py` (composed OMS risk policy evaluator across rules/guards/controls)
+- `services/oms/risk_observability.py` (`P5-008` risk telemetry and severity-classified policy/control events)
+
+News source connector framework (`P6-001`):
+
+- `services/news_ingestion/source_connectors.py` (pluggable RSS/API/social connector contracts + registry + resilient fetch-cycle runner)
 
 Runtime verification evidence:
 
