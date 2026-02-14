@@ -42,6 +42,8 @@ This stack is authoritative and final. Exactly one technology is selected per ca
 | Trace instrumentation                | OpenTelemetry                      | Standardized cross-service trace context propagation for Python and Go services.                                |
 | Trace backend                        | Tempo                              | Durable storage and query for distributed traces.                                                               |
 | Alerting                             | Alertmanager                       | Deterministic rule-based alert fan-out for incidents and policy breaches.                                       |
+| Notification delivery abstraction    | Internal gateway interface         | Keeps notification routing provider-agnostic and extensible across channels.                                   |
+| Initial notification gateway         | Telegram Bot API                   | Fast operational reach with low integration overhead for first release channel.                                 |
 
 ## 3. High-Level Architecture Overview
 
@@ -86,6 +88,12 @@ flowchart LR
         NEWSS[News Summarization Service]
     end
 
+    subgraph NotifyLayer[Notification Layer]
+        NOTIFY[Notification Service]
+        TGW[Telegram Gateway]
+        FUTUREGW["Future Gateways (Email, Slack, Webhook, SMS, Push)"]
+    end
+
     subgraph DataLayer[Data Layer]
         REDIS[(Redis)]
         PG[(PostgreSQL + TimescaleDB)]
@@ -111,6 +119,10 @@ flowchart LR
 
     NEWSI --> NEWSS
     NEWSS --> RMQ
+
+    RMQ --> NOTIFY
+    NOTIFY --> TGW
+    NOTIFY --> FUTUREGW
 
     RMQ --> ORCH
     ORCH --> PLANNER
@@ -140,6 +152,7 @@ flowchart LR
     API --> PG
     API --> REDIS
     UI --> API
+    API --> NOTIFY
 
     API --> PROM
     ORCH --> PROM
@@ -151,11 +164,13 @@ flowchart LR
     ORCH --> LOKI
     OMS --> LOKI
     ING --> LOKI
+    NOTIFY --> LOKI
 
     API --> TEMPO
     ORCH --> TEMPO
     OMS --> TEMPO
     ING --> TEMPO
+    NOTIFY --> TEMPO
 
     PROM --> ALERT
     PROM --> GRAF
@@ -174,6 +189,7 @@ flowchart LR
 - Real Execution Engine (Go): idempotent order submission/cancel, exchange endpoint integration through CCXT Pro wrapper API contracts.
 - OMS (Python): order lifecycle state machine, fill reconciliation, position updates.
 - News Ingestion + Summarization Services (Python): external news collection, normalization, summarization, agent context enrichment.
+- Notification Service (Python): severity-aware event routing, preference filtering, gateway dispatch, retry and DLQ handling.
 - API Service (Python/FastAPI): UI/API surface, RBAC, control plane, dashboards.
 
 ## 4. Deployment Topology (Docker Compose)
@@ -575,6 +591,17 @@ sequenceDiagram
 - `orders.mode` and `fills.mode` must be enum(`MOCK`,`REAL`).
 - Replay support uses immutable payload snapshots in `llm_calls` and `agent_messages`.
 
+### 11.6 Notification Tables
+
+- `notification_preferences`
+  - `preference_id`, `user_id`, `strategy_id`, `gateway`, `target_ref`, `min_severity`, `event_filters`, `enabled`, `quiet_hours`, `created_at`, `updated_at`
+- `notification_events`
+  - `notification_event_id`, `trace_id`, `decision_id`, `event_type`, `severity`, `title`, `body`, `payload_json`, `created_at`
+- `notification_deliveries`
+  - `delivery_id`, `notification_event_id`, `gateway`, `target_ref`, `status`, `attempt`, `next_retry_at`, `last_error`, `sent_at`, `created_at`
+- `notification_delivery_dlq`
+  - `dlq_id`, `notification_event_id`, `gateway`, `failure_reason`, `failed_attempts`, `moved_at`
+
 ## 12. Risk Management Architecture Requirements
 
 Mandatory controls:
@@ -666,6 +693,7 @@ Risk enforcement points:
   - Order lifecycle and rejection rates
   - Risk breach counters
   - News ingestion and summarization metrics
+  - Notification publish volume, delivery success/failure, retry depth, and DLQ depth
 
 ### 16.3 Distributed Tracing
 
@@ -689,6 +717,7 @@ Celery is restricted to non-latency-critical workloads:
 - News backfill jobs
 - Daily/monthly usage rollups
 - Replay report generation
+- Notification digest batching and retry reconciliation jobs
 - Data retention and archival maintenance
 
 No real-time execution path may depend on Celery.
@@ -709,3 +738,84 @@ Architecture implementation is complete when:
 - Full decision replay reproduces stored decision traces.
 - Token governance dashboard and quota enforcement are operational.
 - Integrity, risk, and observability controls are validated in staged failure drills.
+
+## 20. Notification Architecture
+
+### 20.1 Module Design
+
+- Notification service is a standalone module with three bounded components:
+  - `event_intake`: subscribes to internal event stream and normalizes notification payloads.
+  - `policy_router`: applies user preference filters, severity thresholds, quiet-hour suppressions, and dedupe/rate-limit rules.
+  - `gateway_dispatch`: resolves gateway plugin and executes delivery attempts with retry policy.
+- Service must remain provider-agnostic; gateway plugins are loaded behind one typed interface.
+
+### 20.2 Event-Driven Integration
+
+- Notification service consumes from RabbitMQ exchange(s) fed by:
+  - strategy decisions
+  - OMS lifecycle updates
+  - risk and kill-switch events
+  - connectivity and system health incidents.
+- Canonical notification envelope fields:
+  - `trace_id`
+  - `decision_id` (nullable for non-trade incidents)
+  - `event_type`
+  - `severity` (`INFO` | `WARNING` | `CRITICAL`)
+  - `idempotency_key`
+  - `payload`
+  - `emitted_at`.
+
+### 20.3 Gateway Abstraction Contract
+
+- Required gateway interface:
+  - `send(message: NotificationMessage) -> DeliveryResult`
+  - `healthcheck() -> GatewayHealth`
+- Gateway implementations must be side-effect isolated and independently testable.
+- Core router chooses gateways per preference rules and escalation policy.
+
+### 20.4 Telegram Gateway (Initial)
+
+- Telegram gateway uses bot token + chat/channel target references.
+- Required support:
+  - markdown-safe formatting
+  - severity badges in message body
+  - idempotent resend guard using `idempotency_key`.
+- Retry behavior:
+  - bounded exponential backoff on transient HTTP failures
+  - terminal failures persisted to `notification_delivery_dlq`.
+
+### 20.5 Configuration and Secrets
+
+- Required `.env` keys:
+  - `NOTIFY_DEFAULT_GATEWAY`
+  - `NOTIFY_RATE_LIMIT_PER_MIN`
+  - `NOTIFY_DEDUPE_WINDOW_SECONDS`
+  - `TELEGRAM_BOT_TOKEN`
+  - `TELEGRAM_DEFAULT_CHAT_ID`.
+- Secrets are environment-injected only; never committed.
+- Gateway-specific config is namespaced and validated on startup.
+
+### 20.6 Observability and Logging
+
+- Structured logs include:
+  - `notification_event_id`
+  - `gateway`
+  - `severity`
+  - `delivery_status`
+  - `attempt`
+  - `trace_id`.
+- Metrics include:
+  - notifications received/filtered/dispatched
+  - delivery success/failure by gateway
+  - retry count histogram
+  - DLQ depth and age.
+- Traces include spans for policy evaluation and gateway delivery calls.
+
+### 20.7 Scalability and Reliability
+
+- Notification workers scale horizontally by queue consumer group.
+- Idempotency and dedupe windows prevent duplicate sends under at-least-once delivery.
+- Gateway throttling is isolated per provider to prevent cascade backpressure.
+- When gateway is degraded:
+  - non-critical notifications may be deferred/coalesced
+  - critical notifications escalate to fallback gateway when configured.
