@@ -1,0 +1,14 @@
+[project]
+name = "open-trader"
+version = "0.1.0"
+description = "LLM-based multi-exchange crypto trading platform"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
