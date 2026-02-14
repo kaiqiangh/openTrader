@@ -24,6 +24,8 @@ def test_api_control_plane_files_exist() -> None:
     assert Path("services/notification_service/publishers.py").exists()
     assert Path("services/notification_service/telegram_gateway.py").exists()
     assert Path("services/notification_service/observability.py").exists()
+    assert Path("services/notification_service/settings.py").exists()
+    assert Path("services/notification_service/worker.py").exists()
 
 
 def test_readme_mentions_api_control_plane_baseline() -> None:
@@ -41,9 +43,11 @@ def test_readme_mentions_api_control_plane_baseline() -> None:
     assert "services/notification_service/publishers.py" in content
     assert "services/notification_service/telegram_gateway.py" in content
     assert "services/notification_service/observability.py" in content
+    assert "services/notification_service/settings.py" in content
+    assert "services/notification_service/worker.py" in content
 
 
-def test_implementation_plan_marks_p7_001_to_p7_016_done() -> None:
+def test_implementation_plan_marks_p7_001_to_p7_018_done() -> None:
     content = Path("docs/IMPLEMENTATION_PLAN.md").read_text(encoding="utf-8")
     assert re.search(r"\| P7-001 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-002 \|.*\| DONE \|", content)
@@ -61,3 +65,5 @@ def test_implementation_plan_marks_p7_001_to_p7_016_done() -> None:
     assert re.search(r"\| P7-014 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-015 \|.*\| DONE \|", content)
     assert re.search(r"\| P7-016 \|.*\| DONE \|", content)
+    assert re.search(r"\| P7-017 \|.*\| DONE \|", content)
+    assert re.search(r"\| P7-018 \|.*\| DONE \|", content)
