@@ -201,12 +201,15 @@ OMS lifecycle + risk baseline (`P5-001`..`P5-007`):
 - `services/oms/risk_policy.py` (composed OMS risk policy evaluator across rules/guards/controls)
 - `services/oms/risk_observability.py` (`P5-008` risk telemetry and severity-classified policy/control events)
 
-News pipeline baseline (`P6-001`..`P6-004`):
+News pipeline baseline (`P6-001`..`P6-007`):
 
 - `services/news_ingestion/source_connectors.py` (`P6-001` pluggable RSS/API/social connector contracts + registry + resilient fetch-cycle runner)
 - `services/news_ingestion/ingestion_service.py` (`P6-002` normalize + dedupe + persistence boundary for news items)
 - `services/news_ingestion/tagging_relevance.py` (`P6-003` symbol/topic tagging with relevance and sentiment scoring)
 - `services/news_summarizer/summarizer_service.py` (`P6-004` rolling summary generation per symbol/global scope)
+- `services/news_summarizer/context_injection_bridge.py` (`P6-005` summary context envelope publisher + market payload injection helper)
+- `services/news_summarizer/resilience.py` (`P6-006` stale/missing summary fallback policy with alert envelope publisher)
+- `services/news_ingestion/quality_metrics.py` (`P6-007` coverage/freshness/lag/error metric snapshot contracts for news ops visibility)
 
 Runtime verification evidence:
 

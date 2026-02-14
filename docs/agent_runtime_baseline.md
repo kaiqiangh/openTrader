@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P6-004)
+# Agent Runtime Baseline (P3-001..P6-007)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -40,6 +40,9 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/news_ingestion/ingestion_service.py` (`P6-002`)
 - `services/news_ingestion/tagging_relevance.py` (`P6-003`)
 - `services/news_summarizer/summarizer_service.py` (`P6-004`)
+- `services/news_summarizer/context_injection_bridge.py` (`P6-005`)
+- `services/news_summarizer/resilience.py` (`P6-006`)
+- `services/news_ingestion/quality_metrics.py` (`P6-007`)
 
 ## Component Boundaries
 
@@ -165,6 +168,11 @@ This document defines the first Phase 3 decision runtime modules:
 - `news_ingestion/tagging_relevance.py` assigns symbol/topic tags and relevance/sentiment scores for `news_tags`.
 - `news_summarizer/summarizer_service.py` produces deterministic rolling `news_summaries` artifacts by scope/window.
 
+22. P6 context bridge + resilience + quality modules
+- `news_summarizer/context_injection_bridge.py` publishes summary context envelopes and injects news fields into market payloads for context enrichment.
+- `news_summarizer/resilience.py` enforces stale/missing summary fallback and publishes degraded-mode `news.alerts` envelopes.
+- `news_ingestion/quality_metrics.py` tracks connector/ingestion/summarization counters and emits quality snapshots (coverage, freshness, lag, error rate).
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -246,6 +254,12 @@ Metrics/tracing notes:
   - `NewsIngestionService.ingest(...)` normalizes and deduplicates source records before persistence.
   - `NewsTaggingRelevancePipeline.tag_items(...)` emits bounded relevance `[0,1]` and sentiment `[-1,1]` scores.
   - `RollingNewsSummarizer.summarize_window(...)` emits scope-window summaries with deterministic fallback text.
+- News context and resilience contracts:
+  - `NewsContextInjectionBridge.publish_summary_context(...)` emits envelope-validated `news.context.summary_ready` events with strategy-scope news payloads.
+  - `NewsContextInjectionBridge.inject_into_market_payload(...)` injects normalized `news` fields consumed by `MarketContextAgent`.
+  - `NewsResiliencePolicy.evaluate(...)` returns fallback news payload and resilience alerts for stale/missing/unavailable summaries.
+  - `NewsResiliencePolicy.publish_alerts(...)` emits envelope-validated `news.resilience.*` alerts to `news.alerts` routing.
+  - `NewsQualityMetrics.snapshot(...)` returns dashboard-ready coverage/freshness/summarization-lag/error snapshots.
 
 ## Usage Flow
 

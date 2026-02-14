@@ -76,8 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001`..`P6-004` now delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, and `P6-001`..`P6-007` now delivered, next work is:
 
-- `P6-005`: context injection bridge from news summaries into market context runtime inputs
-- `P6-006`: resilience behavior and `news_unavailable` alert paths
-- `P6-007`: news quality dashboard metrics surfaces
+- `P7-001`: FastAPI control-plane service baseline
+- `P7-002`: RBAC enforcement for control-plane endpoints
+- `P7-003`: trading operations endpoints for orders/positions/portfolio/risk controls

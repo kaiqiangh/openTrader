@@ -70,6 +70,7 @@ Use this exact format in each update:
 | 27   | 2026-02-14 | P5-005,P5-006,P5-007 | - | - | Added OMS core risk rules, drawdown/daily-loss guards, and circuit-breaker/kill-switch controls with composed policy engine; Python/Go suites green | 100% |
 | 28   | 2026-02-14 | P5-008,P5-009,P6-001 | - | - | Added risk observability telemetry, risk regression scenario suite, and pluggable news source connector framework; Python/Go suites green | 100% |
 | 29   | 2026-02-14 | P6-002,P6-003,P6-004 | - | - | Added news ingestion + dedupe persistence, tagging/relevance pipeline, and rolling summarizer service with deterministic fallback behavior | 100% |
+| 30   | 2026-02-14 | P6-005,P6-006,P6-007 | - | - | Added summary context injection bridge, resilience fallback/alert policy, and quality metrics snapshot contracts; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -332,6 +333,15 @@ Use this exact format in each update:
 - Next Task IDs: [P6-005, P6-006, P6-007]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 18:10
+
+- Completed Task IDs: [P6-005, P6-006, P6-007]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; Phase 6 contracts are complete but UI/API dashboard surfaces remain deferred to Phase 7.
+- Next Task IDs: [P7-001, P7-002, P7-003]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -343,7 +353,7 @@ Use this exact format in each update:
 | 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport | Runnable Phase 2-3 pipeline validation completed | DONE |
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | DONE |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | DONE |
-| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | IN_PROGRESS |
+| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | DONE |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
@@ -582,9 +592,9 @@ Integrate news/social signals into the agent context pipeline safely and observa
 | P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | DONE |
 | P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | DONE |
 | P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | DONE |
-| P6-005 | P1  | Context injection bridge       | Publish summaries to strategy context queue and MCTX agent input         | P6-004,P3-005 | News-aware strategy context | NOT_STARTED |
-| P6-006 | P1  | News resilience behavior       | Implement `news_unavailable` fallback and alerting                       | P6-002,P6-004 | Non-blocking news module    | NOT_STARTED |
-| P6-007 | P2  | News quality dashboard         | Coverage, freshness, summarization lag, error rates                      | P6-002,P6-004 | News ops visibility         | NOT_STARTED |
+| P6-005 | P1  | Context injection bridge       | Publish summaries to strategy context queue and MCTX agent input         | P6-004,P3-005 | News-aware strategy context | DONE |
+| P6-006 | P1  | News resilience behavior       | Implement `news_unavailable` fallback and alerting                       | P6-002,P6-004 | Non-blocking news module    | DONE |
+| P6-007 | P2  | News quality dashboard         | Coverage, freshness, summarization lag, error rates                      | P6-002,P6-004 | News ops visibility         | DONE |
 
 ---
 
@@ -845,6 +855,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P6-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P6-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -855,6 +868,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P6-005` context injection bridge between news summaries and market context agent inputs.
-2. Start `P6-006` resilience behavior with `news_unavailable` propagation and alerting paths.
-3. Start `P6-007` news quality dashboard metrics (coverage/freshness/summarization lag/error rate).
+1. Start `P7-001` FastAPI control-plane baseline (auth + strategy/mode/health endpoints).
+2. Start `P7-002` RBAC enforcement (`viewer/operator/admin`) across sensitive control-plane endpoints.
+3. Start `P7-003` trading operations endpoints (orders/positions/portfolio/risk + circuit-breaker controls).
