@@ -2,6 +2,7 @@
 
 from services.agent_orchestrator.contracts import (
     ExecutionDecision,
+    MarketContextOutput,
     OrchestrationResult,
     PlannerDecision,
     RiskAssessment,
@@ -9,6 +10,7 @@ from services.agent_orchestrator.contracts import (
     StrategyConfig,
 )
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
+from services.agent_orchestrator.market_context_agent import MarketContextAgent
 from services.agent_orchestrator.orchestrator import AgentOrchestrator, DecisionPublisher
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
@@ -18,6 +20,8 @@ __all__ = [
     "DecisionPublisher",
     "ExecutionDecision",
     "ExecutionDecisionAgent",
+    "MarketContextAgent",
+    "MarketContextOutput",
     "OrchestrationResult",
     "PlannerAgent",
     "PlannerDecision",

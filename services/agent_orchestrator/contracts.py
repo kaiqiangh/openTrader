@@ -58,12 +58,22 @@ class ExecutionDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketContextOutput:
+    context: dict[str, Any]
+    microstructure: dict[str, Any]
+    news: dict[str, Any]
+    quality: dict[str, Any]
+    notes: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class OrchestrationResult:
     trace_id: str
     decision_id: str
     mode: str
     status: str
     lifecycle: tuple[dict[str, Any], ...]
+    market_context: MarketContextOutput
     plan: PlannerDecision
     risk: RiskAssessment
     execution_decision: ExecutionDecision
