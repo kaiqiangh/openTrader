@@ -23,14 +23,14 @@
 
 - Cross-service communication must use typed events and versioned schemas.
 - Direct service-to-service calls are allowed only for bootstrap/health paths.
-- Shared domain contracts live in `/Users/kai/Desktop/openTrader/services/shared/`.
+- Shared domain contracts live in `services/shared/`.
 - Business-domain logic stays in its owning service module; do not duplicate domain rules across services.
 
 ## Event-Driven Guidelines
 
 - Every emitted event must include envelope metadata and deterministic idempotency keys.
 - Producers own payload schema correctness; consumers validate and reject invalid payloads.
-- Queue and exchange topology changes must be reflected in `/Users/kai/Desktop/openTrader/config/rabbitmq/topology.json`.
+- Queue and exchange topology changes must be reflected in `config/rabbitmq/topology.json`.
 - DLQ behavior is mandatory for non-recoverable consumer failures.
 
 ## Observability Standards
@@ -43,7 +43,7 @@
 ## Configuration Standards
 
 - Environment variables are the canonical runtime config boundary.
-- `/Users/kai/Desktop/openTrader/.env.example` and `/Users/kai/Desktop/openTrader/scripts/validate_env.py` must be kept in sync.
+- `.env.example` and `scripts/validate_env.py` must be kept in sync.
 - No hard-coded credentials, tokens, or endpoint secrets in code.
 - Service-specific config keys should be namespaced (for example `LLM_*`, `EXCHANGE_*`, `NOTIFY_*`).
 
@@ -56,7 +56,7 @@
 
 ## AI/LLM Integration Principles
 
-- All model traffic goes through `/Users/kai/Desktop/openTrader/services/llm_gateway/`.
+- All model traffic goes through `services/llm_gateway/`.
 - Persist full prompt/response payloads plus usage/cost metadata.
 - Quota enforcement is mandatory before provider dispatch.
 - Guardrails must validate model-derived actions before execution intent publish.
@@ -80,12 +80,20 @@
 - Keep dependencies directional: shared contracts -> domain services -> API/control layers.
 - Avoid cyclic imports across service modules.
 - New third-party dependencies require explicit justification and minimal scope.
+- All paths in documentations should be relative, such as `services/agent_orchestrator/orchestrator.py` instead of absolute paths.
 
 ## Testing Expectations
 
 - New behavior requires unit tests and integration tests at boundary points.
 - Queue/database/provider adapters require failure-path tests, not only happy-path tests.
 - Mode isolation and risk gates are mandatory regression targets.
+
+## Important Documentation
+
+- You need to check some important documentations before contributing to the codebase, please check the following documents:
+  - docs/ARD_Consolidated.md: Architectural Decision Records for design rationale.
+  - docs/PRD_Consolidated.md: Product requirements and feature specifications.
+  - docs/IMPLEMENTATION_PLAN.md: High-level implementation roadmap and milestones.
 
 ## Nested AGENT Template Pattern
 

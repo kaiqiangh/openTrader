@@ -2,9 +2,9 @@
 
 ## Scope and Method
 
-- Scope: `P0-*` through `P3-*` in `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`.
+- Scope: `P0-*` through `P3-*` in `docs/IMPLEMENTATION_PLAN.md`.
 - Method: cross-check task status and exit criteria against executable code, runtime wiring, tests, configuration, and docs.
-- Evidence sources: service modules under `/Users/kai/Desktop/openTrader/services/`, infrastructure files, and test suite under `/Users/kai/Desktop/openTrader/tests/`.
+- Evidence sources: service modules under `services/`, infrastructure files, and test suite under `tests/`.
 
 ---
 
@@ -13,30 +13,30 @@
 ### 🔴 Critical
 
 1. No production runtime workers are wired for ingestion/orchestration despite Phase 2-3 completion claims.
-- Evidence: `/Users/kai/Desktop/openTrader/docker-compose.yml:1` includes only infra services; no app services for ingestion/orchestrator/gateway.
-- Evidence: `/Users/kai/Desktop/openTrader/services/workers/.gitkeep` and `/Users/kai/Desktop/openTrader/services/api/.gitkeep` indicate missing runnable worker/API modules.
+- Evidence: `docker-compose.yml:1` includes only infra services; no app services for ingestion/orchestrator/gateway.
+- Evidence: `services/workers/.gitkeep` and `services/api/.gitkeep` indicate missing runnable worker/API modules.
 
 2. Exchange connectivity is adapter-level only; no concrete CCXT Pro client integration or long-running stream loop.
-- Evidence: `/Users/kai/Desktop/openTrader/services/market_ingestion/exchange_adapter.py:13` defines protocol interfaces, not concrete exchange clients.
-- Evidence: no exchange runtime entrypoint under `/Users/kai/Desktop/openTrader/services/market_ingestion/`.
+- Evidence: `services/market_ingestion/exchange_adapter.py:13` defines protocol interfaces, not concrete exchange clients.
+- Evidence: no exchange runtime entrypoint under `services/market_ingestion/`.
 
 3. Canonical message publishing is abstract-only; no concrete RabbitMQ publisher implementation.
-- Evidence: `/Users/kai/Desktop/openTrader/services/market_ingestion/canonical_pipeline.py:12` uses `CanonicalPublisher` protocol.
-- Evidence: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py:19` uses `DecisionPublisher` protocol without AMQP implementation.
+- Evidence: `services/market_ingestion/canonical_pipeline.py:12` uses `CanonicalPublisher` protocol.
+- Evidence: `services/agent_orchestrator/orchestrator.py:19` uses `DecisionPublisher` protocol without AMQP implementation.
 
 4. LLM gateway is not LiteLLM-backed in code, so P3-006 is contract-complete but runtime-incomplete.
-- Evidence: `/Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py:24` defines provider protocol; no LiteLLM adapter/import.
-- Evidence: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py:18` validates behavior using fake providers only.
+- Evidence: `services/llm_gateway/gateway.py:24` defines provider protocol; no LiteLLM adapter/import.
+- Evidence: `tests/test_p3_llm_gateway.py:18` validates behavior using fake providers only.
 
 ### 🟡 Important
 
 1. Persistence backends for Timescale/Redis/Postgres are protocol-only and not implemented.
-- Evidence: `/Users/kai/Desktop/openTrader/services/market_ingestion/persistence_writers.py:10` defines `TimeseriesStore` protocol only.
-- Evidence: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/memory_layer.py:56` defaults to no-op stores.
-- Evidence: `/Users/kai/Desktop/openTrader/services/llm_gateway/persistence.py:26` defines `LLMCallStore` protocol only.
+- Evidence: `services/market_ingestion/persistence_writers.py:10` defines `TimeseriesStore` protocol only.
+- Evidence: `services/agent_orchestrator/memory_layer.py:56` defaults to no-op stores.
+- Evidence: `services/llm_gateway/persistence.py:26` defines `LLMCallStore` protocol only.
 
 2. Real execution service is bootstrap-only.
-- Evidence: `/Users/kai/Desktop/openTrader/services/real_execution_go/main.go:5` prints bootstrap string; no queue consumer/order dispatcher.
+- Evidence: `services/real_execution_go/main.go:5` prints bootstrap string; no queue consumer/order dispatcher.
 
 ### 🟢 Nice-to-have
 
@@ -57,13 +57,13 @@
 ### 🟡 Important
 
 1. Observability features are in-memory snapshots, not production Prometheus/OTel instrumentation.
-- Evidence: `/Users/kai/Desktop/openTrader/services/market_ingestion/pipeline_metrics.py:7` and `/Users/kai/Desktop/openTrader/services/agent_orchestrator/metrics_tracing.py:21` keep local counters/spans only.
+- Evidence: `services/market_ingestion/pipeline_metrics.py:7` and `services/agent_orchestrator/metrics_tracing.py:21` keep local counters/spans only.
 
 2. "Integration harness" is deterministic replay logic, not broker/database integration.
-- Evidence: `/Users/kai/Desktop/openTrader/services/market_ingestion/integration_harness.py:12` uses in-process capture publisher.
+- Evidence: `services/market_ingestion/integration_harness.py:12` uses in-process capture publisher.
 
 3. LLM quota and persistence are contract-level; no DB-backed usage reconciliation.
-- Evidence: `/Users/kai/Desktop/openTrader/services/llm_gateway/quota.py:20` protocol-only store.
+- Evidence: `services/llm_gateway/quota.py:20` protocol-only store.
 
 ### 🟢 Nice-to-have
 
@@ -95,12 +95,12 @@
 ### 🔴 Critical
 
 1. Environment contract lacks runtime keys needed for claimed Phase 2-3 integrations.
-- Evidence: `/Users/kai/Desktop/openTrader/.env.example:1` has base infra keys only; no exchange credentials, symbol subscription config, gateway provider settings, or runtime worker toggles.
+- Evidence: `.env.example:1` has base infra keys only; no exchange credentials, symbol subscription config, gateway provider settings, or runtime worker toggles.
 
 ### 🟡 Important
 
 1. `docker-compose.yml` does not define app containers for ingestion/orchestrator/gateway, preventing reproducible Phase 2-3 runtime validation.
-- Evidence: `/Users/kai/Desktop/openTrader/docker-compose.yml:1`.
+- Evidence: `docker-compose.yml:1`.
 
 2. Secrets and config namespacing for provider-specific integrations are not yet defined (LLM provider routing, exchange account scoping).
 

@@ -13,7 +13,7 @@
 ### Task 1: Add failing tests for memory layer contracts and fallback behavior
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py`
+- Create: `tests/test_p3_memory_layer.py`
 
 **Step 1: Write the failing test**
 
@@ -25,7 +25,7 @@ def test_memory_layer_reads_short_term_slot_first() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py -v`
+Run: `uv run pytest tests/test_p3_memory_layer.py -v`
 Expected: FAIL because memory layer module does not exist.
 
 **Step 3: Write minimal implementation**
@@ -38,23 +38,23 @@ class AgentMemoryLayer:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py -v`
+Run: `uv run pytest tests/test_p3_memory_layer.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py
+git add tests/test_p3_memory_layer.py
 git commit -m "test(agent-runtime): add memory layer contract coverage"
 ```
 
 ### Task 2: Integrate memory layer writes/reads into orchestrator flow
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py`
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/memory_layer.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py`
+- Modify: `tests/test_p3_orchestrator.py`
+- Modify: `services/agent_orchestrator/orchestrator.py`
+- Create: `services/agent_orchestrator/memory_layer.py`
+- Modify: `services/agent_orchestrator/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -67,7 +67,7 @@ async def test_orchestrator_writes_memory_slots_and_persists_summary() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py -v`
+Run: `uv run pytest tests/test_p3_orchestrator.py tests/test_p3_memory_layer.py -v`
 Expected: FAIL until memory layer integration exists.
 
 **Step 3: Write minimal implementation**
@@ -79,24 +79,24 @@ await self.memory_layer.persist_decision_summary(...)
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py -v`
+Run: `uv run pytest tests/test_p3_orchestrator.py tests/test_p3_memory_layer.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/agent_orchestrator/memory_layer.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_memory_layer.py
+git add services/agent_orchestrator/memory_layer.py services/agent_orchestrator/orchestrator.py services/agent_orchestrator/__init__.py tests/test_p3_orchestrator.py tests/test_p3_memory_layer.py
 git commit -m "feat(agent-runtime): integrate short and long term decision memory"
 ```
 
 ### Task 3: Documentation and tracker updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-memory-layer-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `tests/test_p3_agent_runtime_docs.py`
+- Modify: `docs/agent_runtime_baseline.md`
+- Modify: `README.md`
+- Create: `docs/learning/2026-02-14-p3-memory-layer-instincts.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -107,7 +107,7 @@ def test_agent_runtime_doc_mentions_memory_layer_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because docs are missing memory-layer references.
 
 **Step 3: Write minimal implementation**
@@ -118,12 +118,12 @@ Expected: FAIL because docs are missing memory-layer references.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-memory-layer-instincts.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add tests/test_p3_agent_runtime_docs.py docs/agent_runtime_baseline.md README.md docs/learning/2026-02-14-p3-memory-layer-instincts.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-010 memory integration completion"
 ```

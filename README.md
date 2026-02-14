@@ -1,4 +1,5 @@
 # openTrader
+
 Auto AI Trading System in Crypto Market
 
 ## Development Bootstrap
@@ -10,20 +11,29 @@ Auto AI Trading System in Crypto Market
 
 ## Local Setup (Terminal)
 
-Use this sequence from the project root (`/Users/kai/Desktop/openTrader`):
+Use this sequence from the project root:
 
 1. Verify Python and uv:
+
 - `python3 --version` (expect `3.13.x` or compatible)
 - `uv --version`
+
 2. Sync dependencies into `.venv`:
+
 - `uv sync --all-groups`
+
 3. Validate env keys:
+
 - `cp .env.example .env` (first time only)
 - `make env-validate`
+
 4. Run tooling through uv:
+
 - `uv run ruff check .`
 - `uv run pytest -q`
+
 5. Run Go tests for real execution service:
+
 - `cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...`
 
 ### Why It Can Work In Codex But Fail Locally
@@ -35,27 +45,33 @@ Use this sequence from the project root (`/Users/kai/Desktop/openTrader`):
 ### Troubleshooting `ruff` / `pytest` Locally
 
 1. `uv: command not found`:
+
 - install uv: [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
 - restart terminal and re-check `uv --version`
 
 2. `ruff: command not found` or `pytest: command not found`:
+
 - use `uv run ruff check .` and `uv run pytest -q` (not global binaries)
 - if needed: `uv sync --all-groups --reinstall`
 
 3. Wrong Python interpreter:
+
 - `which python3`
 - `python3 --version`
 - ensure compatible version, then run `uv sync`
 
 4. Go cache permission errors:
+
 - run tests with writable cache: `GOCACHE=/tmp/go-build go test ./...`
 
 5. Still failing:
+
 - remove local venv and resync:
   - `rm -rf .venv`
   - `uv sync --all-groups`
 
 6. `async def functions are not natively supported` in pytest:
+
 - ensure dev dependencies are installed: `uv sync --all-groups`
 - verify plugin availability: `uv run python -c "import pytest_asyncio; print(pytest_asyncio.__version__)"`
 
@@ -185,9 +201,12 @@ OMS lifecycle + risk baseline (`P5-001`..`P5-007`):
 - `services/oms/risk_policy.py` (composed OMS risk policy evaluator across rules/guards/controls)
 - `services/oms/risk_observability.py` (`P5-008` risk telemetry and severity-classified policy/control events)
 
-News source connector framework (`P6-001`):
+News pipeline baseline (`P6-001`..`P6-004`):
 
-- `services/news_ingestion/source_connectors.py` (pluggable RSS/API/social connector contracts + registry + resilient fetch-cycle runner)
+- `services/news_ingestion/source_connectors.py` (`P6-001` pluggable RSS/API/social connector contracts + registry + resilient fetch-cycle runner)
+- `services/news_ingestion/ingestion_service.py` (`P6-002` normalize + dedupe + persistence boundary for news items)
+- `services/news_ingestion/tagging_relevance.py` (`P6-003` symbol/topic tagging with relevance and sentiment scoring)
+- `services/news_summarizer/summarizer_service.py` (`P6-004` rolling summary generation per symbol/global scope)
 
 Runtime verification evidence:
 

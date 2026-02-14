@@ -13,7 +13,7 @@
 ### Task 1: Add failing tests for quota enforcement behavior
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py`
+- Create: `tests/test_p3_llm_quota_enforcement.py`
 
 **Step 1: Write the failing test**
 
@@ -26,7 +26,7 @@ async def test_gateway_blocks_when_daily_token_limit_exceeded() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py -v`
+Run: `uv run pytest tests/test_p3_llm_quota_enforcement.py -v`
 Expected: FAIL because quota contracts and gateway integration are missing.
 
 **Step 3: Write minimal implementation**
@@ -41,23 +41,23 @@ class LLMQuotaStore(Protocol): ...
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py -v`
+Run: `uv run pytest tests/test_p3_llm_quota_enforcement.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py /Users/kai/Desktop/openTrader/services/llm_gateway/quota.py
+git add tests/test_p3_llm_quota_enforcement.py services/llm_gateway/quota.py
 git commit -m "test(llm-gateway): add hard-limit quota enforcement coverage"
 ```
 
 ### Task 2: Implement quota module and gateway integration
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/quota.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/llm_gateway/__init__.py`
+- Create: `services/llm_gateway/quota.py`
+- Modify: `services/llm_gateway/contracts.py`
+- Modify: `services/llm_gateway/gateway.py`
+- Modify: `services/llm_gateway/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -70,7 +70,7 @@ async def test_gateway_increments_quota_usage_on_success() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_quota_enforcement.py tests/test_p3_llm_gateway.py -v`
 Expected: FAIL until gateway applies quota checks and usage updates.
 
 **Step 3: Write minimal implementation**
@@ -84,25 +84,25 @@ class LLMGateway:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_enforcement.py /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_quota_enforcement.py tests/test_p3_llm_gateway.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/llm_gateway/quota.py /Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py /Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py /Users/kai/Desktop/openTrader/services/llm_gateway/__init__.py
+git add services/llm_gateway/quota.py services/llm_gateway/contracts.py services/llm_gateway/gateway.py services/llm_gateway/__init__.py
 git commit -m "feat(llm-gateway): enforce token and cost hard limits"
 ```
 
 ### Task 3: Documentation + tracker updates
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_docs.py`
-- Modify: `/Users/kai/Desktop/openTrader/docs/llm_gateway_baseline.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-llm-quota-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Create: `tests/test_p3_llm_quota_docs.py`
+- Modify: `docs/llm_gateway_baseline.md`
+- Create: `docs/learning/2026-02-14-p3-llm-quota-instincts.md`
+- Modify: `docs/agent_runtime_baseline.md`
+- Modify: `README.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -114,7 +114,7 @@ def test_readme_mentions_llm_quota_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_docs.py -v`
+Run: `uv run pytest tests/test_p3_llm_quota_docs.py -v`
 Expected: FAIL because docs and references are missing.
 
 **Step 3: Write minimal implementation**
@@ -128,12 +128,12 @@ Expected: FAIL because docs and references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_llm_quota_docs.py /Users/kai/Desktop/openTrader/docs/llm_gateway_baseline.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-llm-quota-instincts.md /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add tests/test_p3_llm_quota_docs.py docs/llm_gateway_baseline.md docs/learning/2026-02-14-p3-llm-quota-instincts.md docs/agent_runtime_baseline.md README.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-008 quota enforcement completion"
 ```

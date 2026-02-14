@@ -13,7 +13,7 @@
 ### Task 1: Add failing tests for gateway behavior
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py`
+- Create: `tests/test_p3_llm_gateway.py`
 
 **Step 1: Write the failing test**
 
@@ -27,7 +27,7 @@ async def test_gateway_retries_transient_provider_failure_then_succeeds() -> Non
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_gateway.py -v`
 Expected: FAIL because `services/llm_gateway` modules do not exist.
 
 **Step 3: Write minimal implementation**
@@ -40,22 +40,22 @@ class LLMGateway:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_gateway.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py /Users/kai/Desktop/openTrader/services/llm_gateway
+git add tests/test_p3_llm_gateway.py services/llm_gateway
  git commit -m "feat(llm-gateway): add retry-timeout-fallback gateway skeleton"
 ```
 
 ### Task 2: Implement contracts and gateway package
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py`
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py`
-- Create: `/Users/kai/Desktop/openTrader/services/llm_gateway/__init__.py`
+- Create: `services/llm_gateway/contracts.py`
+- Create: `services/llm_gateway/gateway.py`
+- Create: `services/llm_gateway/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -67,7 +67,7 @@ def test_gateway_response_contains_provider_model_and_latency() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_gateway.py -v`
 Expected: FAIL due missing contracts and gateway implementation.
 
 **Step 3: Write minimal implementation**
@@ -89,25 +89,25 @@ class LLMRetryExhaustedError(LLMGatewayError): ...
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway.py -v`
+Run: `uv run pytest tests/test_p3_llm_gateway.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/llm_gateway/contracts.py /Users/kai/Desktop/openTrader/services/llm_gateway/gateway.py /Users/kai/Desktop/openTrader/services/llm_gateway/__init__.py
+git add services/llm_gateway/contracts.py services/llm_gateway/gateway.py services/llm_gateway/__init__.py
 git commit -m "feat(llm-gateway): add typed contracts and provider routing skeleton"
 ```
 
 ### Task 3: Documentation and tracker updates
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway_docs.py`
-- Create: `/Users/kai/Desktop/openTrader/docs/llm_gateway_baseline.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-llm-gateway-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Create: `tests/test_p3_llm_gateway_docs.py`
+- Create: `docs/llm_gateway_baseline.md`
+- Create: `docs/learning/2026-02-14-p3-llm-gateway-instincts.md`
+- Modify: `docs/agent_runtime_baseline.md`
+- Modify: `README.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -119,7 +119,7 @@ def test_readme_mentions_llm_gateway_modules() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway_docs.py -v`
+Run: `uv run pytest tests/test_p3_llm_gateway_docs.py -v`
 Expected: FAIL because docs and references are missing.
 
 **Step 3: Write minimal implementation**
@@ -133,12 +133,12 @@ Expected: FAIL because docs and references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_llm_gateway_docs.py /Users/kai/Desktop/openTrader/docs/llm_gateway_baseline.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-llm-gateway-instincts.md /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add tests/test_p3_llm_gateway_docs.py docs/llm_gateway_baseline.md docs/learning/2026-02-14-p3-llm-gateway-instincts.md docs/agent_runtime_baseline.md README.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-006 llm gateway baseline completion"
 ```

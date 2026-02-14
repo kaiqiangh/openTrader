@@ -13,9 +13,9 @@
 ### Task 1: Add failing tests for guardrail behavior and orchestrator flow
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py`
+- Create: `tests/test_p3_guardrail_validation.py`
+- Modify: `tests/test_p3_orchestrator.py`
+- Modify: `tests/test_p3_agent_runtime_docs.py`
 
 **Step 1: Write the failing test**
 
@@ -28,7 +28,7 @@ def test_guardrail_rejects_low_confidence_buy_decision() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_guardrail_validation.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because guardrail module/contracts are missing.
 
 **Step 3: Write minimal implementation**
@@ -41,23 +41,23 @@ class GuardrailValidationLayer:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_guardrail_validation.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py
+git add tests/test_p3_guardrail_validation.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py
 git commit -m "test(agent-runtime): add guardrail validation coverage"
 ```
 
 ### Task 2: Implement guardrail contracts and integration
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/guardrail_validation.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/contracts.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py`
+- Create: `services/agent_orchestrator/guardrail_validation.py`
+- Modify: `services/agent_orchestrator/contracts.py`
+- Modify: `services/agent_orchestrator/orchestrator.py`
+- Modify: `services/agent_orchestrator/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -70,7 +70,7 @@ async def test_orchestrator_does_not_publish_intent_when_guardrail_rejects() -> 
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py -v`
+Run: `uv run pytest tests/test_p3_guardrail_validation.py tests/test_p3_orchestrator.py -v`
 Expected: FAIL until orchestration guardrail step exists.
 
 **Step 3: Write minimal implementation**
@@ -85,23 +85,23 @@ class AgentOrchestrator:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_guardrail_validation.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py -v`
+Run: `uv run pytest tests/test_p3_guardrail_validation.py tests/test_p3_orchestrator.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/agent_orchestrator/guardrail_validation.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/contracts.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py
+git add services/agent_orchestrator/guardrail_validation.py services/agent_orchestrator/contracts.py services/agent_orchestrator/orchestrator.py services/agent_orchestrator/__init__.py
 git commit -m "feat(agent-runtime): add guardrail validation layer before intent publish"
 ```
 
 ### Task 3: Documentation + tracker updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-guardrail-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `docs/agent_runtime_baseline.md`
+- Create: `docs/learning/2026-02-14-p3-guardrail-instincts.md`
+- Modify: `README.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -113,7 +113,7 @@ def test_readme_mentions_guardrail_validation_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because docs references are missing.
 
 **Step 3: Write minimal implementation**
@@ -127,12 +127,12 @@ Expected: FAIL because docs references are missing.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-guardrail-instincts.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add docs/agent_runtime_baseline.md docs/learning/2026-02-14-p3-guardrail-instincts.md README.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-009 guardrail validation completion"
 ```

@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P6-001)
+# Agent Runtime Baseline (P3-001..P6-004)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -37,6 +37,9 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/oms/risk_policy.py` (`P5-005`/`P5-006`/`P5-007`)
 - `services/oms/risk_observability.py` (`P5-008`)
 - `services/news_ingestion/source_connectors.py` (`P6-001`)
+- `services/news_ingestion/ingestion_service.py` (`P6-002`)
+- `services/news_ingestion/tagging_relevance.py` (`P6-003`)
+- `services/news_summarizer/summarizer_service.py` (`P6-004`)
 
 ## Component Boundaries
 
@@ -157,6 +160,11 @@ This document defines the first Phase 3 decision runtime modules:
 - `news_ingestion/source_connectors.py` defines pluggable source connector protocol and registration framework.
 - Connector cycle runner isolates per-source failure and returns degraded-source markers without blocking healthy sources.
 
+21. P6 ingestion + tagging + summarizer modules
+- `news_ingestion/ingestion_service.py` normalizes source records, computes dedupe hashes, and persists dedupe-aware `news_items`.
+- `news_ingestion/tagging_relevance.py` assigns symbol/topic tags and relevance/sentiment scores for `news_tags`.
+- `news_summarizer/summarizer_service.py` produces deterministic rolling `news_summaries` artifacts by scope/window.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -234,6 +242,10 @@ Metrics/tracing notes:
 - News connector contract:
   - `SourceConnectorRegistry` manages connector discovery/lookup by stable connector IDs.
   - `NewsSourceConnectorFramework.fetch_cycle(...)` executes per-source fetch with fault isolation and normalized cycle summaries.
+- News ingestion/tagging/summarizer contracts:
+  - `NewsIngestionService.ingest(...)` normalizes and deduplicates source records before persistence.
+  - `NewsTaggingRelevancePipeline.tag_items(...)` emits bounded relevance `[0,1]` and sentiment `[-1,1]` scores.
+  - `RollingNewsSummarizer.summarize_window(...)` emits scope-window summaries with deterministic fallback text.
 
 ## Usage Flow
 

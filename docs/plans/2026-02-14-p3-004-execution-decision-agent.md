@@ -13,9 +13,9 @@
 ### Task 1: Add failing tests for execution decision contract and integration
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py`
+- Create: `tests/test_p3_execution_decision_agent.py`
+- Modify: `tests/test_p3_orchestrator.py`
+- Modify: `tests/test_p3_agent_runtime_docs.py`
 
 **Step 1: Write the failing test**
 
@@ -29,7 +29,7 @@ def test_execution_decision_proposes_hold_when_risk_not_approved() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_execution_decision_agent.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because `execution_decision_agent.py` and updated contracts do not exist.
 
 **Step 3: Write minimal implementation**
@@ -42,23 +42,23 @@ class ExecutionDecisionAgent:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_execution_decision_agent.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py
+git add tests/test_p3_execution_decision_agent.py tests/test_p3_orchestrator.py tests/test_p3_agent_runtime_docs.py
 git commit -m "test(agent-runtime): add execution decision agent contract coverage"
 ```
 
 ### Task 2: Implement P3-004 execution decision agent
 
 **Files:**
-- Create: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/execution_decision_agent.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/contracts.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py`
-- Modify: `/Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py`
+- Create: `services/agent_orchestrator/execution_decision_agent.py`
+- Modify: `services/agent_orchestrator/contracts.py`
+- Modify: `services/agent_orchestrator/orchestrator.py`
+- Modify: `services/agent_orchestrator/__init__.py`
 
 **Step 1: Write the failing test**
 
@@ -71,7 +71,7 @@ async def test_orchestrator_uses_execution_decision_agent_output_for_intent_payl
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py -v`
+Run: `uv run pytest tests/test_p3_execution_decision_agent.py tests/test_p3_orchestrator.py -v`
 Expected: FAIL because orchestrator result has no execution decision and no decision agent integration.
 
 **Step 3: Write minimal implementation**
@@ -94,23 +94,23 @@ class AgentOrchestrator:
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_execution_decision_agent.py /Users/kai/Desktop/openTrader/tests/test_p3_orchestrator.py -v`
+Run: `uv run pytest tests/test_p3_execution_decision_agent.py tests/test_p3_orchestrator.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/services/agent_orchestrator/execution_decision_agent.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/contracts.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/orchestrator.py /Users/kai/Desktop/openTrader/services/agent_orchestrator/__init__.py
+git add services/agent_orchestrator/execution_decision_agent.py services/agent_orchestrator/contracts.py services/agent_orchestrator/orchestrator.py services/agent_orchestrator/__init__.py
 git commit -m "feat(agent-runtime): add execution decision agent with action constraints"
 ```
 
 ### Task 3: Documentation + tracker updates
 
 **Files:**
-- Modify: `/Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md`
-- Create: `/Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-execution-decision-instincts.md`
-- Modify: `/Users/kai/Desktop/openTrader/README.md`
-- Modify: `/Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md`
+- Modify: `docs/agent_runtime_baseline.md`
+- Create: `docs/learning/2026-02-14-p3-execution-decision-instincts.md`
+- Modify: `README.md`
+- Modify: `docs/IMPLEMENTATION_PLAN.md`
 
 **Step 1: Write the failing test**
 
@@ -122,7 +122,7 @@ def test_readme_mentions_execution_decision_agent_module() -> None:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests/test_p3_agent_runtime_docs.py -v`
+Run: `uv run pytest tests/test_p3_agent_runtime_docs.py -v`
 Expected: FAIL because docs do not include `P3-004` module references.
 
 **Step 3: Write minimal implementation**
@@ -136,12 +136,12 @@ Expected: FAIL because docs do not include `P3-004` module references.
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest /Users/kai/Desktop/openTrader/tests -v`
+Run: `uv run pytest tests -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add /Users/kai/Desktop/openTrader/docs/agent_runtime_baseline.md /Users/kai/Desktop/openTrader/docs/learning/2026-02-14-p3-execution-decision-instincts.md /Users/kai/Desktop/openTrader/README.md /Users/kai/Desktop/openTrader/docs/IMPLEMENTATION_PLAN.md
+git add docs/agent_runtime_baseline.md docs/learning/2026-02-14-p3-execution-decision-instincts.md README.md docs/IMPLEMENTATION_PLAN.md
 git commit -m "docs: record p3-004 execution decision baseline completion"
 ```
