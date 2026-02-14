@@ -241,6 +241,48 @@ th {
   margin: 0;
 }
 
+.impact-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 0.9rem;
+}
+
+.impact-card {
+  border: 1px solid rgba(157, 184, 204, 0.25);
+  border-radius: 10px;
+  padding: 0.62rem;
+  background: rgba(8, 29, 44, 0.72);
+}
+
+.impact-card h3 {
+  margin: 0 0 0.2rem;
+}
+
+.impact-card p {
+  margin: 0.2rem 0;
+}
+
+.summary-stack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.summary-card {
+  border: 1px solid rgba(157, 184, 204, 0.24);
+  border-radius: 10px;
+  padding: 0.62rem;
+  background: rgba(8, 29, 44, 0.7);
+}
+
+.summary-card h4 {
+  margin: 0 0 0.3rem;
+}
+
+.summary-card p {
+  margin: 0.25rem 0;
+}
+
 .muted {
   color: var(--muted);
   margin: 0.42rem 0;
