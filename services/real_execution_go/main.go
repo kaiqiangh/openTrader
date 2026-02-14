@@ -9,6 +9,7 @@ import (
 	"open-trader/real_execution_go/internal/bridge"
 	"open-trader/real_execution_go/internal/consumer"
 	"open-trader/real_execution_go/internal/idempotency"
+	"open-trader/real_execution_go/internal/metrics"
 	"open-trader/real_execution_go/internal/service"
 )
 
@@ -34,6 +35,7 @@ func main() {
 		QueueName: "execution.intent.real",
 		Consumer:  &noopConsumer{},
 		Handler:   handler,
+		Metrics:   metrics.NewCollector(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

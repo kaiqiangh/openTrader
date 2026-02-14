@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"open-trader/real_execution_go/internal/consumer"
+	"open-trader/real_execution_go/internal/metrics"
 )
 
 type fakeConsumer struct {
@@ -58,7 +59,13 @@ func TestRunnerReceivesAndAcksDelivery(t *testing.T) {
 		},
 	}
 	handler := &fakeBodyHandler{}
-	runner := &Runner{QueueName: "execution.intent.real", Consumer: cons, Handler: handler}
+	collector := metrics.NewCollector()
+	runner := &Runner{
+		QueueName: "execution.intent.real",
+		Consumer:  cons,
+		Handler:   handler,
+		Metrics:   collector,
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -74,6 +81,13 @@ func TestRunnerReceivesAndAcksDelivery(t *testing.T) {
 	}
 	if acked != 1 {
 		t.Fatalf("expected exactly one ack, got %d", acked)
+	}
+	snapshot := collector.Snapshot()
+	if snapshot.Totals.SuccessTotal != 1 {
+		t.Fatalf("expected one successful run, got %d", snapshot.Totals.SuccessTotal)
+	}
+	if snapshot.Totals.AckTotal != 1 {
+		t.Fatalf("expected one ack metric, got %d", snapshot.Totals.AckTotal)
 	}
 }
 
@@ -92,7 +106,13 @@ func TestRunnerNacksOnHandlerError(t *testing.T) {
 		},
 	}
 	handler := &fakeBodyHandler{err: errors.New("boom")}
-	runner := &Runner{QueueName: "execution.intent.real", Consumer: cons, Handler: handler}
+	collector := metrics.NewCollector()
+	runner := &Runner{
+		QueueName: "execution.intent.real",
+		Consumer:  cons,
+		Handler:   handler,
+		Metrics:   collector,
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -105,5 +125,12 @@ func TestRunnerNacksOnHandlerError(t *testing.T) {
 	}
 	if nacked != 1 {
 		t.Fatalf("expected one nack, got %d", nacked)
+	}
+	snapshot := collector.Snapshot()
+	if snapshot.Totals.FailureTotal == 0 {
+		t.Fatal("expected failure metrics to be recorded")
+	}
+	if snapshot.Totals.NackTotal != 1 {
+		t.Fatalf("expected one nack metric, got %d", snapshot.Totals.NackTotal)
 	}
 }
