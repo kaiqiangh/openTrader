@@ -48,40 +48,33 @@ def _settings() -> APISettings:
     )
 
 
-def test_dashboard_shell_pages_include_react_assets_and_view_markers() -> None:
+def test_news_ops_endpoints_expose_items_summaries_and_impact() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
     token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
 
-    governance = client.get("/dashboard/governance", headers=_auth_headers(token))
-    replay = client.get("/dashboard/replay", headers=_auth_headers(token))
-    mode = client.get("/dashboard/mode", headers=_auth_headers(token))
-    news = client.get("/dashboard/news", headers=_auth_headers(token))
+    items = client.get("/ops/news/items", headers=_auth_headers(token))
+    summaries = client.get("/ops/news/summaries", headers=_auth_headers(token))
+    impact = client.get("/ops/news/impact", headers=_auth_headers(token))
 
-    assert governance.status_code == 200
-    assert "data-view='governance'" in governance.text
-    assert "/static/dashboard_app.js" in governance.text
-    assert "/static/dashboard.css" in governance.text
+    assert items.status_code == 200
+    assert summaries.status_code == 200
+    assert impact.status_code == 200
 
-    assert replay.status_code == 200
-    assert "data-view='replay'" in replay.text
-
-    assert mode.status_code == 200
-    assert "data-view='mode'" in mode.text
-    assert news.status_code == 200
-    assert "data-view='news'" in news.text
+    assert len(items.json()["items"]) >= 1
+    assert len(summaries.json()["items"]) >= 1
+    assert len(impact.json()["items"]) >= 1
 
 
-def test_dashboard_static_assets_are_served() -> None:
+def test_dashboard_news_route_renders_shell_marker() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
+    token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
 
-    js = client.get("/static/dashboard_app.js")
-    css = client.get("/static/dashboard.css")
+    response = client.get("/dashboard/news", headers=_auth_headers(token))
 
-    assert js.status_code == 200
-    assert "createRoot" in js.text
-    assert css.status_code == 200
-    assert ":root" in css.text
+    assert response.status_code == 200
+    assert "data-view='news'" in response.text
+    assert "/ops/news/items" in client.get("/static/dashboard_app.js").text

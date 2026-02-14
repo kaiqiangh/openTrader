@@ -76,8 +76,8 @@ cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...
 
 ## Next Step Alignment
 
-With `P4-004`..`P4-007`, `P5-005`..`P5-009`, `P6-001`..`P6-007`, and `P7-001`..`P7-009` now delivered, next work is:
+With `P4-004`..`P4-007`, `P5-005`..`P5-009`, `P6-001`..`P6-007`, and `P7-001`..`P7-012` now delivered, next work is:
 
-- `P7-010`: news panel UI with stream and summary surfaces
-- `P7-011`: notification service runtime core
-- `P7-012`: event publisher integration for notification trigger paths
+- `P7-013`: Telegram gateway implementation
+- `P7-014`: notification preference management APIs
+- `P7-015`: notification spam control and retry policy hardening

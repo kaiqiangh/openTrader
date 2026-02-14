@@ -74,6 +74,7 @@ Use this exact format in each update:
 | 31   | 2026-02-14 | P7-001,P7-002,P7-003 | - | - | Added FastAPI control-plane baseline with JWT RBAC and trading ops endpoints for orders/positions/portfolio/risk controls; Python/Go suites green | 100% |
 | 32   | 2026-02-14 | P7-004,P7-005,P7-006 | - | - | Added LLM governance APIs, replay APIs, and dashboard shell routes on top of control-plane baseline; targeted/full Python suites green | 100% |
 | 33   | 2026-02-14 | P7-007,P7-008,P7-009 | - | - | Added React-based dashboard UI layer for governance/replay/mode panels, mode-audit API endpoint, and static UI assets served by FastAPI; Python/Go suites green | 100% |
+| 34   | 2026-02-14 | P7-010,P7-011,P7-012 | - | - | Added news panel APIs/UI, notification runtime core module, and source event publisher integrations across strategy/OMS/risk/system-health paths; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -372,6 +373,15 @@ Use this exact format in each update:
 - Next Task IDs: [P7-010, P7-011, P7-012]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 20:15
+
+- Completed Task IDs: [P7-010, P7-011, P7-012]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; notification runtime currently uses in-memory preference/rate-limit state and in-memory DLQ records pending persistence-backed implementation in later notification phases.
+- Next Task IDs: [P7-013, P7-014, P7-015]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -654,9 +664,9 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 | P7-007 | P1  | Token usage dashboard UI     | Per strategy/agent daily/monthly cost and quota views                         | P7-004               | Governance UI        | DONE |
 | P7-008 | P1  | Prompt/response inspector UI | Drill-down by decision and agent with raw payload views                       | P7-005               | Explainability UI    | DONE |
 | P7-009 | P1  | Trading mode panel UI        | Explicit mode display/control with audit history                              | P7-001,P4-001        | Mode control UI      | DONE |
-| P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                | P6-004               | News operations UI   | NOT_STARTED |
-| P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton | P1-008,P1-009    | Notification runtime core | NOT_STARTED |
-| P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines    | P7-011,P5-001        | End-to-end event routing | NOT_STARTED |
+| P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                | P6-004               | News operations UI   | DONE |
+| P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton | P1-008,P1-009    | Notification runtime core | DONE |
+| P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines    | P7-011,P5-001        | End-to-end event routing | DONE |
 | P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling    | P7-011               | Telegram delivery channel | NOT_STARTED |
 | P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation        | P7-001,P7-011        | Notification preference control plane | NOT_STARTED |
 | P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ        | P7-011,P1-008        | Resilient notification delivery | NOT_STARTED |
@@ -897,10 +907,12 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P7-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P7-010  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P7-012  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-012  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-014  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-015  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 
@@ -908,6 +920,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P7-010` news panel UI with stream and rolling summary views.
-2. Start `P7-011` notification service module runtime core (event intake/policy/gateway dispatch skeleton).
-3. Start `P7-012` event publisher integration from strategy/OMS/risk/system-health event sources.
+1. Start `P7-013` Telegram gateway with markdown-safe templates and retryable sender behavior.
+2. Start `P7-014` notification preference management APIs (user/strategy/event/severity/gateway filters).
+3. Start `P7-015` spam control and retry policy hardening (dedupe windows, rate limits, bounded backoff, DLQ strategy).
