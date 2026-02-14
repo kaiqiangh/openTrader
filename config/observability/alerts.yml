@@ -1,0 +1,52 @@
+groups:
+  - name: open_trader_critical_alerts
+    rules:
+      - alert: ExchangeConnectivityIssue
+        expr: increase(open_trader_system_exchange_connectivity_issues_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: market_ingestion
+        annotations:
+          summary: "Exchange connectivity issues detected"
+          description: "One or more exchange connectivity issue events were observed in the last 5 minutes."
+
+      - alert: LLMQuotaBreach
+        expr: increase(open_trader_llm_quota_breaches_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: llm_gateway
+        annotations:
+          summary: "LLM quota breaches detected"
+          description: "LLM quota breach counter increased in the last 5 minutes."
+
+      - alert: RiskDrawdownBreach
+        expr: increase(open_trader_risk_drawdown_breaches_total[5m]) > 0 or increase(open_trader_risk_daily_loss_breaches_total[5m]) > 0
+        for: 30s
+        labels:
+          severity: critical
+          service: oms
+        annotations:
+          summary: "Risk drawdown or daily-loss breach detected"
+          description: "Risk guard breach counters increased in the last 5 minutes."
+
+      - alert: ElevatedOrderFailures
+        expr: rate(open_trader_oms_order_failures_total[5m]) > 0.2
+        for: 2m
+        labels:
+          severity: warning
+          service: oms
+        annotations:
+          summary: "Elevated OMS order failures"
+          description: "OMS order failure rate has exceeded threshold for the last 2 minutes."
+
+      - alert: IntegrityResyncEvents
+        expr: increase(open_trader_integrity_resync_requests_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: integrity_service
+        annotations:
+          summary: "Data integrity resync events detected"
+          description: "Integrity resync requests increased in the last 5 minutes."
