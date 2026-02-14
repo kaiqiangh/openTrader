@@ -231,16 +231,20 @@ API control-plane baseline (`P7-001`..`P7-012`):
 - `services/api/routers/dashboard.py` (`P7-006` HTML dashboard shell for status/governance/replay pages)
 - `services/api/routers/control.py` (`P7-009` mode history API: `GET /control/mode/history`)
 - `services/api/routers/ops.py` (`P7-010` news panel APIs: `/ops/news/items`, `/ops/news/summaries`, `/ops/news/impact`)
-- `services/api/routers/dashboard.py` (`P7-010` dashboard news panel route: `/dashboard/news`)
-- `services/api/static/dashboard_app.js` (`P7-007`/`P7-008`/`P7-009`/`P7-010` React UI module for governance/replay/mode/news views)
-- `services/api/static/dashboard.css` (`P7-007`/`P7-008`/`P7-009`/`P7-010` dashboard styling and list rendering performance hints)
+- `services/api/routers/ops.py` (`P7-014` notification preference APIs: `/ops/notifications/preferences`, `/ops/notifications/preferences/{user_id}`)
+- `services/api/routers/ops.py` (`P7-016` notification observability APIs: `/ops/notifications/metrics`, `/ops/notifications/deliveries`, `/ops/notifications/traces`)
+- `services/api/routers/dashboard.py` (`P7-010`/`P7-016` dashboard routes: `/dashboard/news`, `/dashboard/notifications`)
+- `services/api/static/dashboard_app.js` (`P7-007`..`P7-010`/`P7-016` React UI module for governance/replay/mode/news/notification views)
+- `services/api/static/dashboard.css` (`P7-007`..`P7-010`/`P7-016` dashboard styling and list rendering performance hints)
 
-Notification runtime baseline (`P7-011`/`P7-012`):
+Notification runtime baseline (`P7-011`..`P7-016`):
 
 - `services/notification_service/models.py` (typed notification events/preferences/messages/results)
 - `services/notification_service/event_intake.py` (source envelope normalization and severity classification)
-- `services/notification_service/policy_router.py` (preference filtering, dedupe window, and rate-limit enforcement)
-- `services/notification_service/gateway_dispatch.py` (gateway abstraction, delivery attempts, and DLQ capture)
+- `services/notification_service/policy_router.py` (preference filtering, dedupe/rate-limit enforcement, and suppression accounting)
+- `services/notification_service/gateway_dispatch.py` (gateway abstraction, bounded backoff retries, retryability handling, and DLQ capture)
+- `services/notification_service/telegram_gateway.py` (`P7-013` Telegram sender, MarkdownV2-safe templates, and HTTP status mapping)
+- `services/notification_service/observability.py` (`P7-016` runtime metrics/log/trace collector for notification policy and gateway delivery stages)
 - `services/notification_service/service.py` (`event_intake -> policy_router -> gateway_dispatch` runtime pipeline)
 - `services/notification_service/publishers.py` (strategy/OMS/risk/system source-event bridge into `notify.events.raw`)
 

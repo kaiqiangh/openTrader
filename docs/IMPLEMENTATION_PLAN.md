@@ -75,6 +75,8 @@ Use this exact format in each update:
 | 32   | 2026-02-14 | P7-004,P7-005,P7-006 | - | - | Added LLM governance APIs, replay APIs, and dashboard shell routes on top of control-plane baseline; targeted/full Python suites green | 100% |
 | 33   | 2026-02-14 | P7-007,P7-008,P7-009 | - | - | Added React-based dashboard UI layer for governance/replay/mode panels, mode-audit API endpoint, and static UI assets served by FastAPI; Python/Go suites green | 100% |
 | 34   | 2026-02-14 | P7-010,P7-011,P7-012 | - | - | Added news panel APIs/UI, notification runtime core module, and source event publisher integrations across strategy/OMS/risk/system-health paths; Python/Go suites green | 100% |
+| 35   | 2026-02-14 | P7-013,P7-014,P7-015 | - | - | Added Telegram gateway delivery, notification preference CRUD APIs, and hardened dedupe/rate-limit/backoff retry + DLQ behavior with regression coverage; Python/Go suites green | 100% |
+| 36   | 2026-02-14 | P7-016 | - | - | Added notification observability collector, telemetry ops APIs, and dashboard notification panel hooks for metrics/logs/traces; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -382,6 +384,24 @@ Use this exact format in each update:
 - Next Task IDs: [P7-013, P7-014, P7-015]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 20:40
+
+- Completed Task IDs: [P7-013, P7-014, P7-015]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; Telegram delivery and preference APIs are operational but persistence-backed notification stores and observability dashboards remain for the next phase batch.
+- Next Task IDs: [P7-016, P7-017, P7-018]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 20:55
+
+- Completed Task IDs: [P7-016]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; notification telemetry currently uses in-memory collector/state surfaces pending exporter integration in Phase 8 observability stack.
+- Next Task IDs: [P7-017, P7-018, P8-001]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -667,10 +687,10 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 | P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                | P6-004               | News operations UI   | DONE |
 | P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton | P1-008,P1-009    | Notification runtime core | DONE |
 | P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines    | P7-011,P5-001        | End-to-end event routing | DONE |
-| P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling    | P7-011               | Telegram delivery channel | NOT_STARTED |
-| P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation        | P7-001,P7-011        | Notification preference control plane | NOT_STARTED |
-| P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ        | P7-011,P1-008        | Resilient notification delivery | NOT_STARTED |
-| P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                          | P7-011,P8-004        | Notification telemetry | NOT_STARTED |
+| P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling    | P7-011               | Telegram delivery channel | DONE |
+| P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation        | P7-001,P7-011        | Notification preference control plane | DONE |
+| P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ        | P7-011,P1-008        | Resilient notification delivery | DONE |
+| P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                          | P7-011,P8-004        | Notification telemetry | DONE |
 | P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow | P7-011,P7-013 | Notification validation suite | NOT_STARTED |
 | P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack | NOT_STARTED |
 
@@ -910,9 +930,10 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P7-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-012  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P7-014  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P7-015  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-013  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-014  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-015  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 
@@ -920,6 +941,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P7-013` Telegram gateway with markdown-safe templates and retryable sender behavior.
-2. Start `P7-014` notification preference management APIs (user/strategy/event/severity/gateway filters).
-3. Start `P7-015` spam control and retry policy hardening (dedupe windows, rate limits, bounded backoff, DLQ strategy).
+1. Start `P7-017` notification test suite expansion (fault-injection and publish->deliver integration paths).
+2. Start `P7-018` deployment/config wiring for notification workers and startup validation.
+3. Start `P8-001` structured logging standard alignment for notification and control-plane services.

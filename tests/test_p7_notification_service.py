@@ -7,7 +7,11 @@ import pytest
 
 from services.notification_service.event_intake import NotificationEventIntake
 from services.notification_service.gateway_dispatch import GatewayDispatcher, InMemoryGateway
-from services.notification_service.models import NotificationPreference, NotificationSeverity
+from services.notification_service.models import (
+    DeliveryResult,
+    NotificationPreference,
+    NotificationSeverity,
+)
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.service import NotificationService
 
@@ -15,6 +19,25 @@ from services.notification_service.service import NotificationService
 class _AlwaysFailGateway(InMemoryGateway):
     async def send(self, message):  # type: ignore[override]
         raise RuntimeError("gateway_unavailable")
+
+
+class _RetryThenDeliverGateway(InMemoryGateway):
+    def __init__(self, *, name: str, retryable_failures: int) -> None:
+        super().__init__(name=name)
+        self.retryable_failures = retryable_failures
+        self.attempts = 0
+
+    async def send(self, message):  # type: ignore[override]
+        self.attempts += 1
+        if self.attempts <= self.retryable_failures:
+            return DeliveryResult(
+                message_id=message.message_id,
+                gateway=self.name,
+                status="RETRYABLE_ERROR",
+                attempt=self.attempts,
+                detail="http_503",
+            )
+        return await super().send(message)
 
 
 def _envelope(*, event_type: str, mode: str = "MOCK") -> dict[str, object]:
@@ -77,6 +100,9 @@ async def test_notification_policy_router_dedupe_and_rate_limit() -> None:
 
     assert len(first) == 1
     assert second == ()
+    counters = router.suppression_counts()
+    assert counters["dedupe"] == 1
+    assert counters["rate_limit"] == 0
 
 
 @pytest.mark.asyncio
@@ -102,3 +128,41 @@ async def test_notification_dispatcher_moves_failures_to_dlq() -> None:
     assert len(result.results) == 1
     assert result.results[0].status == "FAILED"
     assert len(dispatcher.dlq_items()) == 1
+
+
+@pytest.mark.asyncio
+async def test_notification_dispatcher_retries_with_backoff_and_eventually_delivers() -> None:
+    intake = NotificationEventIntake()
+    router = NotificationPolicyRouter(
+        preferences=(
+            NotificationPreference(
+                user_id="ops-1",
+                min_severity=NotificationSeverity.INFO,
+                gateways=("telegram",),
+            ),
+        ),
+        dedupe_window_seconds=60.0,
+        rate_limit_per_minute=10,
+    )
+    gateway = _RetryThenDeliverGateway(name="telegram", retryable_failures=2)
+    delays: list[float] = []
+
+    async def _sleep(delay_seconds: float) -> None:
+        delays.append(delay_seconds)
+
+    dispatcher = GatewayDispatcher(
+        gateways={"telegram": gateway},
+        max_attempts=3,
+        backoff_base_seconds=0.2,
+        backoff_multiplier=2.0,
+        max_backoff_seconds=2.0,
+        sleep_func=_sleep,
+    )
+    service = NotificationService(intake=intake, policy_router=router, dispatcher=dispatcher)
+
+    result = await service.process_envelope(_envelope(event_type="oms.order.filled"))
+
+    assert len(result.results) == 1
+    assert result.results[0].status == "DELIVERED"
+    assert result.results[0].attempt == 3
+    assert delays == [0.2, 0.4]

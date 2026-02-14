@@ -48,43 +48,21 @@ def _settings() -> APISettings:
     )
 
 
-def test_dashboard_shell_pages_include_react_assets_and_view_markers() -> None:
+def test_notification_observability_ops_endpoints_expose_metrics_deliveries_and_traces() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
     token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
 
-    governance = client.get("/dashboard/governance", headers=_auth_headers(token))
-    replay = client.get("/dashboard/replay", headers=_auth_headers(token))
-    mode = client.get("/dashboard/mode", headers=_auth_headers(token))
-    news = client.get("/dashboard/news", headers=_auth_headers(token))
-    notifications = client.get("/dashboard/notifications", headers=_auth_headers(token))
+    metrics = client.get("/ops/notifications/metrics", headers=_auth_headers(token))
+    deliveries = client.get("/ops/notifications/deliveries", headers=_auth_headers(token))
+    traces = client.get("/ops/notifications/traces", headers=_auth_headers(token))
 
-    assert governance.status_code == 200
-    assert "data-view='governance'" in governance.text
-    assert "/static/dashboard_app.js" in governance.text
-    assert "/static/dashboard.css" in governance.text
+    assert metrics.status_code == 200
+    assert deliveries.status_code == 200
+    assert traces.status_code == 200
 
-    assert replay.status_code == 200
-    assert "data-view='replay'" in replay.text
-
-    assert mode.status_code == 200
-    assert "data-view='mode'" in mode.text
-    assert news.status_code == 200
-    assert "data-view='news'" in news.text
-    assert notifications.status_code == 200
-    assert "data-view='notifications'" in notifications.text
-
-
-def test_dashboard_static_assets_are_served() -> None:
-    settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
-    client = TestClient(app)
-
-    js = client.get("/static/dashboard_app.js")
-    css = client.get("/static/dashboard.css")
-
-    assert js.status_code == 200
-    assert "createRoot" in js.text
-    assert css.status_code == 200
-    assert ":root" in css.text
+    assert metrics.json()["totals"]["received_total"] >= 1
+    assert len(deliveries.json()["items"]) >= 1
+    assert len(traces.json()["items"]) >= 1
+    assert "/ops/notifications/metrics" in client.get("/static/dashboard_app.js").text
