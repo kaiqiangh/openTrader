@@ -206,6 +206,62 @@ class RiskControlActionResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class NewsItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    news_id: str
+    source: str
+    title: str
+    url: str
+    published_at: str
+    symbol: str | None
+    topic: str
+    relevance_score: float
+    sentiment_score: float
+
+
+class NewsItemListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NewsItemResponse]
+
+
+class NewsSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    summary_id: str
+    symbol_scope: str
+    window_start: str
+    window_end: str
+    summary_text: str
+    generated_at: str
+    source_count: int
+    avg_sentiment: float
+
+
+class NewsSummaryListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NewsSummaryResponse]
+
+
+class NewsImpactRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    symbol: str
+    headline_count: int
+    avg_sentiment: float
+    max_relevance: float
+    latest_published_at: str | None
+    latest_summary: str | None
+
+
+class NewsImpactListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NewsImpactRecordResponse]
+
+
 class LLMUsageRecordResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

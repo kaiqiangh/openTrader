@@ -13,6 +13,7 @@ from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
+from services.notification_service.publishers import NotificationEventBridge
 from services.simulation_execution.mode_routing import assert_no_mode_leakage, route_execution_intent
 from services.shared.contracts.message_envelope import validate_envelope
 
@@ -33,6 +34,7 @@ class AgentOrchestrator:
         guardrail_validation_layer: GuardrailValidationLayer | None = None,
         memory_layer: AgentMemoryLayer | None = None,
         metrics: AgentRuntimeMetrics | None = None,
+        notification_bridge: NotificationEventBridge | None = None,
         service_name: str = "agent_orchestrator",
         monotonic_clock: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -44,6 +46,7 @@ class AgentOrchestrator:
         self.guardrail_validation_layer = guardrail_validation_layer or GuardrailValidationLayer()
         self.memory_layer = memory_layer or AgentMemoryLayer()
         self.metrics = metrics or AgentRuntimeMetrics()
+        self.notification_bridge = notification_bridge
         self.service_name = service_name
         self._monotonic_clock = monotonic_clock
 
@@ -446,6 +449,8 @@ class AgentOrchestrator:
                 routing_key="strategy.decision.lifecycle",
                 message=lifecycle_event,
             )
+            if self.notification_bridge is not None:
+                await self.notification_bridge.publish_strategy_event(lifecycle_event)
 
         return OrchestrationResult(
             trace_id=trace_id,
