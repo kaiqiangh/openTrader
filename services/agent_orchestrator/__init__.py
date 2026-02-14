@@ -14,6 +14,7 @@ from services.agent_orchestrator.contracts import (
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
+from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics, TraceSpan
 from services.agent_orchestrator.memory_layer import (
     AgentMemoryLayer,
     DecisionMemoryRecord,
@@ -46,6 +47,7 @@ __all__ = [
     "DecisionReplayResult",
     "DecisionReplayService",
     "DecisionTraceRecord",
+    "AgentRuntimeMetrics",
     "GuardrailValidationLayer",
     "GuardrailValidationResult",
     "GuardrailViolation",
@@ -67,4 +69,5 @@ __all__ = [
     "RiskSignal",
     "ShortTermMemoryStore",
     "StrategyConfig",
+    "TraceSpan",
 ]
