@@ -1,4 +1,4 @@
-# Agent Runtime Baseline (P3-001..P3-010)
+# Agent Runtime Baseline (P3-001..P3-011)
 
 This document defines the first Phase 3 decision runtime modules:
 
@@ -13,6 +13,7 @@ This document defines the first Phase 3 decision runtime modules:
 - `services/llm_gateway/quota.py` (`P3-008`)
 - `services/agent_orchestrator/guardrail_validation.py` (`P3-009`)
 - `services/agent_orchestrator/memory_layer.py` (`P3-010`)
+- `services/agent_orchestrator/replay_service.py` (`P3-011`)
 
 ## Component Boundaries
 
@@ -82,6 +83,11 @@ This document defines the first Phase 3 decision runtime modules:
 - Hydrates per-decision memory from short-term slots first, then long-term summary fallback.
 - Writes decision-stage slots (`context`, `plan`, `risk`, `execution_decision`, `guardrail`, `status`) and persists final summary records for replay/audit workflows.
 
+12. `replay_service.py`
+- Reconstructs decision replay artifacts from persisted trace rows and LLM call records.
+- Produces ordered graph nodes/edges across decision trace, agent runs, long-term summary, and LLM calls.
+- Emits deterministic replay digest over normalized payloads for audit/debug reproducibility.
+
 ## Decision Lifecycle
 
 1. `agent.decision.received`
@@ -110,6 +116,11 @@ Memory handling notes:
 - During cycle execution, orchestrator writes stage outputs into short-term decision slots.
 - On cycle completion, orchestrator persists a long-term decision summary and re-caches summary in short-term memory.
 
+Replay handling notes:
+- Replay reads canonical trace metadata from `decision_traces` plus run/message records from `agent_runs`/`agent_messages`.
+- Replay merges optional long-term memory summary/lifecycle snapshots and persisted `llm_calls`.
+- Replay output is sorted deterministically and hashed for stable verification.
+
 ## Contract Notes
 
 - Envelope contract:
@@ -129,6 +140,9 @@ Memory handling notes:
 - Memory contract:
   - Short-term store: `write_slot(...)`, `read_slots(...)` for `mem:decision:{mode}:{strategy_id}:{decision_id}:{slot}`.
   - Long-term store: `persist_decision_summary(record)`, `read_decision_summary(decision_id)` for durable decision summaries.
+- Replay contract:
+  - Trace store: `read_decision_trace(...)`, `list_agent_runs(...)`, `list_agent_messages(...)`, `list_llm_calls(...)`.
+  - Result: deterministic `DecisionReplayResult` with graph nodes/edges and replay digest.
 
 ## Usage Flow
 

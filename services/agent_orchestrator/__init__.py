@@ -23,25 +23,45 @@ from services.agent_orchestrator.memory_layer import (
 )
 from services.agent_orchestrator.orchestrator import AgentOrchestrator, DecisionPublisher
 from services.agent_orchestrator.planner_agent import PlannerAgent
+from services.agent_orchestrator.replay_service import (
+    AgentMessageRecord,
+    AgentRunRecord,
+    DecisionReplayNotFoundError,
+    DecisionReplayResult,
+    DecisionReplayService,
+    DecisionTraceRecord,
+    ReplayGraphEdge,
+    ReplayGraphNode,
+    ReplayTraceStore,
+)
 from services.agent_orchestrator.risk_agent import RiskAgent
 
 __all__ = [
     "AgentOrchestrator",
+    "AgentMessageRecord",
     "DecisionPublisher",
     "ExecutionDecision",
     "ExecutionDecisionAgent",
+    "DecisionReplayNotFoundError",
+    "DecisionReplayResult",
+    "DecisionReplayService",
+    "DecisionTraceRecord",
     "GuardrailValidationLayer",
     "GuardrailValidationResult",
     "GuardrailViolation",
     "LongTermMemoryStore",
     "MarketContextAgent",
     "MarketContextOutput",
+    "AgentRunRecord",
     "AgentMemoryLayer",
     "DecisionMemoryRecord",
     "DecisionMemorySnapshot",
     "OrchestrationResult",
     "PlannerAgent",
     "PlannerDecision",
+    "ReplayGraphEdge",
+    "ReplayGraphNode",
+    "ReplayTraceStore",
     "RiskAgent",
     "RiskAssessment",
     "RiskSignal",
