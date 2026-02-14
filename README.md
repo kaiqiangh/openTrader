@@ -65,9 +65,18 @@ Phase 3 agent runtime baseline:
 - `services/agent_orchestrator/planner_agent.py` (dynamic planning from market context and thresholds)
 - `services/agent_orchestrator/risk_agent.py` (pre-trade risk signal evaluation and approvals)
 - `services/agent_orchestrator/execution_decision_agent.py` (final constrained action proposal generation)
+- `services/agent_orchestrator/market_context_agent.py` (optional microstructure/news enrichment before planning)
 - `docs/agent_runtime_baseline.md` (runtime architecture and lifecycle contract guide)
 - `docs/learning/2026-02-14-p3-agent-runtime-instincts.md` (continuous-learning-v2 agent-runtime notes)
 - `docs/learning/2026-02-14-p3-execution-decision-instincts.md` (continuous-learning-v2 execution-decision notes)
+- `docs/learning/2026-02-14-p3-market-context-instincts.md` (continuous-learning-v2 market-context notes)
+
+Phase 3 LLM gateway baseline:
+
+- `services/llm_gateway/contracts.py` (typed provider/request/response contracts)
+- `services/llm_gateway/gateway.py` (provider timeout/retry/fallback orchestration)
+- `docs/llm_gateway_baseline.md` (gateway architecture and contract guide)
+- `docs/learning/2026-02-14-p3-llm-gateway-instincts.md` (continuous-learning-v2 gateway notes)
 
 Runtime verification evidence:
 
