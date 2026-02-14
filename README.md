@@ -322,3 +322,10 @@ Notification validation suite baseline (`P7-017`):
 Runtime verification evidence:
 
 - `docs/runtime/runtime-verification-2026-02-14.md`
+
+Phase 9 validation baseline (`P9-001`..`P9-003`):
+
+- `tests/test_p9_e2e_mock_flow.py` (market -> agent -> mock execution -> reconciliation -> position -> portfolio snapshot path)
+- `tests/test_p9_e2e_real_flow.py` (market -> agent -> `execution.intent.real` -> reconciliation fallback validation path)
+- `tests/test_p9_mode_isolation.py` (MOCK-mode endpoint/queue isolation compliance test)
+- `docs/runtime/p9-validation-2026-02-14.md` (validation command evidence and outcomes)

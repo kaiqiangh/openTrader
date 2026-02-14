@@ -452,6 +452,15 @@ Use this exact format in each update:
 - Next Task IDs: [P9-001, P9-002, P9-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 23:20
+
+- Completed Task IDs: [P9-001, P9-002, P9-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; replay determinism and performance/chaos validation remain open release gates for Phase 9.
+- Next Task IDs: [P9-004, P9-005, P9-006]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -466,7 +475,7 @@ Use this exact format in each update:
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | DONE |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | DONE |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | DONE |
-| 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
+| 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | IN_PROGRESS |
 
 ## 3. Workstreams
 
@@ -790,9 +799,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 | ID     | Pri | Task                        | Actionable Steps                                                          | Dependencies         | Deliverable                      | Status      |
 | ------ | --- | --------------------------- | ------------------------------------------------------------------------- | -------------------- | -------------------------------- | ----------- |
-| P9-001 | P0  | E2E mock flow test          | Validate full path market -> agent -> mock execution -> portfolio updates | P4-002,P5-004,P7-001 | E2E mock test pass               | NOT_STARTED |
-| P9-002 | P0  | E2E real flow test          | Validate full path market -> agent -> real execution -> reconciliation    | P4-004,P5-002,P7-001 | E2E real test pass               | NOT_STARTED |
-| P9-003 | P0  | Mode isolation verification | Automated assertion that MOCK never hits exchange order endpoints         | P4-003,P9-001        | Compliance evidence              | NOT_STARTED |
+| P9-001 | P0  | E2E mock flow test          | Validate full path market -> agent -> mock execution -> portfolio updates | P4-002,P5-004,P7-001 | E2E mock test pass               | DONE |
+| P9-002 | P0  | E2E real flow test          | Validate full path market -> agent -> real execution -> reconciliation    | P4-004,P5-002,P7-001 | E2E real test pass               | DONE |
+| P9-003 | P0  | Mode isolation verification | Automated assertion that MOCK never hits exchange order endpoints         | P4-003,P9-001        | Compliance evidence              | DONE |
 | P9-004 | P0  | Replay determinism tests    | Verify decision replay reproduces stored decision chain                   | P3-011,P7-005        | Replay validation report         | NOT_STARTED |
 | P9-005 | P0  | Performance tests           | Measure dispatch latency, queue throughput, ingestion lag                 | P8-004,P4-004        | Performance benchmark report     | NOT_STARTED |
 | P9-006 | P1  | Chaos/resilience drills     | Broker restart, exchange disconnect, LLM timeout, DB restart scenarios    | P8-004,P8-005        | Resilience report                | NOT_STARTED |
@@ -995,12 +1004,14 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P8-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P8-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P8-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P9-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P9-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P9-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 
 > Note: Keep this board concise for active critical-path tasks. Full task catalog remains in phase sections above.
 
 ## 11. Immediate Next Actions
 
-1. Start `P9-001` end-to-end MOCK flow validation (market -> agent -> simulation -> OMS -> portfolio).
-2. Start `P9-002` end-to-end REAL flow validation (market -> agent -> real execution bridge -> reconciliation).
-3. Start `P9-003` mode isolation verification ensuring MOCK path never calls live exchange order endpoints.
+1. Start `P9-004` replay determinism tests for stored decision-chain reproducibility.
+2. Start `P9-005` performance tests for dispatch latency, queue throughput, and ingestion lag.
+3. Start `P9-006` chaos/resilience drills (broker restart, exchange disconnect, LLM timeout, DB restart).
