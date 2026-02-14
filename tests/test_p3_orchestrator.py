@@ -34,6 +34,11 @@ def _market_event(*, mode: str = "MOCK") -> dict[str, object]:
             "asks": [{"price": 42_001.0, "amount": 1.0}],
             "current_position": 0.1,
             "drawdown_pct": 0.01,
+            "news": {
+                "summary": "ETF inflow acceleration reported",
+                "sentiment": 0.65,
+                "source_count": 5,
+            },
         },
     }
 
@@ -63,6 +68,7 @@ async def test_orchestrator_consumes_market_event_and_publishes_lifecycle_and_in
     assert result.status == "RISK_APPROVED"
     assert [item["event_type"] for item in result.lifecycle] == [
         "agent.decision.received",
+        "agent.decision.context_enriched",
         "agent.decision.planned",
         "agent.decision.risk_approved",
         "agent.decision.action_proposed",
@@ -77,6 +83,8 @@ async def test_orchestrator_consumes_market_event_and_publishes_lifecycle_and_in
     assert result.execution_decision is not None
     assert intent_envelope["payload"]["action"] == result.execution_decision.action
     assert intent_envelope["payload"]["quantity"] == result.execution_decision.quantity
+    assert result.market_context.news["summary"].startswith("ETF inflow")
+    assert result.market_context.context["microstructure_regime"] == "bid_dominant"
     assert result.execution_intent is not None
 
 
@@ -92,6 +100,7 @@ async def test_orchestrator_marks_decision_rejected_when_risk_fails() -> None:
 
     assert result.status == "RISK_REJECTED"
     assert "agent.decision.risk_rejected" in [item["event_type"] for item in result.lifecycle]
+    assert "agent.decision.context_enriched" in [item["event_type"] for item in result.lifecycle]
     assert "agent.decision.action_proposed" in [item["event_type"] for item in result.lifecycle]
     assert result.execution_decision is not None
     assert result.execution_decision.action == "HOLD"
