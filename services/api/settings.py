@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 
+from services.shared.runtime.env_loader import load_dotenv_file
+
 
 @dataclass(frozen=True, slots=True)
 class APISettings:
@@ -15,6 +17,7 @@ class APISettings:
 
 
 def load_api_settings() -> APISettings:
+    load_dotenv_file()
     default_mode = os.getenv("EXECUTION_MODE_DEFAULT", "MOCK").strip().upper() or "MOCK"
     if default_mode not in {"MOCK", "REAL"}:
         raise ValueError("EXECUTION_MODE_DEFAULT must be MOCK or REAL")

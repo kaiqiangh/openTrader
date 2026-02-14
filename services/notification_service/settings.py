@@ -5,6 +5,7 @@ import os
 from typing import Mapping
 
 from services.notification_service.models import NotificationSeverity
+from services.shared.runtime.env_loader import load_dotenv_file
 
 
 class NotificationSettingsError(ValueError):
@@ -39,6 +40,8 @@ def load_notification_worker_settings(
     *,
     env: Mapping[str, str] | None = None,
 ) -> NotificationWorkerSettings:
+    if env is None:
+        load_dotenv_file()
     source = env if env is not None else os.environ
 
     enabled = _parse_bool(source.get("NOTIFY_ENABLED", "true"))

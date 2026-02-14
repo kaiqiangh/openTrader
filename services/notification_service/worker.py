@@ -49,6 +49,14 @@ class InMemoryNotificationEnvelopeConsumer:
 
 
 RabbitMQHTTPFetchFn = Callable[[str, str, str, str, float], list[dict[str, Any]]]
+RabbitMQHTTPDeclareQueueFn = Callable[[str, str, str, str, float], None]
+
+
+class RabbitMQHTTPPollingError(NotificationSettingsError):
+    def __init__(self, *, status_code: int, body: str) -> None:
+        self.status_code = status_code
+        self.body = body
+        super().__init__(f"RabbitMQ HTTP polling failed: {status_code} {body}")
 
 
 class RabbitMQHTTPConsumer:
@@ -60,23 +68,32 @@ class RabbitMQHTTPConsumer:
         password: str,
         request_timeout_seconds: float,
         fetch_fn: RabbitMQHTTPFetchFn | None = None,
+        declare_queue_fn: RabbitMQHTTPDeclareQueueFn | None = None,
     ) -> None:
         self.api_base_url = api_base_url.rstrip("/")
         self.username = username
         self.password = password
         self.request_timeout_seconds = request_timeout_seconds
         self._fetch_fn = fetch_fn or _default_rabbitmq_http_fetch
+        self._declare_queue_fn = declare_queue_fn or _default_rabbitmq_http_declare_queue
+        self._declared_queues: set[str] = set()
 
     async def consume(self, *, queue_name: str, timeout_seconds: float) -> Mapping[str, Any] | None:
         _ = timeout_seconds
-        rows = await asyncio.to_thread(
-            self._fetch_fn,
-            self.api_base_url,
-            self.username,
-            self.password,
-            queue_name,
-            self.request_timeout_seconds,
-        )
+        try:
+            rows = await asyncio.to_thread(
+                self._fetch_fn,
+                self.api_base_url,
+                self.username,
+                self.password,
+                queue_name,
+                self.request_timeout_seconds,
+            )
+        except RabbitMQHTTPPollingError as exc:
+            if exc.status_code == 404 and "queue_not_found" in exc.body:
+                await self._declare_queue(queue_name)
+                return None
+            raise
         if not rows:
             return None
         payload = rows[0].get("payload")
@@ -87,6 +104,19 @@ class RabbitMQHTTPConsumer:
             if isinstance(parsed, Mapping):
                 return dict(parsed)
         raise NotificationSettingsError("RabbitMQ HTTP payload is not a JSON object envelope")
+
+    async def _declare_queue(self, queue_name: str) -> None:
+        if queue_name in self._declared_queues:
+            return
+        await asyncio.to_thread(
+            self._declare_queue_fn,
+            self.api_base_url,
+            self.username,
+            self.password,
+            queue_name,
+            self.request_timeout_seconds,
+        )
+        self._declared_queues.add(queue_name)
 
 
 @dataclass(slots=True)
@@ -380,7 +410,7 @@ def _default_rabbitmq_http_fetch(
             raw = response.read().decode("utf-8")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8")
-        raise NotificationSettingsError(f"RabbitMQ HTTP polling failed: {exc.code} {body}") from exc
+        raise RabbitMQHTTPPollingError(status_code=int(exc.code), body=body) from exc
     except OSError as exc:
         raise NotificationSettingsError(f"RabbitMQ HTTP polling failed: {exc}") from exc
 
@@ -389,6 +419,43 @@ def _default_rabbitmq_http_fetch(
         rows = [row for row in parsed if isinstance(row, dict)]
         return [dict(row) for row in rows]
     return []
+
+
+def _default_rabbitmq_http_declare_queue(
+    api_base_url: str,
+    username: str,
+    password: str,
+    queue_name: str,
+    timeout_seconds: float,
+) -> None:
+    queue_ref = parse.quote(queue_name, safe="")
+    url = f"{api_base_url}/queues/%2F/{queue_ref}"
+    payload = json.dumps(
+        {
+            "durable": True,
+            "auto_delete": False,
+            "arguments": {},
+        }
+    ).encode("utf-8")
+    auth_raw = f"{username}:{password}".encode("utf-8")
+    auth_header = base64.b64encode(auth_raw).decode("utf-8")
+    req = request.Request(
+        url,
+        data=payload,
+        method="PUT",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Basic {auth_header}",
+        },
+    )
+    try:
+        with request.urlopen(req, timeout=timeout_seconds):  # noqa: S310
+            return
+    except error.HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc.code} {body}") from exc
+    except OSError as exc:
+        raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc}") from exc
 
 
 if __name__ == "__main__":
