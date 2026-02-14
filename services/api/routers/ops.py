@@ -7,6 +7,12 @@ from services.api.dependencies import get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
+    NewsImpactListResponse,
+    NewsImpactRecordResponse,
+    NewsItemListResponse,
+    NewsItemResponse,
+    NewsSummaryListResponse,
+    NewsSummaryResponse,
     OrderListResponse,
     OrderRecordResponse,
     PortfolioSnapshotResponse,
@@ -17,7 +23,7 @@ from services.api.models import (
     RiskControlEventResponse,
     RiskStatusResponse,
 )
-from services.api.state import ControlPlaneState
+from services.api.state import ControlPlaneState, NewsImpactRecord, NewsPanelItem, NewsPanelSummary
 from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder, RiskControlEvent
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -117,6 +123,38 @@ def disable_kill_switch(
     return _risk_action_model(event)
 
 
+@router.get("/news/items", response_model=NewsItemListResponse)
+def list_news_items(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    symbol: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> NewsItemListResponse:
+    items = state.list_news_items(symbol=symbol, limit=limit)
+    return NewsItemListResponse(items=[_news_item_model(item) for item in items])
+
+
+@router.get("/news/summaries", response_model=NewsSummaryListResponse)
+def list_news_summaries(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    symbol_scope: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=200),
+) -> NewsSummaryListResponse:
+    items = state.list_news_summaries(symbol_scope=symbol_scope, limit=limit)
+    return NewsSummaryListResponse(items=[_news_summary_model(item) for item in items])
+
+
+@router.get("/news/impact", response_model=NewsImpactListResponse)
+def list_news_impact(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    limit: int = Query(default=10, ge=1, le=100),
+) -> NewsImpactListResponse:
+    items = state.list_news_impact(limit=limit)
+    return NewsImpactListResponse(items=[_news_impact_model(item) for item in items])
+
+
 def _order_model(item: ReconciliationOrder) -> OrderRecordResponse:
     return OrderRecordResponse(
         order_id=item.order_id,
@@ -174,4 +212,42 @@ def _risk_action_model(item: RiskControlEvent) -> RiskControlActionResponse:
         changed_by=item.actor,
         occurred_at=item.occurred_at,
         metadata=item.metadata,
+    )
+
+
+def _news_item_model(item: NewsPanelItem) -> NewsItemResponse:
+    return NewsItemResponse(
+        news_id=item.news_id,
+        source=item.source,
+        title=item.title,
+        url=item.url,
+        published_at=item.published_at,
+        symbol=item.symbol,
+        topic=item.topic,
+        relevance_score=item.relevance_score,
+        sentiment_score=item.sentiment_score,
+    )
+
+
+def _news_summary_model(item: NewsPanelSummary) -> NewsSummaryResponse:
+    return NewsSummaryResponse(
+        summary_id=item.summary_id,
+        symbol_scope=item.symbol_scope,
+        window_start=item.window_start,
+        window_end=item.window_end,
+        summary_text=item.summary_text,
+        generated_at=item.generated_at,
+        source_count=len(item.source_news_ids),
+        avg_sentiment=item.avg_sentiment,
+    )
+
+
+def _news_impact_model(item: NewsImpactRecord) -> NewsImpactRecordResponse:
+    return NewsImpactRecordResponse(
+        symbol=item.symbol,
+        headline_count=item.headline_count,
+        avg_sentiment=item.avg_sentiment,
+        max_relevance=item.max_relevance,
+        latest_published_at=item.latest_published_at,
+        latest_summary=item.latest_summary,
     )
