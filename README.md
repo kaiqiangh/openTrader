@@ -69,6 +69,7 @@ Phase 3 agent runtime baseline:
 - `services/agent_orchestrator/guardrail_validation.py` (final schema/risk/symbol/leverage guardrail validation before intent publish)
 - `services/agent_orchestrator/memory_layer.py` (short-term Redis-style and long-term Postgres-style decision memory integration)
 - `services/agent_orchestrator/replay_service.py` (deterministic reconstruction of decision graph and persisted payloads)
+- `services/agent_orchestrator/metrics_tracing.py` (agent stage latency/failure instrumentation plus LLM token/cost telemetry aggregation)
 - `docs/agent_runtime_baseline.md` (runtime architecture and lifecycle contract guide)
 - `docs/learning/2026-02-14-p3-agent-runtime-instincts.md` (continuous-learning-v2 agent-runtime notes)
 - `docs/learning/2026-02-14-p3-execution-decision-instincts.md` (continuous-learning-v2 execution-decision notes)
@@ -76,6 +77,7 @@ Phase 3 agent runtime baseline:
 - `docs/learning/2026-02-14-p3-guardrail-instincts.md` (continuous-learning-v2 guardrail-validation notes)
 - `docs/learning/2026-02-14-p3-memory-layer-instincts.md` (continuous-learning-v2 memory-layer integration notes)
 - `docs/learning/2026-02-14-p3-replay-service-instincts.md` (continuous-learning-v2 replay-service notes)
+- `docs/learning/2026-02-14-p3-metrics-tracing-instincts.md` (continuous-learning-v2 metrics/tracing notes)
 
 Phase 3 LLM gateway baseline:
 

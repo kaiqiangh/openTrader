@@ -6,8 +6,10 @@ import uuid
 import pytest
 
 from services.agent_orchestrator.contracts import StrategyConfig
+from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer, DecisionMemoryRecord
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
+from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.shared.contracts.message_envelope import EnvelopeValidationError
 
 
@@ -59,6 +61,12 @@ class _FakePostgresMemoryStore:
 
     async def read_decision_summary(self, *, decision_id: str) -> DecisionMemoryRecord | None:
         return None
+
+
+class _FailingPlannerAgent(PlannerAgent):
+    def build_plan(self, *, market_context: dict[str, object], strategy: StrategyConfig):  # type: ignore[override]
+        _ = market_context, strategy
+        raise RuntimeError("planner stage failed")
 
 
 def _market_event(*, mode: str = "MOCK") -> dict[str, object]:
@@ -215,3 +223,38 @@ async def test_orchestrator_persists_short_and_long_term_memory() -> None:
     assert len(postgres_store.records) == 1
     assert postgres_store.records[0].decision_id == result.decision_id
     assert postgres_store.records[0].status == result.status
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_records_stage_latency_metrics() -> None:
+    publisher = _FakePublisher()
+    metrics = AgentRuntimeMetrics()
+    orchestrator = AgentOrchestrator(publisher=publisher, metrics=metrics)
+
+    await orchestrator.handle_market_event(_market_event(mode="MOCK"), strategy=_strategy())
+    snapshot = metrics.snapshot()
+
+    stage_names = set(snapshot["agent_stages"].keys())
+    assert {"market_context_agent", "planner_agent", "risk_agent", "execution_decision_agent", "guardrail_validation"}.issubset(stage_names)
+    assert snapshot["agent_stages"]["planner_agent"]["runs_total"] == 1
+    assert snapshot["agent_stages"]["planner_agent"]["failures_total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_records_failure_metric_when_stage_raises() -> None:
+    publisher = _FakePublisher()
+    metrics = AgentRuntimeMetrics()
+    orchestrator = AgentOrchestrator(
+        publisher=publisher,
+        planner_agent=_FailingPlannerAgent(),
+        metrics=metrics,
+    )
+
+    with pytest.raises(RuntimeError):
+        await orchestrator.handle_market_event(_market_event(mode="MOCK"), strategy=_strategy())
+
+    snapshot = metrics.snapshot()
+    planner = snapshot["agent_stages"]["planner_agent"]
+    assert planner["runs_total"] == 1
+    assert planner["failures_total"] == 1
+    assert planner["failure_rate"] == 1.0

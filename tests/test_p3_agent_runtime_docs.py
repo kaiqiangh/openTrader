@@ -29,6 +29,10 @@ def test_replay_service_instinct_doc_exists() -> None:
     assert Path("docs/learning/2026-02-14-p3-replay-service-instincts.md").exists()
 
 
+def test_metrics_tracing_instinct_doc_exists() -> None:
+    assert Path("docs/learning/2026-02-14-p3-metrics-tracing-instincts.md").exists()
+
+
 def test_agent_runtime_doc_mentions_p3_modules() -> None:
     content = Path("docs/agent_runtime_baseline.md").read_text(encoding="utf-8")
     assert "orchestrator.py" in content
@@ -39,6 +43,7 @@ def test_agent_runtime_doc_mentions_p3_modules() -> None:
     assert "guardrail_validation.py" in content
     assert "memory_layer.py" in content
     assert "replay_service.py" in content
+    assert "metrics_tracing.py" in content
 
 
 def test_readme_mentions_p3_agent_runtime_modules() -> None:
@@ -51,4 +56,5 @@ def test_readme_mentions_p3_agent_runtime_modules() -> None:
     assert "services/agent_orchestrator/guardrail_validation.py" in content
     assert "services/agent_orchestrator/memory_layer.py" in content
     assert "services/agent_orchestrator/replay_service.py" in content
+    assert "services/agent_orchestrator/metrics_tracing.py" in content
     assert "docs/agent_runtime_baseline.md" in content
