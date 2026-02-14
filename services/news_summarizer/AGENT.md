@@ -8,10 +8,12 @@ Builds symbol/global news summaries and relevance metadata for agent context.
 
 - Summarization and relevance scoring only.
 - Must not publish execution intents.
+- Must not own source fetch or connector retry logic.
 
 ## Coding Conventions
 
 - Keep summarization windows, freshness rules, and confidence metadata explicit.
+- Fallback summary output must be deterministic (`news_unavailable`) when no scoped inputs exist.
 
 ## Dependency Rules
 
@@ -24,6 +26,7 @@ Builds symbol/global news summaries and relevance metadata for agent context.
 ## Integration Contracts
 
 - Publishes summary artifacts for market context enrichment.
+- `summarizer_service.py` produces `news_summaries`-compatible artifacts (`summary_id`, `symbol_scope`, `window_start`, `window_end`, `summary_text`, `token_count`, `generated_at`).
 
 ## Testing Expectations
 
