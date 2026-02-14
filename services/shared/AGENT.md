@@ -27,6 +27,7 @@ Holds shared contracts and utility types used across service modules.
 
 - Message envelope validator is authoritative for base event metadata.
 - Runtime observability helpers under `services/shared/runtime/` define the baseline contracts for structured logs, Prometheus text metrics, and trace context propagation.
+- Key encryption helpers under `services/shared/runtime/` are authoritative for AES-256-GCM exchange credential protection-at-rest semantics.
 
 ## Testing Expectations
 
