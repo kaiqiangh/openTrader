@@ -65,6 +65,8 @@ Use this exact format in each update:
 | 22   | 2026-02-14 | P3-013,P3-014,P3-015,P3-016,P4-001,P4-002,P4-003 | - | - | Runtime integration gate delivered with concrete broker/workers/adapters plus strict mode routing, simulation engine, and mock safety guard | 100% |
 | 23   | 2026-02-14 | - | - | - | Added concrete Binance transport adapter and completed full-suite runtime validation (`pytest` green) | 100% |
 | 24   | 2026-02-14 | P4-004,P4-005,P4-006 | - | - | Real execution Go queue-consumer skeleton, bridge contracts, and idempotent create/cancel dedupe dispatch delivered with Go test coverage | 100% |
+| 25   | 2026-02-14 | P4-007,P4-008,P5-001 | - | - | Added execution metrics/tracing, mode integration tests, and OMS lifecycle state machine; Python/Go suites green | 100% |
+| 26   | 2026-02-14 | P5-002,P5-003,P5-004 | - | - | Added OMS fill reconciliation, position engine, and portfolio snapshot engine; fixed `uv run pytest` parity with root-level pass | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -282,6 +284,24 @@ Use this exact format in each update:
 - Next Task IDs: [P4-007, P4-008, P5-001]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 16:07
+
+- Completed Task IDs: [P4-007, P4-008, P5-001]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Local `uv run pytest` can fail without async plugin availability; documented workaround in `README.md`. Retain `GOCACHE=/tmp/go-build` for local Go tests in this environment.
+- Next Task IDs: [P5-002, P5-003, P5-004]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 16:20
+
+- Completed Task IDs: [P5-002, P5-003, P5-004]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: `uv sync` currently panics in this environment; local async pytest fallback in `tests/conftest.py` keeps `uv run pytest` operational. Retain `GOCACHE=/tmp/go-build` for local Go tests in this environment.
+- Next Task IDs: [P5-005, P5-006, P5-007]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -291,8 +311,8 @@ Use this exact format in each update:
 | 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection             | Continuous market flow with integrity checks | DONE |
 | 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails            | Validated agent decision pipeline            | DONE |
 | 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport | Runnable Phase 2-3 pipeline validation completed | DONE |
-| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | IN_PROGRESS |
-| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | NOT_STARTED |
+| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | DONE |
+| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | IN_PROGRESS |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | NOT_STARTED |
 | 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
@@ -479,8 +499,8 @@ Implement and hard-separate MOCK and REAL execution paths.
 | P4-004 | P0  | Go real execution service skeleton | Build Go service with queue consumer and idempotent command handler                 | P4-001,P0-003 | Real execution service       | DONE |
 | P4-005 | P0  | CCXT Pro bridge contracts          | Define strongly typed command contract for Go<->Python exchange actions             | P4-004,P2-001 | Execution interface contract | DONE |
 | P4-006 | P0  | Idempotent order dispatch          | Enforce idempotency keys and dedupe for create/cancel actions                       | P4-004        | Safe at-least-once behavior  | DONE |
-| P4-007 | P1  | Execution metrics and tracing      | Instrument both engines with latency/failure counters and traces                    | P4-002,P4-004 | Engine observability         | NOT_STARTED |
-| P4-008 | P1  | Mode integration tests             | Automated tests proving strict mode separation and expected lifecycle events        | P4-002,P4-004 | Mode compliance test suite   | NOT_STARTED |
+| P4-007 | P1  | Execution metrics and tracing      | Instrument both engines with latency/failure counters and traces                    | P4-002,P4-004 | Engine observability         | DONE |
+| P4-008 | P1  | Mode integration tests             | Automated tests proving strict mode separation and expected lifecycle events        | P4-002,P4-004 | Mode compliance test suite   | DONE |
 
 ---
 
@@ -500,10 +520,10 @@ Implement lifecycle state machine, reconciliation, portfolio accounting, and ris
 
 | ID     | Pri | Task                          | Actionable Steps                                                                                                          | Dependencies         | Deliverable                 | Status      |
 | ------ | --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------- | ----------- |
-| P5-001 | P0  | OMS state machine             | Implement state transitions (`NEW`, `SUBMITTED`, `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELED`, `REJECTED`, `EXPIRED`) | P1-003,P4-002,P4-004 | Robust OMS core             | NOT_STARTED |
-| P5-002 | P0  | Fill reconciliation           | Combine queue events + exchange query fallback reconciliation                                                             | P5-001,P4-004        | Reconciled order/fill state | NOT_STARTED |
-| P5-003 | P0  | Position engine               | Update positions from fills for mock and real mode                                                                        | P5-001               | Position service            | NOT_STARTED |
-| P5-004 | P0  | Portfolio snapshot engine     | Generate NAV, realized/unrealized PnL snapshots                                                                           | P5-003               | Portfolio snapshots in DB   | NOT_STARTED |
+| P5-001 | P0  | OMS state machine             | Implement state transitions (`NEW`, `SUBMITTED`, `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELED`, `REJECTED`, `EXPIRED`) | P1-003,P4-002,P4-004 | Robust OMS core             | DONE |
+| P5-002 | P0  | Fill reconciliation           | Combine queue events + exchange query fallback reconciliation                                                             | P5-001,P4-004        | Reconciled order/fill state | DONE |
+| P5-003 | P0  | Position engine               | Update positions from fills for mock and real mode                                                                        | P5-001               | Position service            | DONE |
+| P5-004 | P0  | Portfolio snapshot engine     | Generate NAV, realized/unrealized PnL snapshots                                                                           | P5-003               | Portfolio snapshots in DB   | DONE |
 | P5-005 | P0  | Core risk rules               | Implement position limits, leverage checks, per-symbol exposure limits                                                    | P3-009,P5-001        | Risk rule engine            | NOT_STARTED |
 | P5-006 | P0  | Drawdown + daily loss rules   | Implement max drawdown and daily loss guardrails                                                                          | P5-004               | Portfolio risk protection   | NOT_STARTED |
 | P5-007 | P0  | Circuit breaker + kill switch | Implement system-wide stop controls and eventing                                                                          | P5-005,P5-006        | Emergency controls          | NOT_STARTED |
@@ -780,8 +800,12 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P4-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P4-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P4-007  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
-| P5-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P4-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P4-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P5-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -793,6 +817,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P4-007` execution metrics and tracing for both mock and real engines.
-2. Start `P4-008` mode integration tests for mock/real separation and lifecycle correctness.
-3. Start `P5-001` OMS state machine aligned with new real-execution dispatch contracts.
+1. Start `P5-005` core risk rules using new position and portfolio outputs as authoritative inputs.
+2. Start `P5-006` drawdown and daily loss guardrails on top of portfolio snapshot flow.
+3. Start `P5-007` circuit breaker and kill switch controls with event publication.

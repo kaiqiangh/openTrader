@@ -8,6 +8,57 @@ Auto AI Trading System in Crypto Market
 3. Run `make env-validate`
 4. Run `make test`
 
+## Local Setup (Terminal)
+
+Use this sequence from the project root (`/Users/kai/Desktop/openTrader`):
+
+1. Verify Python and uv:
+- `python3 --version` (expect `3.13.x` or compatible)
+- `uv --version`
+2. Sync dependencies into `.venv`:
+- `uv sync --all-groups`
+3. Validate env keys:
+- `cp .env.example .env` (first time only)
+- `make env-validate`
+4. Run tooling through uv:
+- `uv run ruff check .`
+- `uv run pytest -q`
+5. Run Go tests for real execution service:
+- `cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...`
+
+### Why It Can Work In Codex But Fail Locally
+
+- This Codex environment runs commands in an isolated sandbox with preconfigured paths and tool shims.
+- Locally, your shell may not resolve the same binaries/interpreter (`python`, `uv`, `ruff`, `pytest`) unless your PATH and virtual environment are configured.
+- In this repo, `ruff` and `pytest` should be run via `uv run ...` so they use project-managed dependencies from `.venv`.
+
+### Troubleshooting `ruff` / `pytest` Locally
+
+1. `uv: command not found`:
+- install uv: [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
+- restart terminal and re-check `uv --version`
+
+2. `ruff: command not found` or `pytest: command not found`:
+- use `uv run ruff check .` and `uv run pytest -q` (not global binaries)
+- if needed: `uv sync --all-groups --reinstall`
+
+3. Wrong Python interpreter:
+- `which python3`
+- `python3 --version`
+- ensure compatible version, then run `uv sync`
+
+4. Go cache permission errors:
+- run tests with writable cache: `GOCACHE=/tmp/go-build go test ./...`
+
+5. Still failing:
+- remove local venv and resync:
+  - `rm -rf .venv`
+  - `uv sync --all-groups`
+
+6. `async def functions are not natively supported` in pytest:
+- ensure dev dependencies are installed: `uv sync --all-groups`
+- verify plugin availability: `uv run python -c "import pytest_asyncio; print(pytest_asyncio.__version__)"`
+
 ## Infrastructure Foundation
 
 The Phase 1 baseline is configured with Docker Compose:
@@ -103,17 +154,26 @@ Runtime integration gate + Phase 4 foundations:
 - `services/simulation_execution/engine.py` (`P4-002` simulation fill/slippage/fee core)
 - `services/simulation_execution/safety_guard.py` (`P4-003` MOCK-mode live-endpoint safety guard)
 - `services/simulation_execution/worker.py` (mock intent consumer -> OMS event publisher)
+- `services/simulation_execution/metrics_tracing.py` (`P4-007` execution metrics/tracing for mock worker)
 - `docs/runtime/runtime-integration-gate-2026-02-14.md` (runtime gate verification evidence)
 
 Real execution Go baseline (`P4-004`/`P4-005`/`P4-006`):
 
 - `services/real_execution_go/internal/consumer/contracts.go` (queue consumer interface and delivery contract)
 - `services/real_execution_go/internal/service/runner.go` (queue poll loop with ack/nack handling)
+- `services/real_execution_go/internal/metrics/collector.go` (`P4-007` real runner metrics/tracing collector)
 - `services/real_execution_go/internal/service/envelope.go` (REAL-mode execution intent envelope decoder/validator)
 - `services/real_execution_go/internal/service/handler.go` (bridge command mapping and idempotent dispatch flow)
 - `services/real_execution_go/internal/bridge/contracts.go` (Go<->Python execution bridge command/result contracts)
 - `services/real_execution_go/internal/idempotency/store.go` (in-memory dedupe store for create/cancel dispatch)
 - `docs/real_execution_go_baseline.md` (architecture and validation notes for real execution skeleton)
+
+OMS lifecycle baseline (`P5-001`):
+
+- `services/oms/state_machine.py` (explicit order-state transition matrix with idempotent replay handling)
+- `services/oms/fill_reconciliation.py` (`P5-002` queue + exchange fallback fill reconciliation)
+- `services/oms/position_engine.py` (`P5-003` position netting and realized PnL updates from fills)
+- `services/oms/portfolio_snapshot.py` (`P5-004` NAV/unrealized/realized snapshot builder)
 
 Runtime verification evidence:
 
