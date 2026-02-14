@@ -117,11 +117,12 @@ function HomeView() {
       SectionCard,
       {
         title: "Operator Workspace",
-        subtitle: "Use these focused panels for governance, replay explainability, and mode controls.",
+        subtitle: "Use these focused panels for governance, replay, mode controls, and news impact monitoring.",
       },
       h(
         "ul",
         { className: "link-list" },
+        h("li", null, h("a", { href: "/dashboard/news" }, "P7-010 News Intelligence Panel")),
         h("li", null, h("a", { href: "/dashboard/governance" }, "P7-007 Token Usage Dashboard")),
         h("li", null, h("a", { href: "/dashboard/replay" }, "P7-008 Prompt/Response Inspector")),
         h("li", null, h("a", { href: "/dashboard/mode" }, "P7-009 Trading Mode Panel"))
@@ -645,6 +646,157 @@ function ModeView({ token }) {
   );
 }
 
+function NewsView({ token }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [symbolInput, setSymbolInput] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [newsItems, setNewsItems] = useState([]);
+  const [summaryItems, setSummaryItems] = useState([]);
+  const [impactItems, setImpactItems] = useState([]);
+  const [refreshSeed, setRefreshSeed] = useState(0);
+
+  const load = useCallback(async () => {
+    if (!token) {
+      setError("Set JWT token to load news panel data.");
+      setNewsItems([]);
+      setSummaryItems([]);
+      setImpactItems([]);
+      return;
+    }
+
+    const itemsQuery = buildQuery({ symbol: symbolFilter, limit: 50 });
+    const summariesQuery = buildQuery({ symbol_scope: symbolFilter, limit: 20 });
+    const impactQuery = buildQuery({ limit: 12 });
+
+    setLoading(true);
+    setError("");
+    try {
+      const [itemsPayload, summaryPayload, impactPayload] = await Promise.all([
+        apiFetchJson(`/ops/news/items${itemsQuery}`, { token }),
+        apiFetchJson(`/ops/news/summaries${summariesQuery}`, { token }),
+        apiFetchJson(`/ops/news/impact${impactQuery}`, { token }),
+      ]);
+      setNewsItems(Array.isArray(itemsPayload.items) ? itemsPayload.items : []);
+      setSummaryItems(Array.isArray(summaryPayload.items) ? summaryPayload.items : []);
+      setImpactItems(Array.isArray(impactPayload.items) ? impactPayload.items : []);
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setNewsItems([]);
+      setSummaryItems([]);
+      setImpactItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, symbolFilter]);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshSeed]);
+
+  const applyFilter = () => {
+    setSymbolFilter(symbolInput.trim().toUpperCase());
+    setRefreshSeed((value) => value + 1);
+  };
+
+  return h(
+    "div",
+    { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "News Intelligence",
+        subtitle: "News stream, rolling summaries, and symbol impact snapshots.",
+      },
+      h(
+        "div",
+        { className: "filter-row" },
+        h("input", {
+          type: "text",
+          placeholder: "symbol (BTC/ETH/SOL) optional",
+          value: symbolInput,
+          onChange: (event) => setSymbolInput(event.target.value),
+        }),
+        h("button", { type: "button", onClick: applyFilter, disabled: loading }, "Apply"),
+        h("button", { type: "button", onClick: () => setRefreshSeed((value) => value + 1), disabled: loading }, "Refresh")
+      ),
+      loading ? h("p", { className: "muted" }, "Loading news panel data...") : null,
+      h(
+        "div",
+        { className: "impact-grid" },
+        impactItems.map((item) =>
+          h(
+            "article",
+            { key: item.symbol, className: "impact-card" },
+            h("h3", null, item.symbol),
+            h("p", { className: "muted" }, `headlines=${item.headline_count}`),
+            h("p", null, `avg_sentiment=${Number(item.avg_sentiment).toFixed(2)}`),
+            h("p", null, `max_relevance=${Number(item.max_relevance).toFixed(2)}`)
+          )
+        )
+      ),
+      h("h3", null, "Latest News Stream"),
+      h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", null, "Published"),
+              h("th", null, "Source"),
+              h("th", null, "Symbol"),
+              h("th", null, "Topic"),
+              h("th", null, "Headline"),
+              h("th", null, "Sentiment")
+            )
+          ),
+          h(
+            "tbody",
+            null,
+            newsItems.map((item) =>
+              h(
+                "tr",
+                { key: item.news_id, className: "virtual-row" },
+                h("td", null, item.published_at),
+                h("td", null, item.source),
+                h("td", null, item.symbol || "GLOBAL"),
+                h("td", null, item.topic),
+                h("td", null, h("a", { href: item.url, target: "_blank", rel: "noreferrer" }, item.title)),
+                h("td", null, Number(item.sentiment_score).toFixed(2))
+              )
+            )
+          )
+        )
+      ),
+      h("h3", null, "Rolling Summaries"),
+      h(
+        "div",
+        { className: "summary-stack" },
+        summaryItems.map((item) =>
+          h(
+            "article",
+            { key: item.summary_id, className: "summary-card virtual-row" },
+            h("h4", null, `${item.symbol_scope} :: ${item.window_start} -> ${item.window_end}`),
+            h("p", null, item.summary_text),
+            h(
+              "p",
+              { className: "muted" },
+              `source_count=${item.source_count} avg_sentiment=${Number(item.avg_sentiment).toFixed(2)}`
+            )
+          )
+        )
+      ),
+      error ? h("p", { className: "error" }, error) : null
+    )
+  );
+}
+
 function App({ initialView }) {
   const [token, setToken] = useState(() => safeReadToken());
   const [tokenInput, setTokenInput] = useState(() => safeReadToken());
@@ -665,6 +817,9 @@ function App({ initialView }) {
   };
 
   const body = useMemo(() => {
+    if (initialView === "news") {
+      return h(NewsView, { token });
+    }
     if (initialView === "governance") {
       return h(GovernanceView, { token });
     }

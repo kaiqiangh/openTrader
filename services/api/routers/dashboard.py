@@ -61,6 +61,16 @@ def dashboard_mode(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     )
 
 
+@router.get("/news", response_class=HTMLResponse)
+def dashboard_news(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+    return _render_shell(
+        title="News Intelligence Panel",
+        heading="News Intelligence Panel",
+        description="News stream, rolling summaries, and symbol impact insights.",
+        view="news",
+    )
+
+
 def _render_shell(*, title: str, heading: str, description: str, view: str) -> HTMLResponse:
     nav_cards = [
         ("Dashboard Home", "/dashboard"),
@@ -68,6 +78,7 @@ def _render_shell(*, title: str, heading: str, description: str, view: str) -> H
         ("LLM Governance", "/dashboard/governance"),
         ("Replay Inspector", "/dashboard/replay"),
         ("Mode Panel", "/dashboard/mode"),
+        ("News Panel", "/dashboard/news"),
     ]
     nav_html = "".join(
         f"<li><a href='{escape(path)}'>{escape(label)}</a></li>"
