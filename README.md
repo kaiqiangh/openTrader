@@ -111,6 +111,21 @@ Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
 3. Notification worker startup logs now emit structured JSON:
    - `uv run python -m services.notification_service.worker --validate-only`
 
+Phase 8 observability stack + security (`P8-004`/`P8-005`/`P8-006`) commands:
+
+1. Start observability profile:
+   - `docker compose --profile observability up -d prometheus grafana loki tempo alertmanager`
+2. Validate stack endpoints:
+   - `docker compose exec prometheus wget -qO- http://localhost:9090/-/ready || true`
+   - `curl -s http://127.0.0.1:3000/api/health`
+3. Deployment references:
+   - `docs/observability_stack_deployment.md`
+   - `docs/notification_worker_deployment.md`
+4. Security incident runbooks:
+   - `docs/runbooks/exchange-outage.md`
+   - `docs/runbooks/llm-quota-breach.md`
+   - `docs/runbooks/risk-incident.md`
+
 Initial migration files:
 
 - `migrations/versions/20260214_0001_core_trading_schema.py`
@@ -187,6 +202,12 @@ API auth env notes:
 
 - `JWT_SECRET_KEY` is required for FastAPI bearer-token verification.
 - `JWT_ISSUER` and `JWT_AUDIENCE` are optional and default to `open-trader` and `open-trader-api`.
+
+Encryption env notes:
+
+- `ENCRYPTION_KEY_BASE64` must decode to exactly 32 bytes for AES-256-GCM exchange key encryption.
+- Generate key example:
+  - `uv run python -c "import base64, os; print(base64.b64encode(os.urandom(32)).decode())"`
 
 Runtime integration gate + Phase 4 foundations:
 
@@ -279,6 +300,18 @@ Phase 8 observability baseline (`P8-001`..`P8-003`):
 - `services/api/app.py` (request observability middleware for logs/metrics/trace headers)
 - `services/api/routers/system.py` (`GET /metrics` Prometheus scrape endpoint)
 - `services/real_execution_go/internal/tracing/tracecontext.go` (Go trace-context parse/build/resolve helper)
+
+Phase 8 stack + alerting + key encryption (`P8-004`..`P8-006`):
+
+- `config/observability/prometheus.yml` (Prometheus scrape + rule-file + Alertmanager wiring)
+- `config/observability/alerts.yml` (critical alert catalog: exchange, quota, risk, OMS failure, integrity events)
+- `config/observability/alertmanager.yml` (alert routing/receiver baseline)
+- `config/observability/loki-config.yml` (Loki local log storage config)
+- `config/observability/tempo.yml` (Tempo trace storage/receiver config)
+- `config/observability/grafana/datasources/datasources.yml` (Grafana datasource provisioning)
+- `config/observability/grafana/dashboards/dashboards.yml` (Grafana dashboard provider provisioning)
+- `services/shared/runtime/key_encryption.py` (AES-256-GCM encrypt/decrypt helper for exchange credentials)
+- `services/shared/runtime/exchange_credentials.py` (encrypted exchange key store boundary using `exchanges` encrypted columns)
 
 Notification validation suite baseline (`P7-017`):
 
