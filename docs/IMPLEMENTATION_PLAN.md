@@ -71,6 +71,7 @@ Use this exact format in each update:
 | 28   | 2026-02-14 | P5-008,P5-009,P6-001 | - | - | Added risk observability telemetry, risk regression scenario suite, and pluggable news source connector framework; Python/Go suites green | 100% |
 | 29   | 2026-02-14 | P6-002,P6-003,P6-004 | - | - | Added news ingestion + dedupe persistence, tagging/relevance pipeline, and rolling summarizer service with deterministic fallback behavior | 100% |
 | 30   | 2026-02-14 | P6-005,P6-006,P6-007 | - | - | Added summary context injection bridge, resilience fallback/alert policy, and quality metrics snapshot contracts; Python/Go suites green | 100% |
+| 31   | 2026-02-14 | P7-001,P7-002,P7-003 | - | - | Added FastAPI control-plane baseline with JWT RBAC and trading ops endpoints for orders/positions/portfolio/risk controls; Python/Go suites green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -342,6 +343,15 @@ Use this exact format in each update:
 - Next Task IDs: [P7-001, P7-002, P7-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 18:36
+
+- Completed Task IDs: [P7-001, P7-002, P7-003]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; API control plane uses in-memory state adapters and should be followed by persistence-backed governance/replay endpoints.
+- Next Task IDs: [P7-004, P7-005, P7-006]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -354,7 +364,7 @@ Use this exact format in each update:
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | DONE |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | DONE |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | DONE |
-| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | NOT_STARTED |
+| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | IN_PROGRESS |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
 
@@ -615,9 +625,9 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 
 | ID     | Pri | Task                         | Actionable Steps                                                              | Dependencies         | Deliverable          | Status      |
 | ------ | --- | ---------------------------- | ----------------------------------------------------------------------------- | -------------------- | -------------------- | ----------- |
-| P7-001 | P0  | FastAPI control plane        | Implement auth, strategy control, mode control, health and metadata endpoints | P0-002,P1-003        | API service baseline | NOT_STARTED |
-| P7-002 | P0  | RBAC enforcement             | Implement `viewer/operator/admin` role checks on sensitive endpoints          | P7-001               | RBAC control plane   | NOT_STARTED |
-| P7-003 | P1  | Trading ops endpoints        | Orders, positions, portfolio snapshots, risk status, circuit breaker controls | P5-001,P5-004,P5-007 | Operator APIs        | NOT_STARTED |
+| P7-001 | P0  | FastAPI control plane        | Implement auth, strategy control, mode control, health and metadata endpoints | P0-002,P1-003        | API service baseline | DONE |
+| P7-002 | P0  | RBAC enforcement             | Implement `viewer/operator/admin` role checks on sensitive endpoints          | P7-001               | RBAC control plane   | DONE |
+| P7-003 | P1  | Trading ops endpoints        | Orders, positions, portfolio snapshots, risk status, circuit breaker controls | P5-001,P5-004,P5-007 | Operator APIs        | DONE |
 | P7-004 | P1  | LLM governance endpoints     | Expose per-strategy/per-agent usage, cost, quota and breach history           | P3-007,P3-008        | Governance APIs      | NOT_STARTED |
 | P7-005 | P1  | Replay endpoints             | Expose replay request and decision trace retrieval endpoints                  | P3-011               | Replay APIs          | NOT_STARTED |
 | P7-006 | P1  | Dashboard shell              | Implement UI navigation and live status pages                                 | P7-001               | Dashboard baseline   | NOT_STARTED |
@@ -858,7 +868,9 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P6-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P6-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
-| P7-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
+| P7-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-011  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P7-013  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
@@ -868,6 +880,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P7-001` FastAPI control-plane baseline (auth + strategy/mode/health endpoints).
-2. Start `P7-002` RBAC enforcement (`viewer/operator/admin`) across sensitive control-plane endpoints.
-3. Start `P7-003` trading operations endpoints (orders/positions/portfolio/risk + circuit-breaker controls).
+1. Start `P7-004` LLM governance endpoints (usage/cost/quota/breach history APIs).
+2. Start `P7-005` replay endpoints (decision graph request and trace retrieval APIs).
+3. Start `P7-006` dashboard shell baseline for operator workflows and service status views.
