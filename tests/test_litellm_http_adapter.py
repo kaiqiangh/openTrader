@@ -83,3 +83,13 @@ async def test_litellm_http_adapter_raises_on_error_payload(monkeypatch) -> None
             messages=({"role": "user", "content": "hello"},),
             request_kwargs={},
         )
+
+
+def test_litellm_http_adapter_rejects_non_positive_timeout() -> None:
+    with pytest.raises(ValueError):
+        LiteLLMHTTPProviderClient(base_url="http://litellm:4000", timeout_seconds=0.0)
+
+
+def test_litellm_http_adapter_rejects_empty_endpoint_path() -> None:
+    with pytest.raises(ValueError):
+        LiteLLMHTTPProviderClient(base_url="http://litellm:4000", endpoint_path="  ")
