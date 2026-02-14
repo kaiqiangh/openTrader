@@ -90,6 +90,17 @@ Useful commands:
 3. `make migrate-up`
 4. `make migrate-revision MSG='create_initial_tables'`
 
+Notification worker runtime (`P7-018`) commands:
+
+1. Startup validation only:
+   - `uv run python -m services.notification_service.worker --validate-only`
+2. Run one polling cycle locally:
+   - `uv run python -m services.notification_service.worker --once`
+3. Run with Docker Compose profile:
+   - `docker compose --profile notification up -d notification_worker rabbitmq`
+4. Deployment/secrets reference:
+   - `docs/notification_worker_deployment.md`
+
 Initial migration files:
 
 - `migrations/versions/20260214_0001_core_trading_schema.py`
@@ -247,6 +258,14 @@ Notification runtime baseline (`P7-011`..`P7-016`):
 - `services/notification_service/observability.py` (`P7-016` runtime metrics/log/trace collector for notification policy and gateway delivery stages)
 - `services/notification_service/service.py` (`event_intake -> policy_router -> gateway_dispatch` runtime pipeline)
 - `services/notification_service/publishers.py` (strategy/OMS/risk/system source-event bridge into `notify.events.raw`)
+- `services/notification_service/settings.py` (`P7-018` startup env validation and typed worker settings contract)
+- `services/notification_service/worker.py` (`P7-018` notification queue consumer runtime entrypoint and worker loop)
+
+Notification validation suite baseline (`P7-017`):
+
+- `tests/test_p7_notification_service.py` (core routing, retry, dedupe/rate-limit, and DLQ behavior)
+- `tests/test_p7_notification_fault_injection.py` (terminal/retryable fault-injection coverage for dispatcher behavior)
+- `tests/test_p7_notification_integration_flow.py` (publish->deliver integration from bridge output into notification runtime)
 
 Runtime verification evidence:
 

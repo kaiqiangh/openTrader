@@ -77,6 +77,8 @@ Use this exact format in each update:
 | 34   | 2026-02-14 | P7-010,P7-011,P7-012 | - | - | Added news panel APIs/UI, notification runtime core module, and source event publisher integrations across strategy/OMS/risk/system-health paths; Python/Go suites green | 100% |
 | 35   | 2026-02-14 | P7-013,P7-014,P7-015 | - | - | Added Telegram gateway delivery, notification preference CRUD APIs, and hardened dedupe/rate-limit/backoff retry + DLQ behavior with regression coverage; Python/Go suites green | 100% |
 | 36   | 2026-02-14 | P7-016 | - | - | Added notification observability collector, telemetry ops APIs, and dashboard notification panel hooks for metrics/logs/traces; Python/Go suites green | 100% |
+| 37   | 2026-02-14 | P7-017 | - | - | Expanded notification validation suite with dispatcher fault-injection scenarios and publish->deliver integration coverage across bridge/runtime/observability flow; Python/Go suites green | 100% |
+| 38   | 2026-02-14 | P7-018 | - | - | Added notification worker deployment/config wiring with startup validation, compose profile integration, and env/secrets documentation; targeted/full Python suites plus Go tests green | 100% |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -402,6 +404,24 @@ Use this exact format in each update:
 - Next Task IDs: [P7-017, P7-018, P8-001]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-14 21:05
+
+- Completed Task IDs: [P7-017]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; coverage is strong for in-memory runtime paths, while queue-backed worker/deployment behavior remains the next gap for `P7-018`.
+- Next Task IDs: [P7-018, P8-001, P8-002]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-14 21:25
+
+- Completed Task IDs: [P7-018]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: No new blockers identified; notification worker startup validation and deployment wiring are now in place for compose-based runtime bring-up.
+- Next Task IDs: [P8-001, P8-002, P8-003]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                       | Exit Gate                                    | Status      |
@@ -414,7 +434,7 @@ Use this exact format in each update:
 | 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing       | End-to-end mock and real flows validated     | DONE |
 | 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control     | Risk gates verified; lifecycle consistent    | DONE |
 | 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection   | News affects agent context safely            | DONE |
-| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | IN_PROGRESS |
+| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications        | Operator workflows and alerts usable end-to-end | DONE |
 | 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                  | SLO and security baseline met                | NOT_STARTED |
 | 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                   | Production-readiness sign-off                | NOT_STARTED |
 
@@ -691,8 +711,8 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 | P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation        | P7-001,P7-011        | Notification preference control plane | DONE |
 | P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ        | P7-011,P1-008        | Resilient notification delivery | DONE |
 | P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                          | P7-011,P8-004        | Notification telemetry | DONE |
-| P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow | P7-011,P7-013 | Notification validation suite | NOT_STARTED |
-| P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack | NOT_STARTED |
+| P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow | P7-011,P7-013 | Notification validation suite | DONE |
+| P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack | DONE |
 
 ---
 
@@ -934,6 +954,8 @@ Run integration, replay, load, and reliability validation; finalize release read
 | P7-014  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-015  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P7-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-017  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
+| P7-018  | TBD   | 2026-02-14 | -           | DONE        | 100 | -       | 2026-02-14  |
 | P8-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 | P9-001  | TBD   | -          | -           | NOT_STARTED | 0   | -       | 2026-02-14  |
 
@@ -941,6 +963,6 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 ## 11. Immediate Next Actions
 
-1. Start `P7-017` notification test suite expansion (fault-injection and publish->deliver integration paths).
-2. Start `P7-018` deployment/config wiring for notification workers and startup validation.
-3. Start `P8-001` structured logging standard alignment for notification and control-plane services.
+1. Start `P8-001` structured logging standard alignment for notification and control-plane services.
+2. Start `P8-002` metrics instrumentation alignment for notification and API services.
+3. Start `P8-003` distributed tracing baseline across Python and Go runtime surfaces.
