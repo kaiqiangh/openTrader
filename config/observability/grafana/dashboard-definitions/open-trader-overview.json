@@ -1,0 +1,32 @@
+{
+  "id": null,
+  "uid": "open-trader-overview",
+  "title": "OpenTrader Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "API Requests Total",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (open_trader_http_requests_total)",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

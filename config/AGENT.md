@@ -29,6 +29,7 @@ Owns machine-readable runtime contracts: message schemas, broker topology, and n
 - Envelope schema must align with shared validator.
 - RabbitMQ topology must map to producer/consumer routing keys.
 - Redis namespace definitions must include TTL and key pattern.
+- Observability configs under `config/observability/` must stay aligned with compose service names and metrics/alert contract naming.
 
 ## Testing Expectations
 
