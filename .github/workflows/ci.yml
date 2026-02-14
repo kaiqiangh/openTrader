@@ -16,6 +16,8 @@ jobs:
         uses: astral-sh/setup-uv@v3
       - name: Run tests
         run: uv run pytest
+      - name: Check migration scaffold
+        run: uv run alembic -c alembic.ini history
 
   go-checks:
     runs-on: ubuntu-latest
