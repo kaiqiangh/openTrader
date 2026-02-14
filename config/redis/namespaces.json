@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "namespaces": [
+    {
+      "name": "memory.decision",
+      "key_pattern": "mem:decision:{mode}:{strategy_id}:{decision_id}:{slot}",
+      "ttl_seconds": 900,
+      "description": "Short-term agent memory scoped to one decision cycle."
+    },
+    {
+      "name": "snapshot.market",
+      "key_pattern": "snapshot:market:{exchange}:{symbol}:{interval}",
+      "ttl_seconds": 120,
+      "description": "Hot market snapshots used by orchestrator and integrity checks."
+    },
+    {
+      "name": "rate_limit",
+      "key_pattern": "rate:llm:{strategy_id}:{agent_name}:{window}",
+      "ttl_seconds": 90000,
+      "description": "Token and request budget counters for short and daily windows."
+    },
+    {
+      "name": "lock",
+      "key_pattern": "lock:{resource}:{mode}",
+      "ttl_seconds": 30,
+      "description": "Distributed coordination locks to prevent duplicate processing."
+    }
+  ]
+}
