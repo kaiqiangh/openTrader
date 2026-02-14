@@ -58,6 +58,17 @@ Phase 2 market ingestion foundation:
 - `docs/learning/2026-02-14-p2-integrity-instincts.md` (continuous-learning-v2 integrity notes)
 - `docs/learning/2026-02-14-p2-delivery-instincts.md` (continuous-learning-v2 delivery notes)
 
+Phase 3 agent runtime baseline:
+
+- `services/agent_orchestrator/contracts.py` (shared planner/risk/orchestration contracts)
+- `services/agent_orchestrator/orchestrator.py` (market.canonical consumer and decision lifecycle manager)
+- `services/agent_orchestrator/planner_agent.py` (dynamic planning from market context and thresholds)
+- `services/agent_orchestrator/risk_agent.py` (pre-trade risk signal evaluation and approvals)
+- `services/agent_orchestrator/execution_decision_agent.py` (final constrained action proposal generation)
+- `docs/agent_runtime_baseline.md` (runtime architecture and lifecycle contract guide)
+- `docs/learning/2026-02-14-p3-agent-runtime-instincts.md` (continuous-learning-v2 agent-runtime notes)
+- `docs/learning/2026-02-14-p3-execution-decision-instincts.md` (continuous-learning-v2 execution-decision notes)
+
 Runtime verification evidence:
 
 - `docs/runtime/runtime-verification-2026-02-14.md`
