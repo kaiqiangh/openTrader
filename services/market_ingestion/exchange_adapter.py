@@ -10,6 +10,10 @@ class AdapterPayloadError(ValueError):
     """Raised when exchange payload does not satisfy adapter assumptions."""
 
 
+class AdapterConfigurationError(ValueError):
+    """Raised when exchange adapter configuration is invalid."""
+
+
 class RestOrderBookClient(Protocol):
     async def fetch_order_book(self, symbol: str, limit: int | None = None) -> Mapping[str, Any]: ...
 
@@ -23,13 +27,18 @@ class CCXTIngestionAdapter:
     exchange: str
     rest_client: RestOrderBookClient
     ws_client: WsOrderBookClient
+    delta_source: str = "websocket"
 
     async def bootstrap_snapshot(self, symbol: str, limit: int = 200) -> OrderBookSnapshot:
         raw = await self.rest_client.fetch_order_book(symbol, limit=limit)
         return self._normalize_snapshot(symbol=symbol, raw=raw)
 
     async def poll_delta(self, symbol: str, limit: int = 200) -> OrderBookDelta:
-        raw = await self.ws_client.watch_order_book(symbol, limit=limit)
+        source = _normalize_delta_source(self.delta_source)
+        if source == "rest":
+            raw = await self.rest_client.fetch_order_book(symbol, limit=limit)
+        else:
+            raw = await self.ws_client.watch_order_book(symbol, limit=limit)
         return self._normalize_delta(symbol=symbol, raw=raw)
 
     def _normalize_snapshot(self, *, symbol: str, raw: Mapping[str, Any]) -> OrderBookSnapshot:
@@ -80,3 +89,12 @@ def _parse_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):  # pragma: no cover - defensive fallback
         return None
+
+
+def _normalize_delta_source(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized in {"websocket", "ws"}:
+        return "websocket"
+    if normalized in {"rest", "restful", "http"}:
+        return "rest"
+    raise AdapterConfigurationError("delta_source must be 'websocket' or 'rest'")

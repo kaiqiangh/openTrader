@@ -19,6 +19,8 @@ from services.agent_orchestrator.sqlalchemy_memory_store import (
     SQLAlchemyShortTermMemoryStore,
 )
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
+from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
+from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
 from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
 from services.news_ingestion.ingestion_service import InMemoryNewsItemStore, NewsIngestionService
 from services.news_ingestion.source_connectors import (
@@ -108,12 +110,29 @@ class _SyntheticWsOrderBookClient:
 
 
 class MarketWorkerRunner:
-    def __init__(self, *, worker: MarketIngestionRuntimeWorker) -> None:
+    def __init__(
+        self,
+        *,
+        worker: MarketIngestionRuntimeWorker,
+        min_cycle_interval_seconds: float = 0.0,
+    ) -> None:
         self.worker = worker
+        self.min_cycle_interval_seconds = max(0.0, float(min_cycle_interval_seconds))
+        self._last_run_monotonic: float | None = None
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         _ = timeout_seconds
-        await self.worker.run_once()
+        if self._last_run_monotonic is not None and self.min_cycle_interval_seconds > 0:
+            elapsed = time.monotonic() - self._last_run_monotonic
+            remaining = self.min_cycle_interval_seconds - elapsed
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+        cycle_started = time.monotonic()
+        try:
+            await self.worker.run_once()
+        finally:
+            # Keep cadence even on transient fetch failures to avoid tight retry loops.
+            self._last_run_monotonic = cycle_started
         return True
 
 
@@ -385,7 +404,13 @@ def build_runtime_worker(
             broker=runtime_broker,
             runtime_engine=runtime_engine,
         )
-        return RuntimeWorkerBuildResult(worker=MarketWorkerRunner(worker=market_worker), broker=runtime_broker)
+        return RuntimeWorkerBuildResult(
+            worker=MarketWorkerRunner(
+                worker=market_worker,
+                min_cycle_interval_seconds=_market_worker_cycle_interval_seconds(),
+            ),
+            broker=runtime_broker,
+        )
     if settings.worker == "orchestrator":
         memory_layer: AgentMemoryLayer | None = None
         if runtime_engine is not None:
@@ -463,7 +488,25 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
 
     idle_cycles = 0
     while True:
-        did_work = await build.worker.run_once(timeout_seconds=settings.poll_timeout_seconds)
+        try:
+            did_work = await build.worker.run_once(timeout_seconds=settings.poll_timeout_seconds)
+        except Exception as exc:  # noqa: BLE001 - runtime loops must survive transient dependency failures
+            logger.error(
+                event="runtime.worker.cycle_failed",
+                context={
+                    "worker": settings.worker,
+                    "error": str(exc),
+                    "error_type": exc.__class__.__name__,
+                },
+            )
+            if settings.once:
+                return 1
+            idle_cycles += 1
+            if settings.max_idle_cycles > 0 and idle_cycles >= settings.max_idle_cycles:
+                return 0
+            await asyncio.sleep(settings.idle_sleep_seconds)
+            continue
+
         if did_work:
             idle_cycles = 0
             if settings.once:
@@ -519,11 +562,35 @@ def _build_market_worker(
     broker: Any,
     runtime_engine: Engine | None,
 ) -> MarketIngestionRuntimeWorker:
+    fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
+    exchange = os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower()
+    http_timeout_seconds = max(0.1, float(os.getenv("MARKET_DATA_HTTP_TIMEOUT_SECONDS", "10.0")))
+
+    if settings.require_database:
+        if exchange == "binance":
+            real_client = BinanceHTTPOrderBookClient(
+                base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
+                timeout_seconds=http_timeout_seconds,
+            )
+        elif exchange == "bitget":
+            real_client = BitgetHTTPOrderBookClient(
+                base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
+                timeout_seconds=http_timeout_seconds,
+            )
+        else:
+            raise ValueError("EXCHANGE_DEFAULT must be 'binance' or 'bitget' when RUNTIME_REQUIRE_DATABASE=true")
+        rest_client = real_client
+        ws_client = real_client
+    else:
+        rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
+        ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
+
     adapter = CCXTIngestionAdapter(
-        exchange=os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower(),
-        rest_client=_SyntheticRestOrderBookClient(base_price=base_price),
-        ws_client=_SyntheticWsOrderBookClient(base_price=base_price),
+        exchange=exchange,
+        rest_client=rest_client,
+        ws_client=ws_client,
+        delta_source=fetch_mode,
     )
     state_store = SQLAlchemyRuntimeMarketStore(connection=runtime_engine) if runtime_engine is not None else None
     return MarketIngestionRuntimeWorker(
@@ -688,6 +755,22 @@ def _to_bool(value: str) -> bool:
     if normalized in {"0", "false", "no", "n", "off"}:
         return False
     raise ValueError(f"invalid boolean value: {value}")
+
+
+def _normalize_market_fetch_mode(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized in {"rest", "restful", "http"}:
+        return "rest"
+    if normalized in {"websocket", "ws"}:
+        return "websocket"
+    raise ValueError("MARKET_DATA_FETCH_MODE must be 'rest' or 'websocket'")
+
+
+def _market_worker_cycle_interval_seconds() -> float:
+    fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
+    if fetch_mode == "rest":
+        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+    return 0.0
 
 
 if __name__ == "__main__":

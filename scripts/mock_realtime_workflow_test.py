@@ -3,6 +3,7 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from urllib import error, request
+from urllib.parse import urlparse
 import base64
 import asyncio
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import time
 import uuid
+import xml.etree.ElementTree as ET
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -52,6 +54,9 @@ RUNTIME_QUEUES_TO_PURGE = (
 
 
 def main(argv: list[str] | None = None) -> int:
+    from services.shared.runtime.env_loader import load_dotenv_file
+
+    load_dotenv_file()
     args = _parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
 
@@ -78,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         llm_content = _probe_litellm_or_mock(require_litellm=args.require_litellm)
+        news_context = _fetch_real_news_context(require_real_news=args.require_real_news)
         binance_decision_id = _publish_market_event(
             api_base=rabbitmq_api,
             username=rabbitmq_user,
@@ -85,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
             exchange="binance",
             symbol="BTC/USDT",
             decision_suffix="binance",
+            news_context=news_context,
+            require_real_market=args.require_real_market,
         )
         bitget_decision_id = _publish_market_event(
             api_base=rabbitmq_api,
@@ -93,6 +101,8 @@ def main(argv: list[str] | None = None) -> int:
             exchange="bitget",
             symbol="BTC/USDT",
             decision_suffix="bitget",
+            news_context=news_context,
+            require_real_market=args.require_real_market,
         )
         published_decisions = {binance_decision_id, bitget_decision_id}
         _publish_notification_probe_event(
@@ -162,7 +172,20 @@ def _publish_market_event(
     exchange: str,
     symbol: str,
     decision_suffix: str,
+    news_context: dict[str, object],
+    require_real_market: bool,
 ) -> str:
+    order_book = _fetch_live_order_book(
+        exchange=exchange,
+        symbol=symbol,
+        limit=20,
+        require_real_market=require_real_market,
+    )
+    bids = order_book["bids"]
+    asks = order_book["asks"]
+    if not bids or not asks:
+        raise RuntimeError(f"{exchange} orderbook fetch returned empty levels for {symbol}")
+
     decision_id = str(uuid.uuid4())
     event = {
         "trace_id": str(uuid.uuid4()),
@@ -174,15 +197,11 @@ def _publish_market_event(
         "payload": {
             "exchange": exchange,
             "symbol": symbol,
-            "timestamp_ms": int(time.time() * 1000),
-            # Force a buy-dominant imbalance so planner/risk/guardrail paths generate an executable intent.
-            "bids": [{"price": 42000.0, "amount": 9.0}, {"price": 41999.5, "amount": 4.0}],
-            "asks": [{"price": 42001.0, "amount": 1.0}, {"price": 42001.5, "amount": 0.8}],
-            "news": {
-                "summary": "Macro risk stable; volatility contained",
-                "sentiment": 0.1,
-                "source_count": 2,
-            },
+            "timestamp_ms": order_book["timestamp_ms"],
+            "bids": bids,
+            "asks": asks,
+            "news": news_context,
+            "source": "exchange.rest",
         },
         "service": "mock_realtime_workflow_test",
     }
@@ -236,6 +255,223 @@ def _publish_notification_probe_event(
             "payload_encoding": "string",
         },
     )
+
+
+def _fetch_live_order_book(
+    *,
+    exchange: str,
+    symbol: str,
+    limit: int,
+    require_real_market: bool,
+) -> dict[str, object]:
+    from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
+    from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
+
+    timeout_seconds = max(1.0, float(os.getenv("MARKET_DATA_HTTP_TIMEOUT_SECONDS", "10.0")))
+    normalized_exchange = exchange.strip().lower()
+    if normalized_exchange == "binance":
+        client = BinanceHTTPOrderBookClient(
+            base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
+            timeout_seconds=timeout_seconds,
+        )
+    elif normalized_exchange == "bitget":
+        client = BitgetHTTPOrderBookClient(
+            base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
+            timeout_seconds=timeout_seconds,
+        )
+    else:
+        raise RuntimeError(f"unsupported exchange for live fetch: {exchange}")
+
+    try:
+        raw = asyncio.run(client.fetch_order_book(symbol, limit=limit))
+        bids = _levels_to_payload(raw.get("bids"))
+        asks = _levels_to_payload(raw.get("asks"))
+        if not bids or not asks:
+            raise RuntimeError(f"{exchange} returned empty bids/asks for {symbol}")
+
+        timestamp_ms = _to_int(raw.get("timestamp")) or int(time.time() * 1000)
+        return {
+            "timestamp_ms": timestamp_ms,
+            "bids": bids,
+            "asks": asks,
+        }
+    except Exception:
+        if require_real_market:
+            raise
+        now_ms = int(time.time() * 1000)
+        base_price = 42000.0 if exchange == "binance" else 41990.0
+        return {
+            "timestamp_ms": now_ms,
+            "bids": [
+                {"price": base_price - 0.5, "amount": 9.0},
+                {"price": base_price - 1.0, "amount": 4.0},
+            ],
+            "asks": [
+                {"price": base_price + 0.5, "amount": 1.0},
+                {"price": base_price + 1.0, "amount": 0.8},
+            ],
+        }
+
+
+def _fetch_real_news_context(*, require_real_news: bool) -> dict[str, object]:
+    news_items = _fetch_real_news_items(limit=4)
+    if not news_items:
+        if require_real_news:
+            raise RuntimeError("failed to fetch real news items from configured feeds")
+        return {
+            "summary": "mock news fallback",
+            "sentiment": 0.0,
+            "source_count": 0,
+            "items": [],
+            "source": "mock",
+        }
+
+    summaries = [str(item.get("title", "")).strip() for item in news_items if str(item.get("title", "")).strip()]
+    sentiment = 0.0
+    lowered = " ".join(summaries).lower()
+    if any(token in lowered for token in ("surge", "bull", "approval", "inflow", "rally")):
+        sentiment += 0.2
+    if any(token in lowered for token in ("selloff", "hack", "ban", "liquidation", "outflow")):
+        sentiment -= 0.2
+    summary = " | ".join(summaries[:2])
+
+    return {
+        "summary": summary or "real news sample",
+        "sentiment": sentiment,
+        "source_count": len({str(item.get('source', '')).strip() for item in news_items if item.get('source')}),
+        "items": news_items,
+        "source": "live_feeds",
+    }
+
+
+def _fetch_real_news_items(*, limit: int) -> list[dict[str, object]]:
+    default_feeds = (
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://www.federalreserve.gov/feeds/press_all.xml",
+    )
+    raw_feed_list = os.getenv("MOCK_WORKFLOW_NEWS_FEEDS", ",".join(default_feeds))
+    feed_urls = tuple(url.strip() for url in raw_feed_list.split(",") if url.strip())
+    timeout_seconds = max(1.0, float(os.getenv("MOCK_WORKFLOW_NEWS_TIMEOUT_SECONDS", "8.0")))
+
+    collected: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+    for feed_url in feed_urls:
+        try:
+            rss_xml = _http_get_text(feed_url, timeout_seconds=timeout_seconds)
+            items = _parse_rss_items(feed_url=feed_url, rss_xml=rss_xml, limit=limit)
+        except Exception:
+            continue
+        for item in items:
+            source_item_id = str(item.get("source_item_id", "")).strip()
+            if not source_item_id or source_item_id in seen_ids:
+                continue
+            seen_ids.add(source_item_id)
+            collected.append(item)
+            if len(collected) >= limit:
+                return collected
+    return collected
+
+
+def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[str, object]]:
+    root = ET.fromstring(rss_xml)
+    items: list[dict[str, object]] = []
+    source = _infer_source_name(feed_url)
+    for item in root.findall(".//item"):
+        title = _first_child_text(item, ("title",))
+        link = _first_child_text(item, ("link",))
+        published_at = _first_child_text(item, ("pubDate", "published")) or _utc_now_iso()
+        description = _first_child_text(item, ("description", "summary"))
+        if not title or not link:
+            continue
+        source_item_id = f"{source}:{link}"
+        items.append(
+            {
+                "source": source,
+                "source_item_id": source_item_id,
+                "title": title,
+                "url": link,
+                "published_at": published_at,
+                "content": description,
+            }
+        )
+        if len(items) >= limit:
+            break
+    if len(items) < limit:
+        for entry in root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+            title = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}title",))
+            updated = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}updated",))
+            content = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}summary",))
+            link = ""
+            for link_node in entry.findall("{http://www.w3.org/2005/Atom}link"):
+                href = str(link_node.attrib.get("href", "")).strip()
+                if href:
+                    link = href
+                    break
+            if not title or not link:
+                continue
+            source_item_id = f"{source}:{link}"
+            items.append(
+                {
+                    "source": source,
+                    "source_item_id": source_item_id,
+                    "title": title,
+                    "url": link,
+                    "published_at": updated or _utc_now_iso(),
+                    "content": content,
+                }
+            )
+            if len(items) >= limit:
+                break
+    return items
+
+
+def _first_child_text(element: ET.Element, tags: tuple[str, ...]) -> str:
+    for tag in tags:
+        child = element.find(tag)
+        if child is not None and child.text is not None and child.text.strip():
+            return child.text.strip()
+    return ""
+
+
+def _infer_source_name(feed_url: str) -> str:
+    parsed = urlparse(feed_url)
+    hostname = (parsed.hostname or "unknown").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    return hostname or "unknown"
+
+
+def _levels_to_payload(raw_levels: object) -> list[dict[str, float]]:
+    if not isinstance(raw_levels, list):
+        return []
+    normalized: list[dict[str, float]] = []
+    for raw_level in raw_levels:
+        if not isinstance(raw_level, (list, tuple)) or len(raw_level) < 2:
+            continue
+        try:
+            price = float(raw_level[0])
+            amount = float(raw_level[1])
+        except (TypeError, ValueError):
+            continue
+        if amount <= 0:
+            continue
+        normalized.append({"price": price, "amount": amount})
+    return normalized
+
+
+def _to_int(value: object) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _http_get_text(url: str, *, timeout_seconds: float) -> str:
+    req = request.Request(url=url, method="GET")
+    with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310 - explicit URL target
+        return response.read().decode("utf-8", errors="ignore")
 
 
 def _await_queue_message(
@@ -300,10 +536,18 @@ def _probe_litellm_or_mock(*, require_litellm: bool) -> str:
 
     base_url = os.getenv("LITELLM_BASE_URL", "").strip()
     model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
+    expected_prefix = os.getenv("MOCK_WORKFLOW_LITELLM_EXPECTED_MODEL_PREFIX", "deepseek/").strip().lower()
     api_key = os.getenv("LITELLM_API_KEY", "").strip() or None
     timeout_seconds = float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0"))
 
+    if require_litellm and expected_prefix and not model.lower().startswith(expected_prefix):
+        raise RuntimeError(
+            f"LITELLM_MODEL must start with '{expected_prefix}' for this workflow. Current value: {model}"
+        )
+
     if not base_url:
+        if require_litellm:
+            raise RuntimeError("LITELLM_BASE_URL is required when strict LiteLLM mode is enabled")
         return "mock_llm_decision: BUY 0.1 BTC/USDT (litellm not configured)"
 
     client = LiteLLMHTTPProviderClient(
@@ -332,7 +576,9 @@ def _probe_litellm_or_mock(*, require_litellm: bool) -> str:
         if content:
             return content
     except (LiteLLMHTTPError, ValueError):
-        pass
+        if require_litellm:
+            raise
+        return f"mock_llm_decision: HOLD (litellm probe unavailable, model={model})"
 
     if require_litellm:
         raise RuntimeError(f"LiteLLM probe failed for model '{model}'. Verify LITELLM_BASE_URL/LITELLM_API_KEY.")
@@ -510,7 +756,17 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     parser.add_argument(
         "--require-litellm",
         action="store_true",
-        help="fail when LiteLLM probe fails instead of falling back to mocked output",
+        help="require LiteLLM probe success instead of fallback mocked LLM content",
+    )
+    parser.add_argument(
+        "--require-real-news",
+        action="store_true",
+        help="require live news feed fetch success instead of fallback mocked news payload",
+    )
+    parser.add_argument(
+        "--require-real-market",
+        action="store_true",
+        help="require live exchange orderbook fetch success instead of fallback mocked market payload",
     )
     return parser.parse_args(argv)
 
