@@ -18,6 +18,14 @@
       }
     },
     {
+      "name": "strategy.events.lifecycle",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.strategy.events.lifecycle"
+      }
+    },
+    {
       "name": "execution.intent.mock",
       "durable": true,
       "arguments": {
@@ -51,6 +59,7 @@
     },
     {"name": "dlq.execution.intent.real", "durable": true},
     {"name": "dlq.execution.intent.mock", "durable": true},
+    {"name": "dlq.strategy.events.lifecycle", "durable": true},
     {"name": "dlq.market.canonical", "durable": true},
     {"name": "dlq.oms.events.order_updates", "durable": true},
     {"name": "dlq.notify.events.raw", "durable": true}
@@ -60,6 +69,11 @@
       "exchange": "market.events",
       "queue": "market.canonical",
       "routing_key": "market.canonical"
+    },
+    {
+      "exchange": "strategy.events",
+      "queue": "strategy.events.lifecycle",
+      "routing_key": "strategy.decision.#"
     },
     {
       "exchange": "execution.events",
@@ -90,6 +104,11 @@
       "exchange": "dead.letter",
       "queue": "dlq.execution.intent.mock",
       "routing_key": "dlq.execution.intent.mock"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.strategy.events.lifecycle",
+      "routing_key": "dlq.strategy.events.lifecycle"
     },
     {
       "exchange": "dead.letter",

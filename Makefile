@@ -1,4 +1,4 @@
-.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke
+.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke runtime-gate mock-workflow
 
 test:
 	uv run pytest -v
@@ -21,7 +21,7 @@ migrate-up:
 		docker compose run --rm --no-deps \
 			-e POSTGRES_HOST=postgres_timescaledb \
 			-e POSTGRES_PORT=5432 \
-			notification_worker sh -lc "uv sync --all-groups && uv run alembic upgrade head" || { \
+			notification_worker uv run --frozen alembic upgrade head || { \
 				echo "Docker fallback migration failed. Check POSTGRES_USER/POSTGRES_PASSWORD alignment with existing postgres volume."; \
 				echo "If needed for local reset only: docker compose down -v postgres_timescaledb"; \
 				exit 1; \
@@ -37,3 +37,9 @@ migrate-revision:
 
 smoke:
 	uv run python scripts/smoke_test.py
+
+runtime-gate:
+	uv run python scripts/runtime_integration_gate.py
+
+mock-workflow:
+	uv run python scripts/mock_realtime_workflow_test.py
