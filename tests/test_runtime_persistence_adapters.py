@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 from services.agent_orchestrator.memory_layer import DecisionMemoryRecord
 from services.agent_orchestrator.sqlalchemy_memory_store import (
     InMemoryTTLShortTermStore,
+    SQLAlchemyShortTermMemoryStore,
     SQLAlchemyLongTermMemoryStore,
 )
 from services.llm_gateway.persistence import LLMCallRecord
@@ -130,6 +131,28 @@ async def test_memory_stores_persist_and_expire_slots(tmp_path) -> None:
     assert loaded is not None
     assert loaded.decision_id == "d-1"
     assert loaded.summary["mid_price"] == 42000.0
+
+
+@pytest.mark.asyncio
+async def test_sqlalchemy_short_term_memory_store_persists_slots(tmp_path) -> None:
+    connection = sqlite3.connect(Path(tmp_path) / "memory-short-term.db")
+    short_term = SQLAlchemyShortTermMemoryStore(connection=connection)
+
+    await short_term.write_slot(
+        mode="MOCK",
+        strategy_id="strategy-1",
+        decision_id="decision-1",
+        slot="context",
+        payload={"mid_price": 42000.0},
+        ttl_seconds=600,
+    )
+    loaded = await short_term.read_slots(
+        mode="MOCK",
+        strategy_id="strategy-1",
+        decision_id="decision-1",
+    )
+
+    assert loaded["context"]["mid_price"] == 42000.0
 
 
 @pytest.mark.asyncio
