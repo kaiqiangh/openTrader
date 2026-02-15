@@ -1,7 +1,7 @@
 .PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke
 
 test:
-	uv run pytest
+	uv run pytest -v
 
 lint:
 	uv run ruff check .
