@@ -5,12 +5,26 @@ from typing import Any
 import json
 import sqlite3
 
+from sqlalchemy import text
+from sqlalchemy.engine import Connection, Engine
+
 
 class SQLiteTimeseriesStore:
-    """Concrete SQLite-backed store for ingestion writers and local runtime verification."""
+    """Concrete timeseries store supporting sqlite and SQLAlchemy Engine bindings."""
 
-    def __init__(self, *, connection: sqlite3.Connection) -> None:
-        self.connection = connection
+    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection) -> None:
+        self._sqlite_connection: sqlite3.Connection | None = None
+        self._engine: Engine | None = None
+        if isinstance(connection, sqlite3.Connection):
+            self._sqlite_connection = connection
+            return
+        if isinstance(connection, Engine):
+            self._engine = connection
+            return
+        if isinstance(connection, Connection):
+            self._engine = connection.engine
+            return
+        raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
 
     async def upsert_orderbook_snapshot(self, row: dict[str, Any]) -> None:
         snapshot_time = _as_iso(row.get("snapshot_time")) or _utc_now_iso()
@@ -18,12 +32,12 @@ class SQLiteTimeseriesStore:
         best_ask = _to_float(row.get("best_ask"), default=0.0)
         spread_bps = _to_float(row.get("spread_bps"), default=0.0)
 
-        self.connection.execute(
+        self._execute(
             """
             INSERT INTO orderbook_snapshots
                 (snapshot_time, exchange, symbol, bids, asks, best_bid, best_ask, spread_bps)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?)
+                (:snapshot_time, :exchange, :symbol, :bids, :asks, :best_bid, :best_ask, :spread_bps)
             ON CONFLICT (snapshot_time, exchange, symbol)
             DO UPDATE SET
                 bids = excluded.bids,
@@ -32,29 +46,28 @@ class SQLiteTimeseriesStore:
                 best_ask = excluded.best_ask,
                 spread_bps = excluded.spread_bps
             """,
-            (
-                snapshot_time,
-                str(row["exchange"]),
-                str(row["symbol"]),
-                json.dumps(row.get("bids", []), ensure_ascii=True),
-                json.dumps(row.get("asks", []), ensure_ascii=True),
-                best_bid,
-                best_ask,
-                spread_bps,
-            ),
+            {
+                "snapshot_time": snapshot_time,
+                "exchange": str(row["exchange"]),
+                "symbol": str(row["symbol"]),
+                "bids": json.dumps(row.get("bids", []), ensure_ascii=True),
+                "asks": json.dumps(row.get("asks", []), ensure_ascii=True),
+                "best_bid": best_bid,
+                "best_ask": best_ask,
+                "spread_bps": spread_bps,
+            },
         )
-        self.connection.commit()
 
     async def upsert_kline(self, row: dict[str, Any]) -> None:
         interval = _normalize_interval(row)
         open_time = _as_iso(row.get("open_time")) or _as_iso(row.get("open_time_ms")) or _utc_now_iso()
 
-        self.connection.execute(
+        self._execute(
             """
             INSERT INTO klines
                 (time, exchange, symbol, "interval", open, high, low, close, volume, quote_volume, trades)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (:time, :exchange, :symbol, :interval, :open, :high, :low, :close, :volume, :quote_volume, :trades)
             ON CONFLICT (time, exchange, symbol, "interval")
             DO UPDATE SET
                 open = excluded.open,
@@ -65,21 +78,30 @@ class SQLiteTimeseriesStore:
                 quote_volume = excluded.quote_volume,
                 trades = excluded.trades
             """,
-            (
-                open_time,
-                str(row["exchange"]),
-                str(row["symbol"]),
-                interval,
-                _to_float(row.get("open"), default=0.0),
-                _to_float(row.get("high"), default=0.0),
-                _to_float(row.get("low"), default=0.0),
-                _to_float(row.get("close"), default=0.0),
-                _to_float(row.get("volume"), default=0.0),
-                _to_float(row.get("quote_volume"), default=0.0),
-                int(row.get("trades", 0) or 0),
-            ),
+            {
+                "time": open_time,
+                "exchange": str(row["exchange"]),
+                "symbol": str(row["symbol"]),
+                "interval": interval,
+                "open": _to_float(row.get("open"), default=0.0),
+                "high": _to_float(row.get("high"), default=0.0),
+                "low": _to_float(row.get("low"), default=0.0),
+                "close": _to_float(row.get("close"), default=0.0),
+                "volume": _to_float(row.get("volume"), default=0.0),
+                "quote_volume": _to_float(row.get("quote_volume"), default=0.0),
+                "trades": int(row.get("trades", 0) or 0),
+            },
         )
-        self.connection.commit()
+
+    def _execute(self, statement: str, params: dict[str, Any]) -> None:
+        if self._sqlite_connection is not None:
+            self._sqlite_connection.execute(statement, params)
+            self._sqlite_connection.commit()
+            return
+        if self._engine is None:
+            raise RuntimeError("timeseries store was not initialized with a valid connection")
+        with self._engine.begin() as connection:
+            connection.execute(text(statement), params)
 
 
 # Backward-compatible alias for previous contract naming.

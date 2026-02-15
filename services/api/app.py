@@ -12,6 +12,7 @@ from services.api.routers import (
     control_router,
     dashboard_router,
     governance_router,
+    internal_router,
     ops_router,
     replay_router,
     system_router,
@@ -119,6 +120,7 @@ def create_app(
 
     app.include_router(system_router)
     app.include_router(control_router)
+    app.include_router(internal_router)
     app.include_router(ops_router)
     app.include_router(governance_router)
     app.include_router(replay_router)
