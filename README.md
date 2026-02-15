@@ -187,6 +187,11 @@ flowchart TB
    docker compose up -d
    ```
 
+4. **Open Frontend Dashboard (read-only UI shell served by API)**
+   - URL: `http://localhost:8000/dashboard`
+   - The dashboard is a React UI served from `services/api/static/` and mounted by FastAPI.
+   - Dashboard API calls require a JWT bearer token; paste a viewer/operator/admin token into the "Session Token" field shown in the UI.
+
 Use this sequence from the project root:
 
 1. Verify Python and uv:
@@ -397,8 +402,16 @@ LLM env notes:
   - `LITELLM_MODEL=deepseek/deepseek-chat`
 - `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment backend and are not directly read by openTrader runtime modules.
 - Validate wiring:
-  - `make mock-workflow` (best-effort probe)
-  - `uv run python scripts/mock_realtime_workflow_test.py --require-litellm` (strict probe)
+  - `make mock-workflow` (real-source first probe with fallback stubs when external endpoints are unavailable)
+  - `uv run python scripts/mock_realtime_workflow_test.py --require-litellm --require-real-market --require-real-news` (strict real-only probe)
+
+Market ingestion mode notes:
+
+- `MARKET_DATA_FETCH_MODE` selects runtime delta fetch mode:
+  - `rest` (default, recommended for deterministic testing)
+  - `websocket` (continuous feed mode)
+- `MARKET_DATA_REST_POLL_SECONDS` controls REST poll cadence (default `300`, i.e., every 5 minutes).
+- `MARKET_DATA_HTTP_TIMEOUT_SECONDS` controls exchange HTTP timeout for REST polling.
 
 API auth env notes:
 
@@ -560,6 +573,7 @@ Core runtime env categories:
 - Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
 - DB/runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `RUNTIME_REQUIRE_DATABASE`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
+- Market ingestion: `EXCHANGE_DEFAULT`, `MARKET_DATA_FETCH_MODE`, `MARKET_DATA_REST_POLL_SECONDS`, `MARKET_DATA_HTTP_TIMEOUT_SECONDS`
 - LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`

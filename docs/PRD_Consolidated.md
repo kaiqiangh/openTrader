@@ -76,6 +76,8 @@ The following decisions are mandatory and final:
 - FR-002: System must support reconnect with backoff, stale stream detection, and automatic recovery.
 - FR-003: System must initialize order books via REST snapshot and apply ordered deltas.
 - FR-004: System must validate and normalize all market events into a canonical schema.
+- FR-004A: System must support configurable market delta ingestion mode per runtime (`rest` or `websocket`) without changing downstream contracts.
+- FR-004B: Default local/dev runtime mode must be deterministic REST polling with configurable cadence (default recommendation: 5 minutes).
 
 ### 6.2 Trading Modes
 
