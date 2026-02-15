@@ -10,6 +10,7 @@ REQUIRED_KEYS = [
     "LOG_LEVEL",
     "API_HOST",
     "API_PORT",
+    "API_READ_ONLY_MODE",
     "POSTGRES_HOST",
     "POSTGRES_PORT",
     "POSTGRES_DB",
@@ -51,6 +52,11 @@ def main() -> int:
         notify_enabled = _parse_bool(os.getenv("NOTIFY_ENABLED", "true"))
     except ValueError as exc:
         print(str(exc))
+        return 1
+    try:
+        _parse_bool(os.getenv("API_READ_ONLY_MODE", "true"))
+    except ValueError as exc:
+        print(str(exc).replace("NOTIFY_ENABLED", "API_READ_ONLY_MODE"))
         return 1
     default_gateway = os.getenv("NOTIFY_DEFAULT_GATEWAY", "telegram").strip().lower()
     consumer_backend = os.getenv("NOTIFY_CONSUMER_BACKEND", "rabbitmq_http").strip().lower()

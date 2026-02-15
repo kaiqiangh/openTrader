@@ -31,6 +31,9 @@ REQUIRED_SERVICES = (
     "grafana",
 )
 
+SMOKE_REAL_PROBE_QUEUE = "smoke.oms.events.order_updates"
+SMOKE_REAL_PROBE_ROUTING_KEY = "oms.order.*"
+
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
@@ -38,7 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     _run(["make", "env-validate"], cwd=repo_root)
     _run(["docker", "compose", "up", "-d"], cwd=repo_root)
     time.sleep(args.wait_seconds)
-    _assert_services_running(repo_root)
+    _assert_services_running(
+        repo_root,
+        timeout_seconds=args.service_wait_timeout,
+        stability_seconds=args.service_stability_seconds,
+    )
     _assert_runtime_bridge_ready()
     _run(
         ["uv", "run", "python", "-m", "services.notification_service.worker", "--validate-only"],
@@ -47,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
             "TELEGRAM_BOT_TOKEN": "bot",
             "TELEGRAM_DEFAULT_CHAT_ID": "chat",
             "NOTIFY_CONSUMER_BACKEND": "inmemory",
+            "RUNTIME_REQUIRE_DATABASE": "false",
         },
     )
     _run(
@@ -56,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
             "TELEGRAM_BOT_TOKEN": "bot",
             "TELEGRAM_DEFAULT_CHAT_ID": "chat",
             "NOTIFY_CONSUMER_BACKEND": "inmemory",
+            "RUNTIME_REQUIRE_DATABASE": "false",
         },
     )
     api_probe = _run(
@@ -80,18 +89,45 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _assert_services_running(repo_root: Path) -> None:
-    proc = _run(
-        ["docker", "compose", "ps", "--services", "--filter", "status=running"],
-        cwd=repo_root,
+def _assert_services_running(
+    repo_root: Path,
+    *,
+    timeout_seconds: float,
+    stability_seconds: float,
+) -> None:
+    deadline = time.time() + max(1.0, timeout_seconds)
+    required_stability = max(0.0, stability_seconds)
+    stable_since: float | None = None
+    missing: list[str] = []
+    while time.time() < deadline:
+        running = _list_running_services(repo_root)
+        missing = sorted(set(REQUIRED_SERVICES) - running)
+        if not missing:
+            if stable_since is None:
+                stable_since = time.time()
+            elif time.time() - stable_since >= required_stability:
+                return
+        else:
+            stable_since = None
+        time.sleep(1.0)
+    raise RuntimeError(
+        "docker compose up -d did not start all required services. Missing: "
+        + ", ".join(missing)
     )
-    running = {line.strip() for line in proc.stdout.splitlines() if line.strip()}
-    missing = sorted(set(REQUIRED_SERVICES) - running)
-    if missing:
-        raise RuntimeError(
-            "docker compose up -d did not start all required services. Missing: "
-            + ", ".join(missing)
-        )
+
+
+def _list_running_services(repo_root: Path) -> set[str]:
+    proc = subprocess.run(
+        ["docker", "compose", "ps", "--services", "--filter", "status=running"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        stderr = proc.stderr.strip()
+        raise RuntimeError(f"failed to list docker compose services: {stderr}")
+    return {line.strip() for line in proc.stdout.splitlines() if line.strip()}
 
 
 def _assert_runtime_bridge_ready() -> None:
@@ -140,26 +176,29 @@ def _assert_real_execution_rabbitmq_bridge_flow() -> None:
         username=rabbitmq_user,
         password=rabbitmq_pass,
     )
-    publish_payload = {
-        "trace_id": "smoke-real-trace",
-        "decision_id": "smoke-real-decision",
-        "mode": "REAL",
-        "idempotency_key": "smoke-real-idem",
-        "event_type": "execution.intent.created",
-        "emitted_at": "2026-02-15T00:00:00Z",
-        "payload": {
-            "strategy_id": "smoke",
-            "symbol": "BTC/USDT",
-            "action": "BUY",
-            "quantity": 0.02,
-            "client_order_id": "smoke-real-client",
-        },
-        "service": "smoke",
-    }
-    deadline = time.time() + 20.0
-    published = False
+    deadline = time.time() + 40.0
+    publish_attempt = 0
+    next_publish_at = 0.0
     while time.time() < deadline:
-        if not published:
+        now = time.time()
+        if now >= next_publish_at:
+            publish_attempt += 1
+            publish_payload = {
+                "trace_id": "smoke-real-trace",
+                "decision_id": f"smoke-real-decision-{publish_attempt}",
+                "mode": "REAL",
+                "idempotency_key": f"smoke-real-idem-{publish_attempt}",
+                "event_type": "execution.intent.created",
+                "emitted_at": "2026-02-15T00:00:00Z",
+                "payload": {
+                    "strategy_id": "smoke",
+                    "symbol": "BTC/USDT",
+                    "action": "BUY",
+                    "quantity": 0.02,
+                    "client_order_id": f"smoke-real-client-{publish_attempt}",
+                },
+                "service": "smoke",
+            }
             try:
                 _rabbitmq_api_call(
                     api_base=rabbitmq_api,
@@ -173,33 +212,31 @@ def _assert_real_execution_rabbitmq_bridge_flow() -> None:
                         "payload_encoding": "string",
                     },
                 )
-                published = True
             except error.HTTPError as exc:
                 if exc.code not in {400, 404}:
                     raise
-                time.sleep(0.5)
+                time.sleep(0.25)
+                next_publish_at = now + 1.0
                 continue
+            next_publish_at = now + 1.0
         rows = _rabbitmq_api_call(
             api_base=rabbitmq_api,
             username=rabbitmq_user,
             password=rabbitmq_pass,
-            path="/queues/%2F/oms.events.order_updates/get",
+            path=f"/queues/%2F/{SMOKE_REAL_PROBE_QUEUE}/get",
             payload={
-                "count": 1,
+                "count": 5,
                 "ackmode": "ack_requeue_false",
                 "encoding": "auto",
                 "truncate": 50000,
             },
         )
-        if rows:
-            payload = rows[0].get("payload")
-            if isinstance(payload, str):
-                parsed = json.loads(payload)
-            else:
-                parsed = payload
+        for row in rows:
+            payload = row.get("payload")
+            parsed = json.loads(payload) if isinstance(payload, str) else payload
             if isinstance(parsed, dict) and str(parsed.get("event_type", "")).startswith("oms.order."):
                 return
-        time.sleep(0.5)
+        time.sleep(0.25)
     raise RuntimeError("Did not observe OMS lifecycle event from real execution bridge flow")
 
 
@@ -249,6 +286,14 @@ def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) ->
         api_base=api_base,
         username=username,
         password=password,
+        path=f"/queues/%2F/{SMOKE_REAL_PROBE_QUEUE}",
+        payload={"durable": True, "auto_delete": False, "arguments": {}},
+        method="PUT",
+    )
+    _safe_rabbitmq_api_call(
+        api_base=api_base,
+        username=username,
+        password=password,
         path="/bindings/%2F/e/execution.events/q/execution.intent.real",
         payload={"routing_key": "execution.intent.real", "arguments": {}},
         method="POST",
@@ -259,6 +304,14 @@ def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) ->
         password=password,
         path="/bindings/%2F/e/oms.events/q/oms.events.order_updates",
         payload={"routing_key": "oms.order.*", "arguments": {}},
+        method="POST",
+    )
+    _safe_rabbitmq_api_call(
+        api_base=api_base,
+        username=username,
+        password=password,
+        path=f"/bindings/%2F/e/oms.events/q/{SMOKE_REAL_PROBE_QUEUE}",
+        payload={"routing_key": SMOKE_REAL_PROBE_ROUTING_KEY, "arguments": {}},
         method="POST",
     )
 
@@ -357,6 +410,18 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         type=float,
         default=2.0,
         help="wait time after docker compose up before service checks",
+    )
+    parser.add_argument(
+        "--service-wait-timeout",
+        type=float,
+        default=45.0,
+        help="max time to wait for all required services to reach running state",
+    )
+    parser.add_argument(
+        "--service-stability-seconds",
+        type=float,
+        default=3.0,
+        help="minimum continuous running time required for required services",
     )
     return parser.parse_args(argv)
 
