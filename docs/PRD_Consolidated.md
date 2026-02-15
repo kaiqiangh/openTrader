@@ -194,6 +194,12 @@ The following decisions are mandatory and final:
 - NFR-015: Notification dedupe/rate-limit controls must prevent alert storms during high-volatility bursts.
 - NFR-016: Notification delivery attempts and outcomes must be fully auditable.
 
+### 7.6 Runtime Readiness and Deployment
+
+- NFR-017: A single `docker compose up -d` must boot the full local platform topology (data, ingestion, orchestration, execution, news, notification, API, observability) without profile-specific startup commands.
+- NFR-018: Production-mode runtime paths must avoid in-memory persistence and in-process broker shims; these are allowed only for tests/dev harnesses.
+- NFR-019: End-to-end runtime validation must include real infrastructure dependencies (RabbitMQ + PostgreSQL/TimescaleDB + Redis) and not rely exclusively on contract-only tests.
+
 ## 8. Product Data Requirements
 
 Required persisted domains:
@@ -248,9 +254,35 @@ The UI must include:
 - Rate limiting and deduplication protections are validated under burst scenarios.
 - User preference rules correctly filter/suppress delivery by scope and severity.
 
+### 10.6 Runtime Integration Gate
+
+- System provides a concrete application entry flow from market ingestion through execution and persistence (not only in-memory harness execution).
+- RabbitMQ-backed worker paths are validated for both mock and real intent queues.
+- TimescaleDB/PostgreSQL persistence is validated for market, OMS, news, and notification audit surfaces.
+- Go real-execution runtime uses a concrete queue consumer and bridge adapter in staging validation.
+
 ## 11. Delivery Phases
 
 - Phase 1: Core ingestion, data model, mock mode, baseline agents
 - Phase 2: Real execution (Go engine), risk hardening, OMS reconciliation
 - Phase 3: LLM governance dashboard, full prompt/response replay, news module
 - Phase 4: Performance tuning, reliability hardening, operator notifications, and operational readiness
+
+## 12. Final Product Decisions (2026-02-15)
+
+These decisions are now explicit product constraints:
+
+- Market data storage strategy:
+  - K-lines and sampled order book snapshots are persisted in TimescaleDB.
+  - Raw full-depth WebSocket streams are not persisted end-to-end.
+  - Order book snapshots are sampled at configurable interval `X` minutes (default recommendation: 1 minute in prod, 5 minutes in dev).
+- Messaging strategy:
+  - RabbitMQ is the mandatory inter-service messaging backbone.
+  - Direct service-to-service runtime calls across bounded contexts are disallowed on the critical trading path.
+- Agent triggering strategy:
+  - Hybrid trigger model is required.
+  - Primary trigger: event-based on canonical candle close / market-context-ready events.
+  - Secondary trigger: low-frequency time watchdog for missed-event recovery and liveness.
+- Phase advancement gate:
+  - Contract-only test completion is insufficient for readiness.
+  - Phase advancement requires real end-to-end runtime validation on concrete infrastructure adapters.
