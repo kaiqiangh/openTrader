@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 import uuid
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
@@ -17,6 +18,10 @@ class RuntimeCycleResult:
     orchestration: OrchestrationResult | None
 
 
+class RuntimeMarketStateStore(Protocol):
+    async def persist_orderbook_envelope(self, envelope: Mapping[str, Any]) -> None: ...
+
+
 class MarketIngestionRuntimeWorker:
     def __init__(
         self,
@@ -27,6 +32,7 @@ class MarketIngestionRuntimeWorker:
         mode: str,
         depth: int = 200,
         notification_bridge: NotificationEventBridge | None = None,
+        state_store: RuntimeMarketStateStore | None = None,
     ) -> None:
         self.adapter = adapter
         self.pipeline = pipeline
@@ -34,6 +40,7 @@ class MarketIngestionRuntimeWorker:
         self.mode = mode
         self.depth = depth
         self.notification_bridge = notification_bridge
+        self.state_store = state_store
         self._bootstrapped = False
 
     async def run_once(self) -> dict[str, Any]:
@@ -43,7 +50,10 @@ class MarketIngestionRuntimeWorker:
                 self._bootstrapped = True
 
             delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
-            return await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
+            envelope = await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
+            if self.state_store is not None:
+                await self.state_store.persist_orderbook_envelope(envelope)
+            return envelope
         except Exception as exc:  # noqa: BLE001 - runtime worker preserves failure propagation
             if self.notification_bridge is not None:
                 await self.notification_bridge.publish_system_health_event(

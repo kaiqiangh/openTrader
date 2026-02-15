@@ -34,6 +34,7 @@ class NotificationWorkerSettings:
     rabbitmq_password: str
     telegram_bot_token: str | None
     telegram_default_chat_id: str | None
+    runtime_require_database: bool
 
 
 def load_notification_worker_settings(
@@ -44,12 +45,20 @@ def load_notification_worker_settings(
         load_dotenv_file()
     source = env if env is not None else os.environ
 
-    enabled = _parse_bool(source.get("NOTIFY_ENABLED", "true"))
+    enabled = _parse_bool(source.get("NOTIFY_ENABLED", "true"), key="NOTIFY_ENABLED")
     default_gateway = _require_non_empty(source, "NOTIFY_DEFAULT_GATEWAY", default="telegram").strip().lower()
     queue_name = _require_non_empty(source, "NOTIFY_QUEUE_NAME", default="notify.events.raw")
     consumer_backend = _require_non_empty(source, "NOTIFY_CONSUMER_BACKEND", default="rabbitmq_http").strip().lower()
     if consumer_backend not in {"rabbitmq_http", "inmemory"}:
         raise NotificationSettingsError("NOTIFY_CONSUMER_BACKEND must be rabbitmq_http or inmemory")
+    runtime_require_database = _parse_bool(
+        source.get("RUNTIME_REQUIRE_DATABASE", "false"),
+        key="RUNTIME_REQUIRE_DATABASE",
+    )
+    if runtime_require_database and consumer_backend == "inmemory":
+        raise NotificationSettingsError(
+            "NOTIFY_CONSUMER_BACKEND=inmemory is disabled when RUNTIME_REQUIRE_DATABASE=true"
+        )
 
     default_severity = _parse_severity(_require_non_empty(source, "NOTIFICATION_DEFAULT_SEVERITY", default="WARNING"))
     poll_timeout_seconds = _parse_positive_float(source, "NOTIFY_POLL_TIMEOUT_SECONDS", default=1.0)
@@ -109,16 +118,17 @@ def load_notification_worker_settings(
         rabbitmq_password=rabbitmq_password,
         telegram_bot_token=telegram_bot_token,
         telegram_default_chat_id=telegram_default_chat_id,
+        runtime_require_database=runtime_require_database,
     )
 
 
-def _parse_bool(value: str) -> bool:
+def _parse_bool(value: str, *, key: str) -> bool:
     normalized = str(value).strip().lower()
     if normalized in {"1", "true", "yes", "y", "on"}:
         return True
     if normalized in {"0", "false", "no", "n", "off"}:
         return False
-    raise NotificationSettingsError("NOTIFY_ENABLED must be a boolean value")
+    raise NotificationSettingsError(f"{key} must be a boolean value")
 
 
 def _parse_severity(value: str) -> NotificationSeverity:
