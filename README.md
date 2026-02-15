@@ -1,15 +1,88 @@
-# openTrader
+# Open Trader
 
-Auto AI Trading System in Crypto Market
+<div align="center">
 
-## Development Bootstrap
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
+![Go](https://img.shields.io/badge/go-1.23+-cyan.svg)
+![Docker](https://img.shields.io/badge/docker-compose-2496ED.svg)
+![Status](https://img.shields.io/badge/status-production--ready-green.svg)
 
-1. Install `uv`
-2. Create `.env` from `.env.example`
-3. Run `make env-validate`
-4. Run `make test`
+**An institutional-grade, AI-native crypto trading system.**
+_Multi-Agent Decisioning • Deterministic Risk Engine • Real-Time Execution_
 
-## Local Setup (Terminal)
+[Features](#key-features) • [Architecture](#architecture) • [Getting Started](#getting-started) • [Documentation](docs/)
+
+</div>
+
+---
+
+## Overview
+
+**Open Trader** is a production-ready, multi-exchange crypto trading platform powered by LLM agents. Unlike simple trading bots, it generates decisions using a **multi-agent orchestration layer** (Planner, Risk, Execution) that combines real-time market microstructure with news intelligence.
+
+It features a **Hybrid Architecture**:
+
+- **Python (3.13+)**: For high-level agentic strategy, orchestration, and data ingestion.
+- **Go**: For ultra-low-latency order execution and signing.
+- **Deterministic Risk**: Pre-trade risk guardrails involving position limits, improved drawdown protection, and circuit breakers.
+
+## Key Features
+
+- **Agentic Strategy Engine**: Multi-agent runtime with Planner, Risk, and Execution agents using short/long-term memory.
+- **Dual Trading Modes**: Seamlessly switch between `MOCK` (simulated fills) and `REAL` (exchange execution) modes.
+- **Omni-Channel Ingestion**: Real-time WebSocket integration with Binance & Bitget (CCXT Pro).
+- **News Intelligence**: Real-time crypto news ingestion, summarization, and sentiment analysis injected into strategy context.
+- **Institutional Risk**: Hard guards for daily loss, max drawdown, and per-symbol exposure.
+- **Full Observability**: Prometheus/Grafana dashboards, Loki logs, and Tempo traces for every decision.
+- **Operator Alerts**: Severity-based notifications via Telegram for signals, fills, and risk events.
+
+## Architecture
+
+The system follows a strict event-driven architecture utilizing **RabbitMQ** for reliable messaging and **TimescaleDB** for high-frequency data.
+
+```mermaid
+flowchart LR
+    Ingest[Market Ingestion] -->|Norm. Events| Bus{RabbitMQ}
+    Bus --> Orchestrator[Agent Orchestrator]
+    Orchestrator --> Plan[Planner Agent]
+    Orchestrator --> Risk[Risk Agent]
+    Orchestrator --> ExecDecision[Execution Agent]
+    ExecDecision -->|Intent| Gate{Risk Gate}
+    Gate -->|Approved| Bus
+    Bus -->|Real| GoEngine[Go Execution ⚡]
+    Bus -->|Mock| SimEngine[Simulation]
+```
+
+## Getting Started
+
+### Prerequisites
+
+- **Docker & Docker Compose**
+- **Python 3.13+** (managed via `uv`)
+- **Go 1.23+** (only for real execution service development)
+
+### Quick Start
+
+1. **Clone and Bootstrap**
+
+   ```bash
+   git clone https://github.com/kaiqiangh/openTrader.git
+   cd openTrader
+   make env-validate  # Checks .env template
+   ```
+
+2. **Configure Environment**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your keys (or leave defaults for mock mode)
+   ```
+
+3. **Launch Stack**
+   ```bash
+   docker compose up -d
+   ```
 
 Use this sequence from the project root:
 
