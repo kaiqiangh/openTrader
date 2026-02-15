@@ -1,7 +1,6 @@
 services:
   postgres_timescaledb:
     image: timescale/timescaledb:2.17.2-pg16
-    container_name: ot_postgres_timescaledb
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
@@ -18,7 +17,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: ot_redis
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -32,12 +30,13 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: ot_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -45,10 +44,10 @@ services:
       retries: 5
     networks:
       - internal
+      - public
 
   notification_worker:
     image: ghcr.io/astral-sh/uv:python3.13-bookworm
-    container_name: ot_notification_worker
     working_dir: /app
     command:
       - sh
@@ -60,6 +59,7 @@ services:
       - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_notification_worker
       NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}
       NOTIFY_DEFAULT_GATEWAY: ${NOTIFY_DEFAULT_GATEWAY:-telegram}
       NOTIFY_QUEUE_NAME: ${NOTIFY_QUEUE_NAME:-notify.events.raw}
@@ -68,6 +68,8 @@ services:
       NOTIFY_POLL_TIMEOUT_SECONDS: ${NOTIFY_POLL_TIMEOUT_SECONDS:-1.0}
       NOTIFY_IDLE_SLEEP_SECONDS: ${NOTIFY_IDLE_SLEEP_SECONDS:-0.5}
       NOTIFY_OBSERVABILITY_MAX_RECORDS: ${NOTIFY_OBSERVABILITY_MAX_RECORDS:-200}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-bot}
+      TELEGRAM_DEFAULT_CHAT_ID: ${TELEGRAM_DEFAULT_CHAT_ID:-chat}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -76,9 +78,236 @@ services:
       - internal
       - public
 
+  api:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m uvicorn services.api.app:create_app --factory --host 0.0.0.0 --port 8000
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_api
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-local}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/liveness', timeout=2).read()\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    networks:
+      - internal
+      - public
+
+  runtime_worker_market:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.workers.main --worker market --bootstrap-topology
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_runtime_worker_market
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  runtime_worker_orchestrator:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.workers.main --worker orchestrator
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_runtime_worker_orchestrator
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  runtime_worker_simulation:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.workers.main --worker simulation
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_runtime_worker_simulation
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  runtime_worker_oms:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.workers.main --worker oms
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_runtime_worker_oms
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  runtime_worker_news:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - uv sync --all-groups && uv run python -m services.workers.main --worker news
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv_runtime_worker_news
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  real_execution_go:
+    image: golang:1.21-alpine
+    working_dir: /app/services/real_execution_go
+    command:
+      - sh
+      - -lc
+      - /usr/local/go/bin/go run .
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      REAL_EXECUTION_BRIDGE_URL: ${REAL_EXECUTION_BRIDGE_URL:-http://api:8000/internal/execution/dispatch}
+      REAL_EXECUTION_QUEUE_NAME: ${REAL_EXECUTION_QUEUE_NAME:-execution.intent.real}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: ot_prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -96,7 +325,6 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    container_name: ot_alertmanager
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -109,7 +337,6 @@ services:
 
   loki:
     image: grafana/loki:3.1.1
-    container_name: ot_loki
     command:
       - -config.file=/etc/loki/config.yml
     volumes:
@@ -121,7 +348,6 @@ services:
 
   tempo:
     image: grafana/tempo:2.6.1
-    container_name: ot_tempo
     command:
       - -config.file=/etc/tempo/tempo.yml
     volumes:
@@ -133,7 +359,6 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: ot_grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change_me}
