@@ -10,7 +10,12 @@ from sqlalchemy import create_engine, text
 from services.shared.runtime.broker import InMemoryTopicBroker
 from services.shared.runtime.database import RuntimeDatabaseConfigError
 from services.workers import main as runtime_main
-from services.workers.main import RuntimeWorkerSettings, build_runtime_broker, build_runtime_worker
+from services.workers.main import (
+    RuntimeWorkerBuildResult,
+    RuntimeWorkerSettings,
+    build_runtime_broker,
+    build_runtime_worker,
+)
 
 
 def _market_envelope(*, mode: str = "MOCK") -> dict[str, object]:
@@ -314,5 +319,103 @@ def test_runtime_worker_main_rejects_inmemory_broker_under_runtime_policy(monkey
     monkeypatch.setenv("RUNTIME_REQUIRE_DATABASE", "true")
 
     exit_code = runtime_main.main(["--worker", "market", "--validate-only", "--broker-backend", "inmemory"])
+
+    assert exit_code == 1
+
+
+def test_market_worker_defaults_to_rest_fetch_mode_and_five_minute_cadence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MARKET_DATA_FETCH_MODE", raising=False)
+    monkeypatch.delenv("MARKET_DATA_REST_POLL_SECONDS", raising=False)
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert build.worker.worker.adapter.delta_source == "rest"
+    assert build.worker.min_cycle_interval_seconds == 300.0
+
+
+def test_market_worker_websocket_mode_disables_rest_poll_cadence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARKET_DATA_FETCH_MODE", "websocket")
+    monkeypatch.setenv("MARKET_DATA_REST_POLL_SECONDS", "300")
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert build.worker.worker.adapter.delta_source == "websocket"
+    assert build.worker.min_cycle_interval_seconds == 0.0
+
+
+@pytest.mark.asyncio
+async def test_run_worker_loop_recovers_from_runtime_errors_in_long_running_mode() -> None:
+    class _FailingWorker:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def run_once(self, *, timeout_seconds: float) -> bool:
+            _ = timeout_seconds
+            self.calls += 1
+            raise RuntimeError("transient exchange failure")
+
+    settings = RuntimeWorkerSettings(
+        worker="market",
+        broker_backend="inmemory",
+        topology_path="config/rabbitmq/topology.json",
+        mode="MOCK",
+        symbol="BTC/USDT",
+        strategy_id="default-strategy",
+        once=False,
+        validate_only=False,
+        max_idle_cycles=1,
+        poll_timeout_seconds=0.0,
+        idle_sleep_seconds=0.0,
+        bootstrap_topology=False,
+        portfolio_base_balance_usd=100000.0,
+        require_database=False,
+    )
+    worker = _FailingWorker()
+    build = RuntimeWorkerBuildResult(
+        worker=worker,
+        broker=InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json"),
+    )
+
+    exit_code = await runtime_main.run_worker_loop(settings=settings, build=build)
+
+    assert exit_code == 0
+    assert worker.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_worker_loop_returns_failure_for_once_mode_runtime_errors() -> None:
+    class _FailingWorker:
+        async def run_once(self, *, timeout_seconds: float) -> bool:
+            _ = timeout_seconds
+            raise RuntimeError("transient exchange failure")
+
+    settings = RuntimeWorkerSettings(
+        worker="market",
+        broker_backend="inmemory",
+        topology_path="config/rabbitmq/topology.json",
+        mode="MOCK",
+        symbol="BTC/USDT",
+        strategy_id="default-strategy",
+        once=True,
+        validate_only=False,
+        max_idle_cycles=0,
+        poll_timeout_seconds=0.0,
+        idle_sleep_seconds=0.0,
+        bootstrap_topology=False,
+        portfolio_base_balance_usd=100000.0,
+        require_database=False,
+    )
+    build = RuntimeWorkerBuildResult(
+        worker=_FailingWorker(),
+        broker=InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json"),
+    )
+
+    exit_code = await runtime_main.run_worker_loop(settings=settings, build=build)
 
     assert exit_code == 1

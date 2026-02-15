@@ -20,6 +20,9 @@ REQUIRED_KEYS = [
     "RABBITMQ_URL",
     "RABBITMQ_DEFAULT_USER",
     "RABBITMQ_DEFAULT_PASS",
+    "EXCHANGE_DEFAULT",
+    "MARKET_DATA_FETCH_MODE",
+    "MARKET_DATA_REST_POLL_SECONDS",
     "EXECUTION_MODE_DEFAULT",
     "SIMULATION_SLIPPAGE_BPS",
     "SIMULATION_FEE_BPS",
@@ -74,6 +77,26 @@ def main() -> int:
 
     if notify_enabled and consumer_backend == "rabbitmq_http" and not os.getenv("NOTIFY_RABBITMQ_HTTP_API_URL"):
         print("NOTIFY_RABBITMQ_HTTP_API_URL is required when NOTIFY_ENABLED=true and rabbitmq_http backend is selected")
+        return 1
+
+    exchange_default = os.getenv("EXCHANGE_DEFAULT", "").strip().lower()
+    if exchange_default not in {"binance", "bitget"}:
+        print("EXCHANGE_DEFAULT must be binance or bitget")
+        return 1
+
+    market_fetch_mode = os.getenv("MARKET_DATA_FETCH_MODE", "").strip().lower()
+    if market_fetch_mode not in {"rest", "restful", "http", "websocket", "ws"}:
+        print("MARKET_DATA_FETCH_MODE must be rest or websocket")
+        return 1
+
+    rest_poll_seconds_raw = os.getenv("MARKET_DATA_REST_POLL_SECONDS", "").strip()
+    try:
+        rest_poll_seconds = float(rest_poll_seconds_raw)
+    except ValueError:
+        print("MARKET_DATA_REST_POLL_SECONDS must be a positive number")
+        return 1
+    if rest_poll_seconds <= 0:
+        print("MARKET_DATA_REST_POLL_SECONDS must be a positive number")
         return 1
 
     if not _is_valid_aes256_key(os.getenv("ENCRYPTION_KEY_BASE64", "")):

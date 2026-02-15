@@ -1,9 +1,12 @@
 """Market ingestion foundation components."""
 
+from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
+from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline, CanonicalPublisher
 from services.market_ingestion.connection_resilience import BackoffConfig, ConnectionResilienceManager
 from services.market_ingestion.contracts import OrderBookDelta, OrderBookLevel, OrderBookSnapshot
 from services.market_ingestion.exchange_adapter import (
+    AdapterConfigurationError,
     AdapterPayloadError,
     CCXTIngestionAdapter,
     RestOrderBookClient,
@@ -26,8 +29,11 @@ from services.market_ingestion.persistence_writers import TimescalePersistenceWr
 from services.market_ingestion.pipeline_metrics import MarketPipelineMetrics
 
 __all__ = [
+    "AdapterConfigurationError",
     "AdapterPayloadError",
     "BackoffConfig",
+    "BinanceHTTPOrderBookClient",
+    "BitgetHTTPOrderBookClient",
     "CanonicalNormalizationPipeline",
     "CanonicalPublisher",
     "CCXTIngestionAdapter",
