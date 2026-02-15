@@ -6,9 +6,9 @@
 ![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
 ![Go](https://img.shields.io/badge/go-1.23+-cyan.svg)
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED.svg)
-![Status](https://img.shields.io/badge/status-production--ready-green.svg)
+![Status](https://img.shields.io/badge/status-phase9%20validated-yellowgreen.svg)
 
-**An institutional-grade, AI-native crypto trading system.**
+**AI-native crypto trading system.**
 _Multi-Agent Decisioning • Deterministic Risk Engine • Real-Time Execution_
 
 [Features](#key-features) • [Architecture](#architecture) • [Getting Started](#getting-started) • [Documentation](docs/)
@@ -26,6 +26,23 @@ It features a **Hybrid Architecture**:
 - **Python (3.13+)**: For high-level agentic strategy, orchestration, and data ingestion.
 - **Go**: For ultra-low-latency order execution and signing.
 - **Deterministic Risk**: Pre-trade risk guardrails involving position limits, improved drawdown protection, and circuit breakers.
+
+## Project Vision
+
+Open Trader is designed to be the reference architecture for **AI-native, policy-safe, event-driven trading systems**:
+
+- LLM agents generate ideas, but deterministic policy engines own safety and execution permission.
+- Every decision is auditable (prompt, response, risk checks, execution, notification).
+- The platform is built for progressive hardening: simulation-first, then exchange-connected runtime with explicit gates.
+
+## Current Runtime Status
+
+As of **2026-02-15**, the repository has strong contract coverage through Phase 9 and a complete doc/test harness.  
+The next execution track (Phase 10) is focused on closing runtime gaps:
+
+- replacing in-memory broker/persistence paths on critical runtime flow,
+- wiring full long-running workers for all major services,
+- and making full pipeline startup/validation reproducible via one `docker compose up -d`.
 
 ## Key Features
 
@@ -50,9 +67,95 @@ flowchart LR
     Orchestrator --> ExecDecision[Execution Agent]
     ExecDecision -->|Intent| Gate{Risk Gate}
     Gate -->|Approved| Bus
-    Bus -->|Real| GoEngine[Go Execution ⚡]
+    Bus -->|Real| GoEngine[Go Execution]
     Bus -->|Mock| SimEngine[Simulation]
 ```
+
+### Expanded Architecture
+
+```mermaid
+flowchart TB
+    subgraph Exchanges
+      BIN["Binance"]
+      BIT["Bitget"]
+    end
+
+    subgraph Runtime
+      ING["market_ingestion"]
+      INT["integrity_service"]
+      ORCH["agent_orchestrator"]
+      SIM["simulation_execution"]
+      REX["real_execution_go"]
+      OMS["oms"]
+      NEWSI["news_ingestion"]
+      NEWSS["news_summarizer"]
+      NOTIFY["notification_service"]
+      API["api"]
+    end
+
+    subgraph Infra
+      RMQ["RabbitMQ"]
+      PG["PostgreSQL + TimescaleDB"]
+      REDIS["Redis"]
+    end
+
+    subgraph Observability
+      PROM["Prometheus"]
+      LOKI["Loki"]
+      TEMPO["Tempo"]
+      GRAF["Grafana"]
+      ALERT["Alertmanager"]
+    end
+
+    BIN --> ING
+    BIT --> ING
+    ING --> INT
+    INT --> RMQ
+    RMQ --> ORCH
+    ORCH --> RMQ
+    RMQ --> SIM
+    RMQ --> REX
+    SIM --> OMS
+    REX --> OMS
+    NEWSI --> NEWSS
+    NEWSS --> RMQ
+    RMQ --> NOTIFY
+    OMS --> PG
+    ORCH --> PG
+    API --> PG
+    API --> REDIS
+    RMQ --> API
+    API --> PROM
+    API --> LOKI
+    API --> TEMPO
+    PROM --> ALERT
+    PROM --> GRAF
+    LOKI --> GRAF
+    TEMPO --> GRAF
+```
+
+## Service Breakdown
+
+- `services/market_ingestion`: exchange adapters, normalization, integrity helpers.
+- `services/integrity_service`: dedicated boundary for runtime integrity workflows (in progress toward concrete worker service).
+- `services/agent_orchestrator`: planner/risk/execution decision orchestration and guardrails.
+- `services/llm_gateway`: provider abstraction, quota enforcement, prompt/response persistence.
+- `services/simulation_execution`: mock execution engine + mode safety checks.
+- `services/real_execution_go`: low-latency execution consumer/handler contracts in Go.
+- `services/oms`: lifecycle state machine, fill reconciliation, position and portfolio logic, risk policy.
+- `services/news_ingestion` + `services/news_summarizer`: ingest, dedupe, tag/relevance, summarization, context bridge.
+- `services/notification_service`: policy routing, gateway dispatch, Telegram gateway, worker loop.
+- `services/api`: FastAPI control plane, auth/RBAC, ops/governance/replay/news/notification routes.
+
+## End-to-End Event Flow
+
+1. Market data arrives from Binance/Bitget.
+2. Canonicalized events are published to RabbitMQ.
+3. Orchestrator runs planner/risk/execution agents and guardrails.
+4. Execution intent is routed to mock (`execution.intent.mock`) or real (`execution.intent.real`) queues.
+5. Execution emits OMS lifecycle events and portfolio/risk updates.
+6. Notification bridge emits severity-classified events; Telegram worker dispatches.
+7. API and observability surfaces expose state, governance, replay, and operations telemetry.
 
 ## Getting Started
 
@@ -412,3 +515,118 @@ Phase 9 validation baseline (`P9-001`..`P9-003`):
 - `tests/test_p9_e2e_real_flow.py` (market -> agent -> `execution.intent.real` -> reconciliation fallback validation path)
 - `tests/test_p9_mode_isolation.py` (MOCK-mode endpoint/queue isolation compliance test)
 - `docs/runtime/p9-validation-2026-02-14.md` (validation command evidence and outcomes)
+
+Phase 9 advanced validation (`P9-004`..`P9-006`):
+
+- `tests/test_p9_replay_determinism.py` (replay digest stability + stored decision-chain reproduction)
+- `tests/test_p9_performance_benchmarks.py` (dispatch latency, queue throughput, ingestion lag thresholds)
+- `tests/test_p9_chaos_resilience.py` (broker restart, exchange disconnect, LLM timeout, DB restart analogue drills)
+- `docs/runtime/p9-replay-determinism-2026-02-15.md` (replay validation evidence)
+- `docs/runtime/p9-performance-benchmark-2026-02-15.md` (performance benchmark evidence)
+- `docs/runtime/p9-resilience-drills-2026-02-15.md` (resilience drill evidence)
+
+Phase 9 release readiness closure (`P9-007`..`P9-009`):
+
+- `tests/test_p9_data_integrity_audits.py` (resync/gap detection/kline reconstruction integrity fault audits)
+- `tests/test_p9_security_acceptance.py` (RBAC/encryption/network/secret-handling acceptance checks)
+- `docs/runtime/p9-data-integrity-audit-2026-02-15.md` (data integrity audit evidence)
+- `docs/runtime/p9-security-acceptance-2026-02-15.md` (security sign-off evidence)
+- `docs/runtime/codebase-alignment-review-2026-02-15.md` (repo-to-doc alignment and Phase 10 remediation baseline)
+- `docs/release/p9-release-checklist-2026-02-15.md` (release readiness checklist)
+- `docs/release/p9-cutover-and-rollback-2026-02-15.md` (cutover and rollback runbook)
+- `docs/release/p9-post-phase-handoff-pack-2026-02-15.md` (go-live owner matrix + hypercare checklist + backlog triage table)
+
+## Environment Variables
+
+Core runtime env categories:
+
+- Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`
+- Data: `POSTGRES_*`, `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
+- Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
+- LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`
+- Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
+- Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
+
+Use `make env-validate` to validate required contracts.
+
+## API Endpoints
+
+Base domains:
+
+- System: `/health/liveness`, `/health/readiness`, `/metadata`, `/metrics`
+- Control: `/control/mode`, `/control/mode/history`, `/control/strategies`, `/control/strategies/{strategy_id}/state`
+- Ops: `/ops/orders`, `/ops/positions`, `/ops/portfolio/latest`, `/ops/risk/status`
+- Risk controls: `/ops/risk/circuit-breaker/trip`, `/ops/risk/circuit-breaker/reset`, `/ops/risk/kill-switch/enable`, `/ops/risk/kill-switch/disable`
+- Governance: `/governance/llm/usage`, `/governance/llm/breaches`
+- Replay: `/replay/requests`, `/replay/requests/{request_id}`, `/replay/decisions/{decision_id}`
+- News panel: `/ops/news/items`, `/ops/news/summaries`, `/ops/news/impact`
+- Notification ops: `/ops/notifications/preferences`, `/ops/notifications/metrics`, `/ops/notifications/deliveries`, `/ops/notifications/traces`
+
+## Telegram Setup
+
+1. Create a Telegram bot with BotFather and collect bot token.
+2. Get target chat/channel ID.
+3. Set in `.env`:
+   - `NOTIFY_ENABLED=true`
+   - `NOTIFY_DEFAULT_GATEWAY=telegram`
+   - `TELEGRAM_BOT_TOKEN=<bot_token>`
+   - `TELEGRAM_DEFAULT_CHAT_ID=<chat_id>`
+4. Validate:
+   - `uv run python -m services.notification_service.worker --validate-only`
+
+## Strategy Extension Guide
+
+To add a new strategy/runtime behavior:
+
+1. Add or extend contracts in `services/agent_orchestrator/contracts.py`.
+2. Implement planning/risk/decision logic updates in:
+   - `services/agent_orchestrator/planner_agent.py`
+   - `services/agent_orchestrator/risk_agent.py`
+   - `services/agent_orchestrator/execution_decision_agent.py`
+3. Update guardrails in `services/agent_orchestrator/guardrail_validation.py`.
+4. Add/adjust replay and observability surfaces in:
+   - `services/agent_orchestrator/replay_service.py`
+   - `services/agent_orchestrator/metrics_tracing.py`
+5. Add tests in `tests/test_p3_*.py` and `tests/test_p9_*.py` where applicable.
+
+## Multi-Agent Workflow Notes
+
+- The orchestrator receives canonical market events and executes planner -> risk -> execution-decision with memory reads/writes.
+- Guardrails decide whether execution intent can be emitted.
+- Replay traces and LLM call records allow deterministic post-trade reconstruction.
+- Phase 10 will replace remaining harness-only runtime paths with full infra-backed workers.
+
+## Observability and Monitoring
+
+- Metrics: Prometheus via `/metrics`
+- Logs: structured JSON fields (`trace_id`, `decision_id`, `strategy_id`, `mode`, `service`)
+- Traces: trace context propagation across API/worker/Go runtime helpers
+- Dashboards/alerts: Grafana + Alertmanager configs in `config/observability/`
+
+## Contribution Guide
+
+1. Fork and create a branch (`features/<topic>`).
+2. Run:
+   - `uv run ruff check .`
+   - `uv run pytest -q`
+3. For Go service work:
+   - `cd services/real_execution_go && GOCACHE=/tmp/go-build go test ./...`
+4. Update docs (`README`, `docs/ARD_Consolidated.md`, `docs/IMPLEMENTATION_PLAN.md`) when architecture/runtime behavior changes.
+5. Open PR with:
+   - change summary,
+   - risk assessment,
+   - rollout/rollback notes.
+
+## Roadmap
+
+- Phase 10 runtime production integration (active): concrete worker entrypoints, RabbitMQ/DB adapter replacement, compose full-stack boot, infra-backed E2E validation.
+- Post Phase 10: production deployment automation, scaling policies, and exchange-specific hardening.
+- Longer term: additional notification gateways (Slack/email/webhook/SMS/push), richer strategy plugin marketplace, and advanced risk simulation.
+
+## Future Vision
+
+Open Trader aims to become a transparent autonomous trading platform where:
+
+- AI reasoning is observable and auditable by default,
+- policy and risk controls remain deterministic and enforceable,
+- and operations teams can trust end-to-end behavior under real market stress.

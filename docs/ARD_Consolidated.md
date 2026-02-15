@@ -19,6 +19,34 @@ Architecture objectives:
 - End-to-end traceability of agent prompts, responses, and trade decisions
 - Production-grade observability, integrity checks, and operational controls
 
+### 1.1 Current Implementation Reality (2026-02-15)
+
+The codebase contains strong contract models and test harnesses, but several production runtime paths remain partial. This section is intentionally explicit to prevent contract/runtime drift.
+
+| Domain              | Target Architecture                                                          | Current Implementation Status                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Service entrypoints | Dedicated runtime service entry for each bounded context                     | Concrete Python process entry exists primarily for `notification_worker`; API has factory entry; ingestion/orchestrator/OMS/news runtime loops are mostly harness-driven |
+| Broker path         | RabbitMQ consumers/producers across pipeline                                 | Test/runtime foundation uses in-process broker abstraction broadly; notification worker has RabbitMQ HTTP polling path                                                   |
+| Persistence         | PostgreSQL + TimescaleDB as system of record                                 | Alembic schema exists, but several runtime adapters still persist to SQLite/in-memory stores                                                                             |
+| Real execution (Go) | Queue consumer + concrete bridge adapters + exchange/persistence integration | Queue runner/handler/idempotency contracts exist, but `main.go` remains skeleton with noop consumer/bridge                                                               |
+| Integrity service   | Dedicated service boundary                                                   | `services/integrity_service/` boundary exists but runtime service implementation is not complete                                                                         |
+| Docker runtime      | Full stack boot with one compose command                                     | Current compose primarily runs infra + notification + observability; full trading pipeline services are not yet all bootstrapped                                         |
+
+### 1.2 Architecture Hard Decisions (Locked)
+
+- Time-series storage:
+  - Persist `klines` and sampled `orderbook_snapshots` in TimescaleDB.
+  - Do not persist full raw websocket depth streams end-to-end.
+- Agent triggering:
+  - Hybrid model is mandatory.
+  - Primary event trigger on canonical market events (especially candle-close / context-ready).
+  - Secondary periodic watchdog trigger for liveness and missed-event recovery.
+- Messaging:
+  - RabbitMQ remains mandatory for inter-service asynchronous communication.
+  - Direct cross-service calls are allowed only for local process composition and control-plane reads, not for critical trading dataflow.
+- Deployment:
+  - `docker compose up -d` must boot all critical services without profiles for release readiness.
+
 ## 2. Technology Stack Selection by Component
 
 This stack is authoritative and final. Exactly one technology is selected per category.
@@ -42,7 +70,7 @@ This stack is authoritative and final. Exactly one technology is selected per ca
 | Trace instrumentation                | OpenTelemetry                      | Standardized cross-service trace context propagation for Python and Go services.                                |
 | Trace backend                        | Tempo                              | Durable storage and query for distributed traces.                                                               |
 | Alerting                             | Alertmanager                       | Deterministic rule-based alert fan-out for incidents and policy breaches.                                       |
-| Notification delivery abstraction    | Internal gateway interface         | Keeps notification routing provider-agnostic and extensible across channels.                                   |
+| Notification delivery abstraction    | Internal gateway interface         | Keeps notification routing provider-agnostic and extensible across channels.                                    |
 | Initial notification gateway         | Telegram Bot API                   | Fast operational reach with low integration overhead for first release channel.                                 |
 
 ## 3. High-Level Architecture Overview
@@ -275,6 +303,10 @@ flowchart TB
 - All secrets and runtime configuration are supplied by `.env` files.
 - `.env` files are mounted/injected at container startup.
 - No secrets are committed to source control.
+
+### 4.4 Runtime Readiness Gate
+
+Phase progression must validate concrete runtime integrations (broker, persistence, execution bridge) before marking phases complete. Contract tests and in-memory harness tests are necessary but not sufficient for production readiness.
 
 ## 5. Trading Modes and Execution Architecture
 
@@ -738,6 +770,17 @@ Architecture implementation is complete when:
 - Full decision replay reproduces stored decision traces.
 - Token governance dashboard and quota enforcement are operational.
 - Integrity, risk, and observability controls are validated in staged failure drills.
+
+## 21. Phase 10 Remediation Architecture Track
+
+This remediation track closes the current gap between architectural intent and runtime implementation:
+
+1. Replace in-memory broker usage on runtime critical paths with RabbitMQ clients.
+2. Replace SQLite/in-memory runtime stores with PostgreSQL/Timescale-backed adapters.
+3. Implement dedicated long-running workers for ingestion, orchestrator, simulation execution, OMS reconciliation, and news workflows.
+4. Upgrade Go real execution runtime from noop skeleton to concrete queue + bridge + lifecycle publication path.
+5. Expand compose topology to include the full platform runtime and bootstrap checks.
+6. Enforce end-to-end runtime validation gate before post-Phase-9 go-live.
 
 ## 20. Notification Architecture
 
