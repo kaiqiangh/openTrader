@@ -3,8 +3,8 @@
 ## LLM-Based Multi-Exchange Crypto Trading System
 
 - Version: 1.1 (Revised)
-- Date: 2026-02-14
-- Status: Implementation-ready
+- Date: 2026-02-15
+- Status: Implementation-ready with Phase 10 runtime integration completion
 
 ## 1. Executive Summary
 
@@ -160,6 +160,7 @@ The following decisions are mandatory and final:
   - burst protection and coalescing for repeated events.
 - FR-039: Delivery failures must follow bounded retry policy with backoff, DLQ persistence, and operator-visible failure status.
 - FR-040: Critical notification delivery failures must produce secondary internal alerts and audit logs.
+- FR-041: UI surfaces must be read-only by default for runtime data access; no direct DB write path is allowed from UI components.
 
 ## 7. Non-Functional Requirements
 
@@ -212,11 +213,16 @@ Required persisted domains:
 - News items and summaries
 - Notification preferences, event records, delivery attempts, and delivery outcomes
 
+Persistence policy:
+
+- PostgreSQL + TimescaleDB is the system of record for runtime-critical data.
+- SQLite/in-memory persistence is allowed only for deterministic local tests/dev harnesses and must not be used for production runtime-critical paths.
+
 ## 9. Dashboard Requirements
 
 The UI must include:
 
-- Trading mode status and controls
+- Trading mode status (read-only in current release)
 - Portfolio and risk dashboard
 - Orders, positions, and fills
 - Signal and agent-decision timeline
@@ -224,6 +230,11 @@ The UI must include:
 - Prompt/response inspector with replay support
 - News feed and summary impact panel
 - Notification preference management and delivery status timeline
+
+UI access policy:
+
+- UI is read-only by default and should not perform direct persistence mutations.
+- Operational write actions remain backend-governed, authenticated API operations.
 
 ## 10. Acceptance Criteria
 

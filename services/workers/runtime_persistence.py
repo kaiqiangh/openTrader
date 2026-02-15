@@ -275,14 +275,16 @@ class SQLAlchemyRuntimeOMSStateStore:
         return {str(row["symbol"]): float(row["mark_price"]) for row in rows}
 
     def insert_portfolio_snapshot(self, snapshot: PortfolioSnapshot) -> None:
+        next_snapshot_id = self._next_portfolio_snapshot_id()
         self._db.execute(
             """
             INSERT INTO runtime_oms_portfolio_snapshots
-                (snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today, created_at)
+                (id, snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today, created_at)
             VALUES
-                (:snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_today, :created_at)
+                (:id, :snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_today, :created_at)
             """,
             {
+                "id": next_snapshot_id,
                 "snapshot_time": snapshot.snapshot_time,
                 "mode": snapshot.mode,
                 "total_balance_usd": float(snapshot.total_balance_usd),
@@ -293,6 +295,17 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "created_at": _utc_now_iso(),
             },
         )
+
+    def _next_portfolio_snapshot_id(self) -> int:
+        row = self._db.fetchone(
+            """
+            SELECT COALESCE(MAX(id), 0) AS max_id
+            FROM runtime_oms_portfolio_snapshots
+            """,
+            {},
+        )
+        current = int(row["max_id"]) if row is not None and row.get("max_id") is not None else 0
+        return current + 1
 
     def _ensure_schema(self) -> None:
         self._db.execute(

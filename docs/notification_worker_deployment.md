@@ -6,6 +6,7 @@ This document defines startup config and secret requirements for the notificatio
 
 ## Required Runtime Keys
 
+- `RUNTIME_REQUIRE_DATABASE`
 - `NOTIFY_ENABLED`
 - `NOTIFY_DEFAULT_GATEWAY`
 - `NOTIFICATION_DEFAULT_SEVERITY`
@@ -45,7 +46,12 @@ When launched from project root, worker settings also auto-load `.env` before va
 - Notification worker startup validation only:
   - `uv run python -m services.notification_service.worker --validate-only`
 - One-cycle local smoke run (host process):
-  - `NOTIFY_CONSUMER_BACKEND=inmemory uv run python -m services.notification_service.worker --once`
+  - `NOTIFY_CONSUMER_BACKEND=inmemory RUNTIME_REQUIRE_DATABASE=false uv run python -m services.notification_service.worker --once`
+
+Runtime policy:
+
+- When `RUNTIME_REQUIRE_DATABASE=true`, `NOTIFY_CONSUMER_BACKEND=inmemory` is rejected.
+- Production runtime should use `rabbitmq_http` consumer backend with RabbitMQ credentials configured.
 
 ## Compose Runtime
 

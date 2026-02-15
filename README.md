@@ -267,17 +267,24 @@ The Phase 1 baseline is configured with Docker Compose:
 
 Useful commands:
 
-1. `docker compose up -d` (starts full local stack, including observability and notification worker)
+1. `docker compose up -d` (starts the full local stack)
 2. `docker compose ps`
 3. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
 4. `make migrate-revision MSG='create_initial_tables'`
+5. `make runtime-gate` (compose + smoke + targeted runtime/Go validation gate)
+6. `make mock-workflow` (deterministic mocked realtime workflow check)
+
+Compose startup note:
+
+- `migrator` is a one-shot bootstrap service and should appear as `Exited (0)` after migrations complete.
+- Long-running services (`api`, runtime workers, `notification_worker`, `real_execution_go`) should remain `Up`.
 
 Notification worker runtime (`P7-018`) commands:
 
 1. Startup validation only:
    - `uv run python -m services.notification_service.worker --validate-only`
 2. Run one polling cycle locally:
-   - `NOTIFY_CONSUMER_BACKEND=inmemory uv run python -m services.notification_service.worker --once`
+   - `NOTIFY_CONSUMER_BACKEND=inmemory RUNTIME_REQUIRE_DATABASE=false uv run python -m services.notification_service.worker --once`
 3. Run with Docker Compose service targets:
    - `docker compose up -d notification_worker rabbitmq`
 4. Deployment/secrets reference:
@@ -286,6 +293,7 @@ Notification worker runtime (`P7-018`) commands:
 Smoke test command:
 
 - `make smoke`
+- Runtime bootstrap/gate runbook: `docs/runbooks/runtime-bootstrap-and-gate.md`
 
 Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
 
@@ -338,6 +346,7 @@ Phase 2 market ingestion foundation:
 - `services/market_ingestion/order_book_sync.py` (snapshot + delta sync engine)
 - `services/market_ingestion/gap_detection.py` (sequence gap classification and resync signaling)
 - `services/market_ingestion/kline_validator.py` (k-line continuity and quality validation)
+- `services/integrity_service/` (explicit integrity boundary wrappers for gap detection, k-line validation, and order-book sync modules)
 - `services/market_ingestion/canonical_pipeline.py` (canonical normalization + envelope-validated publisher)
 - `services/market_ingestion/persistence_writers.py` (timeseries persistence row writers)
 - `services/market_ingestion/pipeline_metrics.py` (ingestion lag/rate/reconnect metrics)
@@ -381,8 +390,15 @@ Phase 3 LLM gateway baseline:
 
 LLM env notes:
 
-- `LITELLM_BASE_URL`, `LITELLM_API_KEY`, and `LITELLM_TIMEOUT_SECONDS` are consumed by openTrader runtime modules.
-- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment and are not directly read by openTrader runtime today.
+- `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, and `LITELLM_MODEL` configure the LiteLLM-compatible adapter in `services/llm_gateway/litellm_http_adapter.py`.
+- DeepSeek via LiteLLM example:
+  - `LITELLM_BASE_URL=http://<litellm-host>:4000`
+  - `LITELLM_API_KEY=<litellm-api-key>`
+  - `LITELLM_MODEL=deepseek/deepseek-chat`
+- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment backend and are not directly read by openTrader runtime modules.
+- Validate wiring:
+  - `make mock-workflow` (best-effort probe)
+  - `uv run python scripts/mock_realtime_workflow_test.py --require-litellm` (strict probe)
 
 API auth env notes:
 
@@ -540,11 +556,11 @@ Phase 9 release readiness closure (`P9-007`..`P9-009`):
 
 Core runtime env categories:
 
-- Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`
+- Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`, `API_READ_ONLY_MODE`
 - Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
-- DB runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `ALLOW_SQLITE_RUNTIME`
+- DB/runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `RUNTIME_REQUIRE_DATABASE`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
-- LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`
+- LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
 
@@ -553,7 +569,8 @@ Use `make env-validate` to validate required contracts.
 Database policy:
 
 - Production/runtime persistence must target PostgreSQL + TimescaleDB.
-- SQLite is only allowed for local deterministic tests and requires `ALLOW_SQLITE_RUNTIME=true`.
+- Runtime-critical worker paths enforce database availability by default (`RUNTIME_REQUIRE_DATABASE=true`).
+- SQLite is only allowed for local deterministic tests and requires explicit opt-in (`ALLOW_SQLITE_RUNTIME=true`).
 - Shared DB runtime boundary is implemented in `services/shared/runtime/database.py` and consumed by service adapters.
 
 ## API Endpoints
@@ -601,7 +618,13 @@ To add a new strategy/runtime behavior:
 - The orchestrator receives canonical market events and executes planner -> risk -> execution-decision with memory reads/writes.
 - Guardrails decide whether execution intent can be emitted.
 - Replay traces and LLM call records allow deterministic post-trade reconstruction.
-- Phase 10 will replace remaining harness-only runtime paths with full infra-backed workers.
+- Phase 10 runtime integration gate validates infra-backed flow with `make runtime-gate` and `make mock-workflow`.
+
+## UI Scope
+
+- Current UI is React-based and read-only by default (`API_READ_ONLY_MODE=true`).
+- Dashboard surfaces strategy status, orders/positions/portfolio, risk, news, replay, and LLM governance telemetry.
+- DB writes are not performed from the UI layer; mutating operations remain backend-governed and auth-protected.
 
 ## Observability and Monitoring
 
@@ -626,8 +649,8 @@ To add a new strategy/runtime behavior:
 
 ## Roadmap
 
-- Phase 10 runtime production integration (active): concrete worker entrypoints, RabbitMQ/DB adapter replacement, compose full-stack boot, infra-backed E2E validation.
-- Post Phase 10: production deployment automation, scaling policies, and exchange-specific hardening.
+- Phase 10 runtime production integration (completed): concrete worker entrypoints, RabbitMQ/DB adapter replacement, compose full-stack boot, runtime gate, and deterministic mocked realtime workflow validation.
+- Next: production deployment automation, scaling policies, exchange-specific hardening, and expanded notification gateways.
 - Longer term: additional notification gateways (Slack/email/webhook/SMS/push), richer strategy plugin marketplace, and advanced risk simulation.
 
 ## Future Vision
