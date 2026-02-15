@@ -1,0 +1,682 @@
+from __future__ import annotations
+
+from argparse import ArgumentParser, Namespace
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Protocol
+import asyncio
+import os
+import time
+
+from sqlalchemy.engine import Engine
+
+from services.agent_orchestrator.contracts import StrategyConfig
+from services.agent_orchestrator.memory_layer import AgentMemoryLayer
+from services.agent_orchestrator.orchestrator import AgentOrchestrator
+from services.agent_orchestrator.sqlalchemy_memory_store import (
+    SQLAlchemyLongTermMemoryStore,
+    SQLAlchemyShortTermMemoryStore,
+)
+from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
+from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
+from services.news_ingestion.ingestion_service import InMemoryNewsItemStore, NewsIngestionService
+from services.news_ingestion.source_connectors import (
+    CallableSourceConnector,
+    NewsSourceConnectorFramework,
+    SourceConnectorRegistry,
+)
+from services.news_ingestion.tagging_relevance import InMemoryNewsTagStore, NewsTaggingRelevancePipeline
+from services.news_summarizer.summarizer_service import InMemoryNewsSummaryStore, RollingNewsSummarizer
+from services.oms.fill_reconciliation import FillReconciliationEngine, LifecycleEvent, ReconciliationOrder
+from services.oms.portfolio_snapshot import PortfolioSnapshotEngine
+from services.oms.position_engine import PositionEngine, PositionFill, PositionState
+from services.shared.runtime.broker import InMemoryTopicBroker
+from services.shared.runtime.database import RuntimeDatabaseConfigError, create_runtime_engine_from_env
+from services.shared.runtime.env_loader import load_dotenv_file
+from services.shared.runtime.rabbitmq_http_broker import RabbitMQHTTPTopicBroker
+from services.shared.runtime.structured_logging import StructuredLogger
+from services.simulation_execution.worker import SimulationExecutionWorker
+from services.workers.runtime_persistence import (
+    SQLAlchemyNewsItemStore,
+    SQLAlchemyNewsSummaryStore,
+    SQLAlchemyNewsTagStore,
+    SQLAlchemyRuntimeOMSStateStore,
+)
+from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker, MarketIngestionRuntimeWorker
+
+_WORKER_SERVICE_NAME = "runtime_worker"
+_WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news")
+
+
+class RuntimeWorkerRunner(Protocol):
+    async def run_once(self, *, timeout_seconds: float) -> bool: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeWorkerSettings:
+    worker: str
+    broker_backend: str
+    topology_path: str
+    mode: str
+    symbol: str
+    strategy_id: str
+    once: bool
+    validate_only: bool
+    max_idle_cycles: int
+    poll_timeout_seconds: float
+    idle_sleep_seconds: float
+    bootstrap_topology: bool
+    portfolio_base_balance_usd: float
+    require_database: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeWorkerBuildResult:
+    worker: RuntimeWorkerRunner
+    broker: Any
+
+
+class _SyntheticRestOrderBookClient:
+    def __init__(self, *, base_price: float) -> None:
+        self.base_price = max(base_price, 1.0)
+
+    async def fetch_order_book(self, symbol: str, limit: int | None = None) -> dict[str, Any]:
+        _ = symbol, limit
+        return _build_order_book_payload(
+            base_price=self.base_price,
+            sequence=1000,
+            timestamp_ms=_utc_now_ms(),
+        )
+
+
+class _SyntheticWsOrderBookClient:
+    def __init__(self, *, base_price: float) -> None:
+        self.base_price = max(base_price, 1.0)
+        self._sequence = 1000
+
+    async def watch_order_book(self, symbol: str, limit: int | None = None) -> dict[str, Any]:
+        _ = symbol, limit
+        self._sequence += 1
+        price_shift = ((self._sequence % 6) - 3) * 0.5
+        return _build_order_book_payload(
+            base_price=self.base_price + price_shift,
+            sequence=self._sequence,
+            timestamp_ms=_utc_now_ms(),
+        )
+
+
+class MarketWorkerRunner:
+    def __init__(self, *, worker: MarketIngestionRuntimeWorker) -> None:
+        self.worker = worker
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        _ = timeout_seconds
+        await self.worker.run_once()
+        return True
+
+
+class OrchestratorWorkerRunner:
+    def __init__(self, *, worker: AgentOrchestratorRuntimeWorker, strategy: StrategyConfig) -> None:
+        self.worker = worker
+        self.strategy = strategy
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        result = await self.worker.run_once(
+            strategy=self.strategy,
+            timeout_seconds=timeout_seconds,
+        )
+        return result is not None
+
+
+class SimulationWorkerRunner:
+    def __init__(self, *, worker: SimulationExecutionWorker) -> None:
+        self.worker = worker
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        result = await self.worker.run_once(timeout_seconds=timeout_seconds)
+        return result is not None
+
+
+class OMSLifecycleWorkerRunner:
+    """Stateful OMS loop for reconciliation, position updates, and snapshots."""
+
+    def __init__(
+        self,
+        *,
+        broker: Any,
+        base_balance_usd: float,
+        state_store: SQLAlchemyRuntimeOMSStateStore | None = None,
+    ) -> None:
+        self.broker = broker
+        self.base_balance_usd = base_balance_usd
+        self.state_store = state_store
+        self.reconciliation = FillReconciliationEngine()
+        self.position_engine = PositionEngine()
+        self.snapshot_engine = PortfolioSnapshotEngine()
+        self._orders: dict[str, ReconciliationOrder] = {}
+        self._lifecycle_events: dict[str, list[LifecycleEvent]] = {}
+        self._positions: dict[str, PositionState] = {}
+        self._mark_prices: dict[str, float] = {}
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        envelope = await self.broker.consume(
+            queue_name="oms.events.order_updates",
+            timeout_seconds=timeout_seconds,
+        )
+        if envelope is None:
+            return False
+
+        payload = envelope.get("payload")
+        if not isinstance(payload, Mapping):
+            return False
+        order_id = str(payload.get("order_id", "")).strip()
+        symbol = str(payload.get("symbol", "")).strip()
+        mode = str(payload.get("mode", "MOCK")).strip().upper() or "MOCK"
+        if not order_id or not symbol:
+            return False
+
+        requested_quantity = abs(float(payload.get("quantity", 0.0) or 0.0))
+        if self.state_store is None:
+            existing_order = self._orders.get(
+                order_id,
+                ReconciliationOrder(
+                    order_id=order_id,
+                    symbol=symbol,
+                    mode=mode,
+                    requested_quantity=requested_quantity,
+                ),
+            )
+        else:
+            existing_order = self.state_store.get_order(order_id=order_id) or ReconciliationOrder(
+                order_id=order_id,
+                symbol=symbol,
+                mode=mode,
+                requested_quantity=requested_quantity,
+            )
+        lifecycle_event = _to_lifecycle_event(envelope)
+        if self.state_store is None:
+            events_for_order = self._lifecycle_events.setdefault(order_id, [])
+            events_for_order.append(lifecycle_event)
+        else:
+            self.state_store.append_lifecycle_event(order_id=order_id, event=lifecycle_event)
+            events_for_order = list(self.state_store.load_lifecycle_events(order_id=order_id))
+
+        reconciliation = self.reconciliation.reconcile(
+            order=existing_order,
+            lifecycle_events=tuple(events_for_order),
+            exchange_snapshot=None,
+        )
+        updated_order = ReconciliationOrder(
+            order_id=order_id,
+            symbol=symbol,
+            mode=mode,
+            requested_quantity=existing_order.requested_quantity,
+            status=reconciliation.status,
+            filled_quantity=reconciliation.filled_quantity,
+            average_price=reconciliation.average_price,
+        )
+        if self.state_store is None:
+            self._orders[order_id] = updated_order
+        else:
+            self.state_store.upsert_order(updated_order)
+
+        if lifecycle_event.fill is not None:
+            fill = lifecycle_event.fill
+            side = str(payload.get("action", "BUY")).upper()
+            if self.state_store is None:
+                current = self._positions.get(symbol)
+            else:
+                current = self.state_store.get_position(mode=mode, symbol=symbol)
+            position_update = self.position_engine.apply_fill(
+                position=current,
+                fill=PositionFill(
+                    order_id=order_id,
+                    mode=mode,
+                    symbol=symbol,
+                    side=side,
+                    quantity=fill.quantity,
+                    price=fill.price,
+                    fee=fill.fee,
+                    filled_at=str(envelope.get("emitted_at", _utc_now_iso())),
+                ),
+            )
+            if self.state_store is None:
+                self._positions[symbol] = position_update.current
+                self._mark_prices[symbol] = fill.price
+            else:
+                self.state_store.upsert_position(position_update.current)
+                self.state_store.upsert_mark_price(mode=mode, symbol=symbol, mark_price=fill.price)
+
+        if self.state_store is None:
+            positions = tuple(self._positions.values())
+            mark_prices = dict(self._mark_prices)
+        else:
+            positions = self.state_store.list_positions(mode=mode)
+            mark_prices = self.state_store.load_mark_prices(mode=mode)
+
+        snapshot = self.snapshot_engine.build_snapshot(
+            mode=mode,
+            available_balance_usd=self.base_balance_usd,
+            locked_balance_usd=0.0,
+            positions=positions,
+            mark_prices=mark_prices,
+            realized_pnl_today=sum(position.realized_pnl for position in positions),
+        )
+        if self.state_store is not None:
+            self.state_store.insert_portfolio_snapshot(snapshot)
+        return True
+
+
+class NewsWorkerRunner:
+    def __init__(
+        self,
+        *,
+        item_store: Any | None = None,
+        tag_store: Any | None = None,
+        summary_store: Any | None = None,
+    ) -> None:
+        self.item_store = item_store or InMemoryNewsItemStore()
+        self.tag_store = tag_store or InMemoryNewsTagStore()
+        self.summary_store = summary_store or InMemoryNewsSummaryStore()
+
+        registry = SourceConnectorRegistry()
+        registry.register(
+            CallableSourceConnector(
+                connector_id="mock.crypto",
+                connector_kind="custom",
+                fetcher=self._fetch_mock_records,
+            )
+        )
+        self.framework = NewsSourceConnectorFramework(registry=registry)
+        self.ingestion = NewsIngestionService(store=self.item_store)
+        self.tagging = NewsTaggingRelevancePipeline(store=self.tag_store)
+        self.summarizer = RollingNewsSummarizer(store=self.summary_store)
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        _ = timeout_seconds
+        cycle = self.framework.fetch_cycle(limit_per_source=10)
+        if cycle.total_items == 0:
+            return False
+
+        batch = self.ingestion.ingest(cycle.items)
+        inserted = tuple(
+            outcome.item
+            for outcome in batch.outcomes
+            if outcome.inserted and outcome.item is not None
+        )
+        if not inserted:
+            return False
+
+        tag_result = self.tagging.tag_items(inserted)
+        self.summarizer.summarize_window(
+            symbol_scope="GLOBAL",
+            window_start=_utc_now_iso(),
+            window_end=_utc_now_iso(),
+            items=inserted,
+            tags=tag_result.tags,
+            max_items=5,
+        )
+        return True
+
+    def _fetch_mock_records(self, *, since: str | None, limit: int) -> list[dict[str, Any]]:
+        _ = since
+        if limit <= 0:
+            return []
+        now_iso = _utc_now_iso()
+        return [
+            {
+                "source": "mock.crypto",
+                "source_item_id": f"mock-{int(time.time())}",
+                "published_at": now_iso,
+                "title": "Bitcoin volatility cools as ETF inflows stabilize",
+                "url": "https://example.local/news/mock-bitcoin",
+                "content": "Risk appetite improves and exchange flows normalize.",
+                "metadata": {"language": "en"},
+            }
+        ]
+
+
+def load_runtime_worker_settings(args: Namespace | None = None) -> RuntimeWorkerSettings:
+    load_dotenv_file()
+    parsed = args or _parse_args(None)
+    default_backend = os.getenv("RUNTIME_BROKER_BACKEND", "rabbitmq_http")
+    default_mode = os.getenv("EXECUTION_MODE_DEFAULT", "MOCK")
+    return RuntimeWorkerSettings(
+        worker=parsed.worker,
+        broker_backend=(parsed.broker_backend or default_backend).strip().lower(),
+        topology_path=parsed.topology_path,
+        mode=(parsed.mode or default_mode).strip().upper(),
+        symbol=(parsed.symbol or os.getenv("TRADE_SYMBOL", "BTC/USDT")).strip().upper(),
+        strategy_id=(parsed.strategy_id or os.getenv("STRATEGY_ID", "default-strategy")).strip(),
+        once=bool(parsed.once),
+        validate_only=bool(parsed.validate_only),
+        max_idle_cycles=max(0, int(parsed.max_idle_cycles)),
+        poll_timeout_seconds=max(0.0, float(parsed.poll_timeout_seconds)),
+        idle_sleep_seconds=max(0.0, float(parsed.idle_sleep_seconds)),
+        bootstrap_topology=bool(parsed.bootstrap_topology),
+        portfolio_base_balance_usd=max(
+            0.0,
+            float(
+                os.getenv(
+                    "OMS_PORTFOLIO_BASE_BALANCE_USD",
+                    "100000.0",
+                )
+            ),
+        ),
+        require_database=_to_bool(os.getenv("RUNTIME_REQUIRE_DATABASE", "true")),
+    )
+
+
+def build_runtime_worker(
+    *,
+    settings: RuntimeWorkerSettings,
+    broker: Any | None = None,
+    runtime_engine: Engine | None = None,
+) -> RuntimeWorkerBuildResult:
+    runtime_broker = broker or build_runtime_broker(
+        backend=settings.broker_backend,
+        topology_path=settings.topology_path,
+    )
+    if settings.worker == "market":
+        market_worker = _build_market_worker(settings=settings, broker=runtime_broker)
+        return RuntimeWorkerBuildResult(worker=MarketWorkerRunner(worker=market_worker), broker=runtime_broker)
+    if settings.worker == "orchestrator":
+        memory_layer: AgentMemoryLayer | None = None
+        if runtime_engine is not None:
+            memory_layer = AgentMemoryLayer(
+                short_term_store=SQLAlchemyShortTermMemoryStore(connection=runtime_engine),
+                long_term_store=SQLAlchemyLongTermMemoryStore(connection=runtime_engine),
+                decision_ttl_seconds=max(60, int(os.getenv("AGENT_DECISION_TTL_SECONDS", "900"))),
+            )
+        orchestrator_worker = AgentOrchestratorRuntimeWorker(
+            broker_consumer=runtime_broker,
+            orchestrator=AgentOrchestrator(
+                publisher=runtime_broker,
+                memory_layer=memory_layer,
+            ),
+        )
+        strategy = _strategy_from_settings(settings=settings)
+        return RuntimeWorkerBuildResult(
+            worker=OrchestratorWorkerRunner(worker=orchestrator_worker, strategy=strategy),
+            broker=runtime_broker,
+        )
+    if settings.worker == "simulation":
+        simulation_worker = SimulationExecutionWorker(broker=runtime_broker)
+        return RuntimeWorkerBuildResult(
+            worker=SimulationWorkerRunner(worker=simulation_worker),
+            broker=runtime_broker,
+        )
+    if settings.worker == "oms":
+        state_store = (
+            SQLAlchemyRuntimeOMSStateStore(connection=runtime_engine)
+            if runtime_engine is not None
+            else None
+        )
+        return RuntimeWorkerBuildResult(
+            worker=OMSLifecycleWorkerRunner(
+                broker=runtime_broker,
+                base_balance_usd=settings.portfolio_base_balance_usd,
+                state_store=state_store,
+            ),
+            broker=runtime_broker,
+        )
+    if settings.worker == "news":
+        if runtime_engine is None:
+            news_worker = NewsWorkerRunner()
+        else:
+            news_worker = NewsWorkerRunner(
+                item_store=SQLAlchemyNewsItemStore(connection=runtime_engine),
+                tag_store=SQLAlchemyNewsTagStore(connection=runtime_engine),
+                summary_store=SQLAlchemyNewsSummaryStore(connection=runtime_engine),
+            )
+        return RuntimeWorkerBuildResult(worker=news_worker, broker=runtime_broker)
+    raise ValueError(f"unsupported runtime worker: {settings.worker}")
+
+
+def build_runtime_broker(*, backend: str, topology_path: str) -> Any:
+    normalized = backend.strip().lower()
+    if normalized == "inmemory":
+        return InMemoryTopicBroker.from_topology_file(topology_path)
+    if normalized == "rabbitmq_http":
+        return RabbitMQHTTPTopicBroker.from_env(topology_path=topology_path)
+    raise ValueError("RUNTIME_BROKER_BACKEND must be 'inmemory' or 'rabbitmq_http'")
+
+
+async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult) -> int:
+    logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
+
+    if settings.bootstrap_topology and hasattr(build.broker, "bootstrap_topology"):
+        await build.broker.bootstrap_topology()
+
+    if settings.validate_only:
+        logger.info(
+            event="runtime.worker.validation_passed",
+            context={"worker": settings.worker, "broker_backend": settings.broker_backend},
+        )
+        return 0
+
+    idle_cycles = 0
+    while True:
+        did_work = await build.worker.run_once(timeout_seconds=settings.poll_timeout_seconds)
+        if did_work:
+            idle_cycles = 0
+            if settings.once:
+                return 0
+            continue
+
+        idle_cycles += 1
+        if settings.once:
+            return 0
+        if settings.max_idle_cycles > 0 and idle_cycles >= settings.max_idle_cycles:
+            return 0
+        await asyncio.sleep(settings.idle_sleep_seconds)
+
+
+def main(argv: list[str] | None = None) -> int:
+    startup_logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
+    parsed_args = _parse_args(argv)
+    try:
+        settings = load_runtime_worker_settings(parsed_args)
+        _validate_runtime_backend_policy(settings=settings)
+        runtime_engine = _resolve_runtime_engine(settings=settings)
+        build = build_runtime_worker(settings=settings, runtime_engine=runtime_engine)
+        return asyncio.run(run_worker_loop(settings=settings, build=build))
+    except (RuntimeDatabaseConfigError, ValueError) as exc:
+        startup_logger.error(
+            event="runtime.worker.startup.validation_failed",
+            context={"error": str(exc)},
+        )
+        return 1
+
+
+def _validate_runtime_backend_policy(*, settings: RuntimeWorkerSettings) -> None:
+    if settings.require_database and settings.broker_backend == "inmemory":
+        raise ValueError(
+            "inmemory broker backend is disabled when RUNTIME_REQUIRE_DATABASE=true; use rabbitmq_http backend"
+        )
+
+
+def _resolve_runtime_engine(*, settings: RuntimeWorkerSettings) -> Engine | None:
+    if not settings.require_database:
+        return None
+    runtime_engine = create_runtime_engine_from_env()
+    with runtime_engine.connect() as connection:
+        value = connection.exec_driver_sql("SELECT 1").scalar_one()
+        if value != 1:
+            raise RuntimeDatabaseConfigError("runtime database connectivity check returned an unexpected response")
+    return runtime_engine
+
+
+def _build_market_worker(*, settings: RuntimeWorkerSettings, broker: Any) -> MarketIngestionRuntimeWorker:
+    base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
+    adapter = CCXTIngestionAdapter(
+        exchange=os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower(),
+        rest_client=_SyntheticRestOrderBookClient(base_price=base_price),
+        ws_client=_SyntheticWsOrderBookClient(base_price=base_price),
+    )
+    return MarketIngestionRuntimeWorker(
+        adapter=adapter,
+        pipeline=CanonicalNormalizationPipeline(publisher=broker),
+        symbol=settings.symbol,
+        mode=settings.mode,
+        depth=20,
+    )
+
+
+def _strategy_from_settings(*, settings: RuntimeWorkerSettings) -> StrategyConfig:
+    return StrategyConfig(
+        strategy_id=settings.strategy_id,
+        symbol=settings.symbol,
+        mode=settings.mode,
+        order_size=float(os.getenv("STRATEGY_ORDER_SIZE", "0.1")),
+        planner_buy_threshold=float(os.getenv("STRATEGY_PLANNER_BUY_THRESHOLD", "0.2")),
+        planner_sell_threshold=float(os.getenv("STRATEGY_PLANNER_SELL_THRESHOLD", "0.2")),
+        risk_max_notional_usd=float(os.getenv("STRATEGY_RISK_MAX_NOTIONAL_USD", "50000")),
+        risk_max_position_size=float(os.getenv("STRATEGY_RISK_MAX_POSITION_SIZE", "1.0")),
+        risk_max_drawdown_pct=float(os.getenv("STRATEGY_RISK_MAX_DRAWDOWN_PCT", "0.3")),
+        risk_min_confidence=float(os.getenv("STRATEGY_RISK_MIN_CONFIDENCE", "0.2")),
+    )
+
+
+def _build_order_book_payload(*, base_price: float, sequence: int, timestamp_ms: int) -> dict[str, Any]:
+    bid_0 = round(base_price - 0.5, 4)
+    ask_0 = round(base_price + 0.5, 4)
+    return {
+        "nonce": sequence,
+        "U": sequence,
+        "u": sequence,
+        "timestamp": timestamp_ms,
+        "bids": [[bid_0, 5.0], [round(bid_0 - 1.0, 4), 2.5]],
+        "asks": [[ask_0, 4.0], [round(ask_0 + 1.0, 4), 2.0]],
+    }
+
+
+def _to_lifecycle_event(envelope: Mapping[str, Any]) -> LifecycleEvent:
+    event_type = str(envelope.get("event_type", ""))
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return LifecycleEvent(event_type=event_type)
+    if event_type not in {"oms.order.filled", "oms.order.partially_filled"}:
+        return LifecycleEvent(event_type=event_type)
+    order_id = str(payload.get("order_id", ""))
+    if not order_id:
+        return LifecycleEvent(event_type=event_type)
+    fill_price = payload.get("fill_price", payload.get("price", 0.0))
+    fill = PositionFill(
+        order_id=order_id,
+        mode=str(payload.get("mode", "MOCK")),
+        symbol=str(payload.get("symbol", "")),
+        side=str(payload.get("action", "BUY")),
+        quantity=abs(float(payload.get("quantity", 0.0) or 0.0)),
+        price=float(fill_price or 0.0),
+        fee=float(payload.get("fee_paid", payload.get("fee", 0.0)) or 0.0),
+        filled_at=str(envelope.get("emitted_at", _utc_now_iso())),
+    )
+    return LifecycleEvent(
+        event_type=event_type,
+        fill=_position_fill_to_reconciliation_fill(fill=fill),
+    )
+
+
+def _position_fill_to_reconciliation_fill(*, fill: PositionFill):
+    from services.oms.fill_reconciliation import ReconciliationFill
+
+    return ReconciliationFill(
+        fill_id=f"fill:{fill.order_id}:{fill.filled_at or _utc_now_iso()}",
+        order_id=fill.order_id,
+        quantity=abs(float(fill.quantity)),
+        price=float(fill.price),
+        fee=float(fill.fee),
+        source="runtime_worker",
+    )
+
+
+def _utc_now_ms() -> int:
+    return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_args(argv: list[str] | None) -> Namespace:
+    parser = ArgumentParser(description="Runtime worker entrypoints for phase-10 integration")
+    parser.add_argument(
+        "--worker",
+        choices=_WORKER_CHOICES,
+        required=True,
+        help="worker role to run",
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="process at most one work cycle and exit",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="build runtime dependencies and exit",
+    )
+    parser.add_argument(
+        "--bootstrap-topology",
+        action="store_true",
+        help="bootstrap RabbitMQ topology before running the loop",
+    )
+    parser.add_argument(
+        "--max-idle-cycles",
+        type=int,
+        default=0,
+        help="exit after N empty polls (0 = unlimited)",
+    )
+    parser.add_argument(
+        "--poll-timeout-seconds",
+        type=float,
+        default=float(os.getenv("RUNTIME_WORKER_POLL_TIMEOUT_SECONDS", "0.5")),
+        help="queue poll timeout for consumer workers",
+    )
+    parser.add_argument(
+        "--idle-sleep-seconds",
+        type=float,
+        default=float(os.getenv("RUNTIME_WORKER_IDLE_SLEEP_SECONDS", "0.5")),
+        help="sleep duration between empty polls",
+    )
+    parser.add_argument(
+        "--broker-backend",
+        default=os.getenv("RUNTIME_BROKER_BACKEND"),
+        help="runtime broker backend (inmemory or rabbitmq_http)",
+    )
+    parser.add_argument(
+        "--topology-path",
+        default="config/rabbitmq/topology.json",
+        help="RabbitMQ topology path for inmemory and bootstrap flows",
+    )
+    parser.add_argument(
+        "--mode",
+        default=os.getenv("EXECUTION_MODE_DEFAULT"),
+        help="runtime mode (MOCK or REAL)",
+    )
+    parser.add_argument(
+        "--symbol",
+        default=os.getenv("TRADE_SYMBOL", "BTC/USDT"),
+        help="strategy/trading symbol",
+    )
+    parser.add_argument(
+        "--strategy-id",
+        default=os.getenv("STRATEGY_ID", "default-strategy"),
+        help="strategy identifier",
+    )
+    return parser.parse_args(argv)
+
+
+def _to_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"invalid boolean value: {value}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
