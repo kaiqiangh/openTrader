@@ -38,6 +38,7 @@ from services.shared.runtime.rabbitmq_http_broker import RabbitMQHTTPTopicBroker
 from services.shared.runtime.structured_logging import StructuredLogger
 from services.simulation_execution.worker import SimulationExecutionWorker
 from services.workers.runtime_persistence import (
+    SQLAlchemyRuntimeMarketStore,
     SQLAlchemyNewsItemStore,
     SQLAlchemyNewsSummaryStore,
     SQLAlchemyNewsTagStore,
@@ -379,7 +380,11 @@ def build_runtime_worker(
         topology_path=settings.topology_path,
     )
     if settings.worker == "market":
-        market_worker = _build_market_worker(settings=settings, broker=runtime_broker)
+        market_worker = _build_market_worker(
+            settings=settings,
+            broker=runtime_broker,
+            runtime_engine=runtime_engine,
+        )
         return RuntimeWorkerBuildResult(worker=MarketWorkerRunner(worker=market_worker), broker=runtime_broker)
     if settings.worker == "orchestrator":
         memory_layer: AgentMemoryLayer | None = None
@@ -508,19 +513,26 @@ def _resolve_runtime_engine(*, settings: RuntimeWorkerSettings) -> Engine | None
     return runtime_engine
 
 
-def _build_market_worker(*, settings: RuntimeWorkerSettings, broker: Any) -> MarketIngestionRuntimeWorker:
+def _build_market_worker(
+    *,
+    settings: RuntimeWorkerSettings,
+    broker: Any,
+    runtime_engine: Engine | None,
+) -> MarketIngestionRuntimeWorker:
     base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
     adapter = CCXTIngestionAdapter(
         exchange=os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower(),
         rest_client=_SyntheticRestOrderBookClient(base_price=base_price),
         ws_client=_SyntheticWsOrderBookClient(base_price=base_price),
     )
+    state_store = SQLAlchemyRuntimeMarketStore(connection=runtime_engine) if runtime_engine is not None else None
     return MarketIngestionRuntimeWorker(
         adapter=adapter,
         pipeline=CanonicalNormalizationPipeline(publisher=broker),
         symbol=settings.symbol,
         mode=settings.mode,
         depth=20,
+        state_store=state_store,
     )
 
 

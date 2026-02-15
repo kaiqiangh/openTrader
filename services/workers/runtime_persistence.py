@@ -10,12 +10,51 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
+from services.market_ingestion.sqlalchemy_store import SQLAlchemyTimeseriesStore
 from services.news_ingestion.ingestion_service import NormalizedNewsItem
 from services.news_ingestion.tagging_relevance import NewsTag
 from services.news_summarizer.summarizer_service import NewsSummaryArtifact
 from services.oms.fill_reconciliation import LifecycleEvent, ReconciliationFill, ReconciliationOrder
 from services.oms.portfolio_snapshot import PortfolioSnapshot
 from services.oms.position_engine import PositionState
+
+
+class SQLAlchemyRuntimeMarketStore:
+    """Market runtime persistence bridge backed by the shared timeseries store."""
+
+    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection) -> None:
+        self._timeseries = SQLAlchemyTimeseriesStore(connection=connection)
+
+    async def persist_orderbook_envelope(self, envelope: Mapping[str, Any]) -> None:
+        payload = envelope.get("payload")
+        if not isinstance(payload, Mapping):
+            raise ValueError("market envelope payload must be a mapping")
+
+        exchange = str(payload.get("exchange", "")).strip()
+        symbol = str(payload.get("symbol", "")).strip()
+        if not exchange or not symbol:
+            raise ValueError("market envelope payload requires exchange and symbol")
+
+        bids = _normalize_levels(payload.get("bids"))
+        asks = _normalize_levels(payload.get("asks"))
+        best_bid = max((level["price"] for level in bids), default=0.0)
+        best_ask_candidates = [level["price"] for level in asks if level["price"] > 0.0]
+        best_ask = min(best_ask_candidates, default=0.0)
+        spread_bps = _compute_spread_bps(best_bid=best_bid, best_ask=best_ask)
+        snapshot_time = _as_iso(payload.get("timestamp_ms")) or _utc_now_iso()
+
+        await self._timeseries.upsert_orderbook_snapshot(
+            {
+                "snapshot_time": snapshot_time,
+                "exchange": exchange,
+                "symbol": symbol,
+                "bids": bids,
+                "asks": asks,
+                "best_bid": best_bid,
+                "best_ask": best_ask,
+                "spread_bps": spread_bps,
+            }
+        )
 
 
 class SQLAlchemyRuntimeOMSStateStore:
@@ -608,3 +647,46 @@ class _StoreConnection:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _as_iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip():
+        return value
+    try:
+        timestamp_ms = int(value)
+    except (TypeError, ValueError):
+        return None
+    return datetime.fromtimestamp(timestamp_ms / 1000.0, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_levels(value: Any) -> list[dict[str, float]]:
+    if not isinstance(value, list):
+        return []
+    levels: list[dict[str, float]] = []
+    for raw in value:
+        if not isinstance(raw, Mapping):
+            continue
+        price = _to_float(raw.get("price"), default=0.0)
+        amount = _to_float(raw.get("amount"), default=0.0)
+        if price <= 0.0 or amount <= 0.0:
+            continue
+        levels.append({"price": price, "amount": amount})
+    return levels
+
+
+def _compute_spread_bps(*, best_bid: float, best_ask: float) -> float:
+    if best_bid <= 0.0 or best_ask <= 0.0:
+        return 0.0
+    mid = (best_bid + best_ask) / 2.0
+    if mid <= 0.0:
+        return 0.0
+    return ((best_ask - best_bid) / mid) * 10_000.0
+
+
+def _to_float(value: Any, *, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
