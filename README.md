@@ -541,13 +541,20 @@ Phase 9 release readiness closure (`P9-007`..`P9-009`):
 Core runtime env categories:
 
 - Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`
-- Data: `POSTGRES_*`, `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
+- Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
+- DB runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
 - LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
 
 Use `make env-validate` to validate required contracts.
+
+Database policy:
+
+- Production/runtime persistence must target PostgreSQL + TimescaleDB.
+- SQLite is only allowed for local deterministic tests and requires `ALLOW_SQLITE_RUNTIME=true`.
+- Shared DB runtime boundary is implemented in `services/shared/runtime/database.py` and consumed by service adapters.
 
 ## API Endpoints
 
