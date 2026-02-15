@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from services.api.routers import (
@@ -58,6 +59,17 @@ def create_app(
 
         method = request.method.upper()
         path = request.url.path
+        if (
+            request.app.state.settings.read_only_mode
+            and method in {"POST", "PUT", "PATCH", "DELETE"}
+            and not path.startswith("/internal/")
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "API is running in read-only mode; write operations are disabled",
+                },
+            )
         logger.info(
             event="http.request.started",
             trace_id=trace_context.trace_id,
