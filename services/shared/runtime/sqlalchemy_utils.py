@@ -1,22 +1,20 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sqlite3
+from collections.abc import Mapping
+
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+
+from services.shared.runtime.database import create_runtime_engine, load_runtime_database_settings
 
 
-def create_engine_from_url(database_url: str) -> sqlite3.Connection:
-    """Compatibility helper used by runtime adapters in environments without SQLAlchemy."""
-    if not database_url:
+def create_engine_from_url(database_url: str) -> Engine:
+    """Create a SQLAlchemy engine for runtime/test database URLs."""
+    if not database_url or not database_url.strip():
         raise ValueError("database_url must be non-empty")
+    return create_engine(database_url.strip(), future=True, pool_pre_ping=True)
 
-    prefix = "sqlite:///"
-    if not database_url.startswith(prefix):
-        raise ValueError("only sqlite:/// URLs are supported in this runtime helper")
 
-    db_path = database_url[len(prefix) :]
-    if not db_path:
-        raise ValueError("sqlite path must be non-empty")
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    return connection
+def create_engine_from_env(env: Mapping[str, str] | None = None) -> Engine:
+    settings = load_runtime_database_settings(env=env)
+    return create_runtime_engine(settings)
