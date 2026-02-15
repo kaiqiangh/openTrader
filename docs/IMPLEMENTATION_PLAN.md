@@ -89,6 +89,10 @@ Use this exact format in each update:
 | 46   | 2026-02-15 | P9-007,P9-008,P9-009                             | -                         | -           | Added data-integrity/security acceptance suites and release checklist/cutover package; Phase 9 closure validation complete                                                                                           | 100%      |
 | 47   | 2026-02-15 | Post-Phase-9 handoff pack                        | -                         | -           | Added go-live owner matrix, hypercare checklist, and backlog triage pack linked from release docs/README                                                                                                             | 100%      |
 | 48   | 2026-02-15 | Alignment review + phase-10 remediation planning | P10-001,P10-002,P10-003   | -           | Completed repo-to-doc truth audit and added Phase 10 remediation track for runtime entrypoints, RabbitMQ/DB adapters, and full compose boot gating                                                                   | 100%      |
+| 49   | 2026-02-15 | P10 runtime slice (workers + RabbitMQ + stores) | P10-001,P10-002,P10-003   | -           | Added runtime worker entrypoint CLI skeleton, shared RabbitMQ HTTP topic broker adapter, SQLAlchemy/postgres-capable runtime store bindings, and new validation tests; full pytest and ruff are green             | 100%      |
+| 50   | 2026-02-15 | Runtime DB policy hardening + doc-test fixes     | P10-001,P10-002,P10-003   | -           | Added shared runtime database layer (`services/shared/runtime/database.py`) with Postgres-first policy and explicit sqlite test override, verified doc-format tests, and kept full pytest/ruff green                | 100%      |
+| 51   | 2026-02-15 | P10 DB fail-fast + worker SQL stores + Go concrete start | P10-001,P10-002,P10-003,P10-004 | -           | Added runtime worker DB startup fail-fast check, SQL-backed OMS/news worker stores, and concrete Go RabbitMQ consumer/bridge/publisher wiring with lifecycle event publishing; Python lint/tests and Go tests green | 100%      |
+| 52   | 2026-02-15 | P10 runtime compose/smoke hardening + status rebaseline | P10-001,P10-002,P10-004   | P10-003,P10-005,P10-006,P10-007 | Hardened real-execution consumer resiliency, fixed smoke RabbitMQ host/topology probes, validated `make smoke` + targeted pytest/Go tests, and rebaselined Phase 10 status board to runtime evidence               | 100%      |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -522,21 +526,57 @@ Use this exact format in each update:
 - Next Task IDs: [P10-001, P10-002, P10-003]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-15 22:40
+
+- Completed Task IDs: [P10 runtime scaffolding slice]
+- In Progress Task IDs: [P10-001, P10-002, P10-003]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Runtime market/news workers currently run synthetic sources; concrete exchange/news connectors and infra-backed news persistence still required before Phase 10 closure.
+- Next Task IDs: [P10-001, P10-002, P10-003, P10-004]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:20
+
+- Completed Task IDs: [Runtime DB layer baseline, doc-format regression fix validation]
+- In Progress Task IDs: [P10-001, P10-002, P10-003]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Runtime persistence adapter wiring is now Postgres-first by contract, but some worker paths still use in-memory state and need migration to close `P10-003`.
+- Next Task IDs: [P10-001, P10-002, P10-003, P10-004]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:55
+
+- Completed Task IDs: [P10 runtime DB fail-fast startup path, P10 worker SQL state slice, P10-004 concrete adapter start]
+- In Progress Task IDs: [P10-001, P10-002, P10-003, P10-004, P10-007]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Go bridge and RabbitMQ HTTP wiring is now concrete, but end-to-end compose runtime validation with real broker+DB and execution bridge endpoint readiness is still pending.
+- Next Task IDs: [P10-002, P10-003, P10-004, P10-005, P10-006]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:59
+
+- Completed Task IDs: [P10-001, P10-002, P10-004 runtime validation slice]
+- In Progress Task IDs: [P10-003, P10-005, P10-006, P10-007]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Runtime compose services currently depend on `uv sync` at container startup; intermittent network/DNS failures can still cause worker restarts and should be removed from production startup paths.
+- Next Task IDs: [P10-003, P10-005, P10-006, P10-007]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                                     | Exit Gate                                           | Status      |
 | ----- | ---------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------- | ----------- |
-| 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts                           | CI passes on scaffold; standards documented         | DONE        |
-| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events                    | Core infra online via Docker Compose                | DONE        |
-| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection                           | Continuous market flow with integrity checks        | DONE        |
-| 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails                          | Validated agent decision pipeline                   | DONE        |
-| 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport        | Runnable Phase 2-3 pipeline validation completed    | DONE        |
-| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing                     | End-to-end mock and real flows validated            | DONE        |
-| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control                   | Risk gates verified; lifecycle consistent           | DONE        |
-| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection                 | News affects agent context safely                   | DONE        |
-| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications                      | Operator workflows and alerts usable end-to-end     | DONE        |
-| 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                                | SLO and security baseline met                       | DONE        |
-| 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                                 | Production-readiness sign-off                       | DONE        |
+| 0     | Program Setup                      | Repo, standards, CI skeleton, environment contracts                           | CI passes on scaffold; standards documented         | DONE |
+| 1     | Data + Messaging Foundation        | PostgreSQL+Timescale, Redis, RabbitMQ, base schemas/events                    | Core infra online via Docker Compose                | DONE |
+| 2     | Market Ingestion + Integrity       | Robust exchange ingestion with resync/gap detection                           | Continuous market flow with integrity checks        | DONE |
+| 3     | Agent Runtime + LLM Gateway        | Multi-agent orchestration with memory and guardrails                          | Validated agent decision pipeline                   | DONE |
+| 3.5   | Runtime Integration Gate           | Concrete adapters/workers for broker, persistence, and model transport        | Runnable Phase 2-3 pipeline validation completed    | DONE |
+| 4     | Dual Execution Modes               | MOCK simulation + REAL execution (Go) with strict routing                     | End-to-end mock and real flows validated            | DONE |
+| 5     | OMS + Portfolio + Risk             | Full lifecycle state machine and risk-authoritative control                   | Risk gates verified; lifecycle consistent           | DONE |
+| 6     | News Intelligence Module           | News ingestion, persistence, summarization, context injection                 | News affects agent context safely                   | DONE |
+| 7     | API + Dashboard + Notifications    | Control plane, observability UI, and event notifications                      | Operator workflows and alerts usable end-to-end     | DONE |
+| 8     | Observability + Security Hardening | Logs/metrics/traces/alerts + RBAC + encryption                                | SLO and security baseline met                       | DONE |
+| 9     | Validation + Perf + Release        | E2E, load, chaos, replay validation, runbooks                                 | Production-readiness sign-off                       | DONE |
 | 10    | Runtime Production Integration     | Replace harness adapters with concrete runtime workers and infra-backed paths | Full pipeline runnable on real broker+DB in compose | IN_PROGRESS |
 
 ## 3. Workstreams
@@ -571,13 +611,13 @@ Create implementation scaffolding, coding standards, CI gates, and environment t
 
 | ID     | Pri | Task                        | Actionable Steps                                                                                                                                                                                                     | Dependencies  | Deliverable                   | Status |
 | ------ | --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------- | ------ |
-| P0-001 | P0  | Repo structure bootstrap    | Create service directories (`api`, `market_ingestion`, `integrity_service`, `agent_orchestrator`, `llm_gateway`, `simulation_execution`, `real_execution_go`, `oms`, `news_ingestion`, `news_summarizer`, `workers`) | -             | Deterministic monorepo layout | DONE   |
-| P0-002 | P0  | Python baseline setup       | Configure Python 3.13 tooling, dependency management, formatting, linting, typing                                                                                                                                    | P0-001        | Reproducible Python toolchain | DONE   |
-| P0-003 | P0  | Go baseline setup           | Configure Go module for `real_execution_go`, lint/test setup                                                                                                                                                         | P0-001        | Reproducible Go toolchain     | DONE   |
-| P0-004 | P0  | `.env` schema contract      | Define required env vars per service and validation script                                                                                                                                                           | P0-001        | `.env.example` + validator    | DONE   |
-| P0-005 | P1  | CI skeleton                 | Add workflows for lint/test/build for Python and Go                                                                                                                                                                  | P0-002,P0-003 | Green CI on scaffold          | DONE   |
-| P0-006 | P1  | Architecture decision index | Add ADR directory and initial ADRs for ARD mandates                                                                                                                                                                  | P0-001        | ADR baseline                  | DONE   |
-| P0-007 | P1  | Local developer onboarding  | Add `Makefile`/task runner commands and bootstrap docs                                                                                                                                                               | P0-001        | Onboarding playbook           | DONE   |
+| P0-001 | P0  | Repo structure bootstrap    | Create service directories (`api`, `market_ingestion`, `integrity_service`, `agent_orchestrator`, `llm_gateway`, `simulation_execution`, `real_execution_go`, `oms`, `news_ingestion`, `news_summarizer`, `workers`) | -             | Deterministic monorepo layout | DONE |
+| P0-002 | P0  | Python baseline setup       | Configure Python 3.13 tooling, dependency management, formatting, linting, typing                                                                                                                                    | P0-001        | Reproducible Python toolchain | DONE |
+| P0-003 | P0  | Go baseline setup           | Configure Go module for `real_execution_go`, lint/test setup                                                                                                                                                         | P0-001        | Reproducible Go toolchain     | DONE |
+| P0-004 | P0  | `.env` schema contract      | Define required env vars per service and validation script                                                                                                                                                           | P0-001        | `.env.example` + validator    | DONE |
+| P0-005 | P1  | CI skeleton                 | Add workflows for lint/test/build for Python and Go                                                                                                                                                                  | P0-002,P0-003 | Green CI on scaffold          | DONE |
+| P0-006 | P1  | Architecture decision index | Add ADR directory and initial ADRs for ARD mandates                                                                                                                                                                  | P0-001        | ADR baseline                  | DONE |
+| P0-007 | P1  | Local developer onboarding  | Add `Makefile`/task runner commands and bootstrap docs                                                                                                                                                               | P0-001        | Onboarding playbook           | DONE |
 
 ---
 
@@ -597,16 +637,16 @@ Implement foundational infrastructure: PostgreSQL+TimescaleDB, Redis, RabbitMQ, 
 
 | ID     | Pri | Task                          | Actionable Steps                                                                                            | Dependencies | Deliverable                         | Status |
 | ------ | --- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------- | ------ |
-| P1-001 | P0  | Docker Compose core stack     | Define services for postgres-timescaledb, redis, rabbitmq, shared networks, volumes                         | P0-004       | Running infra stack                 | DONE   |
-| P1-002 | P0  | Database migration framework  | Set up migrations and migration CI check                                                                    | P1-001       | Repeatable schema migration process | DONE   |
-| P1-003 | P0  | Core trading schema           | Implement `exchanges`, `symbols`, `orders`, `fills`, `positions`, `portfolio_snapshots`                     | P1-002       | Trading schema v1                   | DONE   |
-| P1-004 | P0  | Time-series schema            | Implement Timescale hypertables for `klines`, `orderbook_snapshots`                                         | P1-002       | Time-series schema v1               | DONE   |
-| P1-005 | P0  | Agent trace schema            | Implement `decision_traces`, `agent_runs`, `agent_messages`                                                 | P1-002       | Agent trace persistence             | DONE   |
-| P1-006 | P0  | LLM governance schema         | Implement `llm_calls`, `llm_usage_daily`, `llm_usage_monthly`, `llm_quota_limits`                           | P1-002       | LLM observability schema            | DONE   |
-| P1-007 | P1  | News schema                   | Implement `news_items`, `news_tags`, `news_summaries`, `decision_news_links`                                | P1-002       | News persistence schema             | DONE   |
-| P1-008 | P0  | RabbitMQ topology declaration | Define exchanges, routing keys, queues, DLQs (`market.canonical`, `execution.intent.*`, `oms.events`, etc.) | P1-001       | Versioned broker topology           | DONE   |
-| P1-009 | P1  | Message envelope contract     | Define shared envelope (`trace_id`, `decision_id`, `mode`, `idempotency_key`) and schema validators         | P1-008       | Canonical event contract package    | DONE   |
-| P1-010 | P1  | Redis namespace strategy      | Define keys/TTL for short-term memory, snapshots, rate limits, locks                                        | P1-001       | Redis keyspace spec                 | DONE   |
+| P1-001 | P0  | Docker Compose core stack     | Define services for postgres-timescaledb, redis, rabbitmq, shared networks, volumes                         | P0-004       | Running infra stack                 | DONE |
+| P1-002 | P0  | Database migration framework  | Set up migrations and migration CI check                                                                    | P1-001       | Repeatable schema migration process | DONE |
+| P1-003 | P0  | Core trading schema           | Implement `exchanges`, `symbols`, `orders`, `fills`, `positions`, `portfolio_snapshots`                     | P1-002       | Trading schema v1                   | DONE |
+| P1-004 | P0  | Time-series schema            | Implement Timescale hypertables for `klines`, `orderbook_snapshots`                                         | P1-002       | Time-series schema v1               | DONE |
+| P1-005 | P0  | Agent trace schema            | Implement `decision_traces`, `agent_runs`, `agent_messages`                                                 | P1-002       | Agent trace persistence             | DONE |
+| P1-006 | P0  | LLM governance schema         | Implement `llm_calls`, `llm_usage_daily`, `llm_usage_monthly`, `llm_quota_limits`                           | P1-002       | LLM observability schema            | DONE |
+| P1-007 | P1  | News schema                   | Implement `news_items`, `news_tags`, `news_summaries`, `decision_news_links`                                | P1-002       | News persistence schema             | DONE |
+| P1-008 | P0  | RabbitMQ topology declaration | Define exchanges, routing keys, queues, DLQs (`market.canonical`, `execution.intent.*`, `oms.events`, etc.) | P1-001       | Versioned broker topology           | DONE |
+| P1-009 | P1  | Message envelope contract     | Define shared envelope (`trace_id`, `decision_id`, `mode`, `idempotency_key`) and schema validators         | P1-008       | Canonical event contract package    | DONE |
+| P1-010 | P1  | Redis namespace strategy      | Define keys/TTL for short-term memory, snapshots, rate limits, locks                                        | P1-001       | Redis keyspace spec                 | DONE |
 
 ---
 
@@ -626,15 +666,15 @@ Build resilient exchange ingestion and data integrity controls (resync, gap dete
 
 | ID     | Pri | Task                             | Actionable Steps                                                                    | Dependencies  | Deliverable                      | Status |
 | ------ | --- | -------------------------------- | ----------------------------------------------------------------------------------- | ------------- | -------------------------------- | ------ |
-| P2-001 | P0  | CCXT Pro ingestion adapter       | Build exchange clients for WS + REST snapshot bootstrap                             | P1-008        | Unified ingestion adapters       | DONE   |
-| P2-002 | P0  | Connection resilience            | Implement heartbeat, stale detection, reconnect with exponential backoff and jitter | P2-001        | Stable connection manager        | DONE   |
-| P2-003 | P0  | Order book sync engine           | Snapshot + delta apply logic with sequence handling                                 | P2-001        | Consistent local order books     | DONE   |
-| P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | DONE   |
-| P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | DONE   |
-| P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | DONE   |
-| P2-007 | P1  | Persistence writers              | Persist kline and orderbook snapshots to Timescale                                  | P2-006,P1-004 | Historical data persisted        | DONE   |
-| P2-008 | P1  | Market pipeline metrics          | Expose ingestion lag/rates/reconnect counters                                       | P2-002        | Prometheus metrics for ingestion | DONE   |
-| P2-009 | P1  | Integration test harness         | Replay fixture streams and validate deterministic normalization                     | P2-006        | Ingestion integration tests      | DONE   |
+| P2-001 | P0  | CCXT Pro ingestion adapter       | Build exchange clients for WS + REST snapshot bootstrap                             | P1-008        | Unified ingestion adapters       | DONE |
+| P2-002 | P0  | Connection resilience            | Implement heartbeat, stale detection, reconnect with exponential backoff and jitter | P2-001        | Stable connection manager        | DONE |
+| P2-003 | P0  | Order book sync engine           | Snapshot + delta apply logic with sequence handling                                 | P2-001        | Consistent local order books     | DONE |
+| P2-004 | P0  | Gap detection module             | Detect sequence gaps and trigger controlled resync                                  | P2-003        | Gap alarms + recovery actions    | DONE |
+| P2-005 | P0  | K-line reconstruction validator  | Validate interval completeness, monotonic timestamps, missing bars                  | P2-001        | K-line quality guard             | DONE |
+| P2-006 | P1  | Canonical normalization pipeline | Normalize exchange payloads to canonical schema                                     | P2-001        | Canonical event publisher        | DONE |
+| P2-007 | P1  | Persistence writers              | Persist kline and orderbook snapshots to Timescale                                  | P2-006,P1-004 | Historical data persisted        | DONE |
+| P2-008 | P1  | Market pipeline metrics          | Expose ingestion lag/rates/reconnect counters                                       | P2-002        | Prometheus metrics for ingestion | DONE |
+| P2-009 | P1  | Integration test harness         | Replay fixture streams and validate deterministic normalization                     | P2-006        | Ingestion integration tests      | DONE |
 
 ---
 
@@ -654,18 +694,18 @@ Implement planner/risk/execution-decision agents, orchestrator, memory model, gu
 
 | ID     | Pri | Task                        | Actionable Steps                                                                  | Dependencies         | Deliverable                              | Status |
 | ------ | --- | --------------------------- | --------------------------------------------------------------------------------- | -------------------- | ---------------------------------------- | ------ |
-| P3-001 | P0  | Orchestrator skeleton       | Build orchestrator consuming `market.canonical` and managing decision lifecycle   | P1-009,P2-006        | Agent orchestration runtime              | DONE   |
-| P3-002 | P0  | Planner agent               | Implement dynamic plan generation based on market context and strategy config     | P3-001               | Planner output contracts                 | DONE   |
-| P3-003 | P0  | Risk agent                  | Implement risk-analysis agent outputs for pre-trade risk signals                  | P3-001               | Risk agent outputs                       | DONE   |
-| P3-004 | P0  | Execution decision agent    | Implement final action proposal agent with schema constraints                     | P3-001               | Action proposals (`BUY/SELL/HOLD/CLOSE`) | DONE   |
-| P3-005 | P1  | Market context agent        | Implement optional context enrichment with market microstructure + news summaries | P3-001               | Optional context module                  | DONE   |
-| P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | DONE   |
-| P3-007 | P0  | Prompt/response persistence | Persist full prompt and full response with tokens/cost/latency/trace IDs          | P1-006,P3-006        | Complete LLM audit trail                 | DONE   |
-| P3-008 | P0  | Token quota enforcement     | Enforce per-agent/per-strategy daily token + monthly cost hard limits             | P1-006,P3-006        | Quota guardrails                         | DONE   |
-| P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | DONE   |
-| P3-010 | P1  | Memory layer integration    | Implement short-term Redis memory and long-term Postgres memory writes/reads      | P1-005,P1-010        | Shared memory system                     | DONE   |
-| P3-011 | P1  | Replay service              | Reconstruct decision graph and payloads from persisted traces                     | P3-007,P1-005        | Deterministic replay API/service         | DONE   |
-| P3-012 | P1  | Agent metrics/tracing       | Instrument agent latencies, failure rates, token consumption                      | P3-001               | Observability for agent runtime          | DONE   |
+| P3-001 | P0  | Orchestrator skeleton       | Build orchestrator consuming `market.canonical` and managing decision lifecycle   | P1-009,P2-006        | Agent orchestration runtime              | DONE |
+| P3-002 | P0  | Planner agent               | Implement dynamic plan generation based on market context and strategy config     | P3-001               | Planner output contracts                 | DONE |
+| P3-003 | P0  | Risk agent                  | Implement risk-analysis agent outputs for pre-trade risk signals                  | P3-001               | Risk agent outputs                       | DONE |
+| P3-004 | P0  | Execution decision agent    | Implement final action proposal agent with schema constraints                     | P3-001               | Action proposals (`BUY/SELL/HOLD/CLOSE`) | DONE |
+| P3-005 | P1  | Market context agent        | Implement optional context enrichment with market microstructure + news summaries | P3-001               | Optional context module                  | DONE |
+| P3-006 | P0  | LLM gateway service         | Build LiteLLM-backed gateway with retries/timeouts/provider config                | P3-001               | Centralized model access layer           | DONE |
+| P3-007 | P0  | Prompt/response persistence | Persist full prompt and full response with tokens/cost/latency/trace IDs          | P1-006,P3-006        | Complete LLM audit trail                 | DONE |
+| P3-008 | P0  | Token quota enforcement     | Enforce per-agent/per-strategy daily token + monthly cost hard limits             | P1-006,P3-006        | Quota guardrails                         | DONE |
+| P3-009 | P0  | Guardrail validation layer  | Validate schema, risk policy, symbol constraints, leverage, confidence threshold  | P3-002,P3-003,P3-004 | Intent validation gate                   | DONE |
+| P3-010 | P1  | Memory layer integration    | Implement short-term Redis memory and long-term Postgres memory writes/reads      | P1-005,P1-010        | Shared memory system                     | DONE |
+| P3-011 | P1  | Replay service              | Reconstruct decision graph and payloads from persisted traces                     | P3-007,P1-005        | Deterministic replay API/service         | DONE |
+| P3-012 | P1  | Agent metrics/tracing       | Instrument agent latencies, failure rates, token consumption                      | P3-001               | Observability for agent runtime          | DONE |
 
 ---
 
@@ -686,10 +726,10 @@ Close integration gaps between Phase 2-3 logic contracts and runnable runtime be
 
 | ID     | Pri | Task                                      | Actionable Steps                                                                                                   | Dependencies         | Deliverable                             | Status |
 | ------ | --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------- | --------------------------------------- | ------ |
-| P3-013 | P0  | Broker/exchange adapters + worker runtime | Implement concrete topic broker adapter, concrete exchange transport adapter, and market/orchestrator worker loops | P1-008,P2-006,P3-001 | Runnable market->decision runtime path  | DONE   |
-| P3-014 | P0  | Concrete persistence adapters             | Implement concrete stores for timeseries, memory summaries, and LLM governance                                     | P1-004,P1-005,P1-006 | Executable runtime persistence adapters | DONE   |
-| P3-015 | P0  | Concrete LLM transport adapter            | Implement LiteLLM-compatible HTTP client adapter with timeout/error handling                                       | P3-006               | Runnable model transport adapter        | DONE   |
-| P3-016 | P0  | Runtime gate integration validation       | Add runtime gate tests and verification documentation                                                              | P3-013,P3-014,P3-015 | Runtime gate evidence and pass report   | DONE   |
+| P3-013 | P0  | Broker/exchange adapters + worker runtime | Implement concrete topic broker adapter, concrete exchange transport adapter, and market/orchestrator worker loops | P1-008,P2-006,P3-001 | Runnable market->decision runtime path  | DONE |
+| P3-014 | P0  | Concrete persistence adapters             | Implement concrete stores for timeseries, memory summaries, and LLM governance                                     | P1-004,P1-005,P1-006 | Executable runtime persistence adapters | DONE |
+| P3-015 | P0  | Concrete LLM transport adapter            | Implement LiteLLM-compatible HTTP client adapter with timeout/error handling                                       | P3-006               | Runnable model transport adapter        | DONE |
+| P3-016 | P0  | Runtime gate integration validation       | Add runtime gate tests and verification documentation                                                              | P3-013,P3-014,P3-015 | Runtime gate evidence and pass report   | DONE |
 
 ---
 
@@ -714,14 +754,14 @@ Implement and hard-separate MOCK and REAL execution paths.
 
 | ID     | Pri | Task                               | Actionable Steps                                                                    | Dependencies         | Deliverable                  | Status |
 | ------ | --- | ---------------------------------- | ----------------------------------------------------------------------------------- | -------------------- | ---------------------------- | ------ |
-| P4-001 | P0  | Mode routing policy                | Implement strict mode router for `execution.intent.mock` vs `execution.intent.real` | P3-016,P3-009,P1-008 | Deterministic routing layer  | DONE   |
-| P4-002 | P0  | Simulation engine core             | Build simulated matching/fill engine with slippage and fees model                   | P4-001               | Mock execution runtime       | DONE   |
-| P4-003 | P0  | Simulation safety guard            | Add assertions guaranteeing no exchange order endpoint usage in MOCK mode           | P4-002               | Mode isolation safety        | DONE   |
-| P4-004 | P0  | Go real execution service skeleton | Build Go service with queue consumer and idempotent command handler                 | P4-001,P0-003        | Real execution service       | DONE   |
-| P4-005 | P0  | CCXT Pro bridge contracts          | Define strongly typed command contract for Go<->Python exchange actions             | P4-004,P2-001        | Execution interface contract | DONE   |
-| P4-006 | P0  | Idempotent order dispatch          | Enforce idempotency keys and dedupe for create/cancel actions                       | P4-004               | Safe at-least-once behavior  | DONE   |
-| P4-007 | P1  | Execution metrics and tracing      | Instrument both engines with latency/failure counters and traces                    | P4-002,P4-004        | Engine observability         | DONE   |
-| P4-008 | P1  | Mode integration tests             | Automated tests proving strict mode separation and expected lifecycle events        | P4-002,P4-004        | Mode compliance test suite   | DONE   |
+| P4-001 | P0  | Mode routing policy                | Implement strict mode router for `execution.intent.mock` vs `execution.intent.real` | P3-016,P3-009,P1-008 | Deterministic routing layer  | DONE |
+| P4-002 | P0  | Simulation engine core             | Build simulated matching/fill engine with slippage and fees model                   | P4-001               | Mock execution runtime       | DONE |
+| P4-003 | P0  | Simulation safety guard            | Add assertions guaranteeing no exchange order endpoint usage in MOCK mode           | P4-002               | Mode isolation safety        | DONE |
+| P4-004 | P0  | Go real execution service skeleton | Build Go service with queue consumer and idempotent command handler                 | P4-001,P0-003        | Real execution service       | DONE |
+| P4-005 | P0  | CCXT Pro bridge contracts          | Define strongly typed command contract for Go<->Python exchange actions             | P4-004,P2-001        | Execution interface contract | DONE |
+| P4-006 | P0  | Idempotent order dispatch          | Enforce idempotency keys and dedupe for create/cancel actions                       | P4-004               | Safe at-least-once behavior  | DONE |
+| P4-007 | P1  | Execution metrics and tracing      | Instrument both engines with latency/failure counters and traces                    | P4-002,P4-004        | Engine observability         | DONE |
+| P4-008 | P1  | Mode integration tests             | Automated tests proving strict mode separation and expected lifecycle events        | P4-002,P4-004        | Mode compliance test suite   | DONE |
 
 ---
 
@@ -741,15 +781,15 @@ Implement lifecycle state machine, reconciliation, portfolio accounting, and ris
 
 | ID     | Pri | Task                          | Actionable Steps                                                                                                          | Dependencies         | Deliverable                 | Status |
 | ------ | --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------- | ------ |
-| P5-001 | P0  | OMS state machine             | Implement state transitions (`NEW`, `SUBMITTED`, `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELED`, `REJECTED`, `EXPIRED`) | P1-003,P4-002,P4-004 | Robust OMS core             | DONE   |
-| P5-002 | P0  | Fill reconciliation           | Combine queue events + exchange query fallback reconciliation                                                             | P5-001,P4-004        | Reconciled order/fill state | DONE   |
-| P5-003 | P0  | Position engine               | Update positions from fills for mock and real mode                                                                        | P5-001               | Position service            | DONE   |
-| P5-004 | P0  | Portfolio snapshot engine     | Generate NAV, realized/unrealized PnL snapshots                                                                           | P5-003               | Portfolio snapshots in DB   | DONE   |
-| P5-005 | P0  | Core risk rules               | Implement position limits, leverage checks, per-symbol exposure limits                                                    | P3-009,P5-001        | Risk rule engine            | DONE   |
-| P5-006 | P0  | Drawdown + daily loss rules   | Implement max drawdown and daily loss guardrails                                                                          | P5-004               | Portfolio risk protection   | DONE   |
-| P5-007 | P0  | Circuit breaker + kill switch | Implement system-wide stop controls and eventing                                                                          | P5-005,P5-006        | Emergency controls          | DONE   |
-| P5-008 | P1  | Risk observability            | Metrics/logs for risk checks, denials, and breaches                                                                       | P5-005               | Risk telemetry              | DONE   |
-| P5-009 | P1  | Risk regression tests         | Scenario tests for each policy and edge case                                                                              | P5-005,P5-006        | Risk validation suite       | DONE   |
+| P5-001 | P0  | OMS state machine             | Implement state transitions (`NEW`, `SUBMITTED`, `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELED`, `REJECTED`, `EXPIRED`) | P1-003,P4-002,P4-004 | Robust OMS core             | DONE |
+| P5-002 | P0  | Fill reconciliation           | Combine queue events + exchange query fallback reconciliation                                                             | P5-001,P4-004        | Reconciled order/fill state | DONE |
+| P5-003 | P0  | Position engine               | Update positions from fills for mock and real mode                                                                        | P5-001               | Position service            | DONE |
+| P5-004 | P0  | Portfolio snapshot engine     | Generate NAV, realized/unrealized PnL snapshots                                                                           | P5-003               | Portfolio snapshots in DB   | DONE |
+| P5-005 | P0  | Core risk rules               | Implement position limits, leverage checks, per-symbol exposure limits                                                    | P3-009,P5-001        | Risk rule engine            | DONE |
+| P5-006 | P0  | Drawdown + daily loss rules   | Implement max drawdown and daily loss guardrails                                                                          | P5-004               | Portfolio risk protection   | DONE |
+| P5-007 | P0  | Circuit breaker + kill switch | Implement system-wide stop controls and eventing                                                                          | P5-005,P5-006        | Emergency controls          | DONE |
+| P5-008 | P1  | Risk observability            | Metrics/logs for risk checks, denials, and breaches                                                                       | P5-005               | Risk telemetry              | DONE |
+| P5-009 | P1  | Risk regression tests         | Scenario tests for each policy and edge case                                                                              | P5-005,P5-006        | Risk validation suite       | DONE |
 
 ---
 
@@ -769,13 +809,13 @@ Integrate news/social signals into the agent context pipeline safely and observa
 
 | ID     | Pri | Task                           | Actionable Steps                                                         | Dependencies  | Deliverable                 | Status |
 | ------ | --- | ------------------------------ | ------------------------------------------------------------------------ | ------------- | --------------------------- | ------ |
-| P6-001 | P1  | Source connector framework     | Implement pluggable source connectors for RSS/APIs/social feeds          | P1-007        | Connector framework         | DONE   |
-| P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | DONE   |
-| P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | DONE   |
-| P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | DONE   |
-| P6-005 | P1  | Context injection bridge       | Publish summaries to strategy context queue and MCTX agent input         | P6-004,P3-005 | News-aware strategy context | DONE   |
-| P6-006 | P1  | News resilience behavior       | Implement `news_unavailable` fallback and alerting                       | P6-002,P6-004 | Non-blocking news module    | DONE   |
-| P6-007 | P2  | News quality dashboard         | Coverage, freshness, summarization lag, error rates                      | P6-002,P6-004 | News ops visibility         | DONE   |
+| P6-001 | P1  | Source connector framework     | Implement pluggable source connectors for RSS/APIs/social feeds          | P1-007        | Connector framework         | DONE |
+| P6-002 | P1  | News ingestion service         | Pull, normalize, deduplicate (`source_id + hash`) and persist news items | P6-001        | Persisted news feed         | DONE |
+| P6-003 | P1  | Tagging and relevance pipeline | Symbol/topic tagging + relevance/sentiment scoring                       | P6-002        | Tagged news entities        | DONE |
+| P6-004 | P1  | News summarizer service        | Generate rolling summaries per symbol/global windows                     | P6-002,P3-006 | Summary artifacts           | DONE |
+| P6-005 | P1  | Context injection bridge       | Publish summaries to strategy context queue and MCTX agent input         | P6-004,P3-005 | News-aware strategy context | DONE |
+| P6-006 | P1  | News resilience behavior       | Implement `news_unavailable` fallback and alerting                       | P6-002,P6-004 | Non-blocking news module    | DONE |
+| P6-007 | P2  | News quality dashboard         | Coverage, freshness, summarization lag, error rates                      | P6-002,P6-004 | News ops visibility         | DONE |
 
 ---
 
@@ -796,24 +836,24 @@ Deliver operational control plane, dashboards, and notification workflows for tr
 
 | ID     | Pri | Task                         | Actionable Steps                                                                           | Dependencies         | Deliverable                           | Status |
 | ------ | --- | ---------------------------- | ------------------------------------------------------------------------------------------ | -------------------- | ------------------------------------- | ------ |
-| P7-001 | P0  | FastAPI control plane        | Implement auth, strategy control, mode control, health and metadata endpoints              | P0-002,P1-003        | API service baseline                  | DONE   |
-| P7-002 | P0  | RBAC enforcement             | Implement `viewer/operator/admin` role checks on sensitive endpoints                       | P7-001               | RBAC control plane                    | DONE   |
-| P7-003 | P1  | Trading ops endpoints        | Orders, positions, portfolio snapshots, risk status, circuit breaker controls              | P5-001,P5-004,P5-007 | Operator APIs                         | DONE   |
-| P7-004 | P1  | LLM governance endpoints     | Expose per-strategy/per-agent usage, cost, quota and breach history                        | P3-007,P3-008        | Governance APIs                       | DONE   |
-| P7-005 | P1  | Replay endpoints             | Expose replay request and decision trace retrieval endpoints                               | P3-011               | Replay APIs                           | DONE   |
-| P7-006 | P1  | Dashboard shell              | Implement UI navigation and live status pages                                              | P7-001               | Dashboard baseline                    | DONE   |
-| P7-007 | P1  | Token usage dashboard UI     | Per strategy/agent daily/monthly cost and quota views                                      | P7-004               | Governance UI                         | DONE   |
-| P7-008 | P1  | Prompt/response inspector UI | Drill-down by decision and agent with raw payload views                                    | P7-005               | Explainability UI                     | DONE   |
-| P7-009 | P1  | Trading mode panel UI        | Explicit mode display/control with audit history                                           | P7-001,P4-001        | Mode control UI                       | DONE   |
-| P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                             | P6-004               | News operations UI                    | DONE   |
-| P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton        | P1-008,P1-009        | Notification runtime core             | DONE   |
-| P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines                 | P7-011,P5-001        | End-to-end event routing              | DONE   |
-| P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling                 | P7-011               | Telegram delivery channel             | DONE   |
-| P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation                    | P7-001,P7-011        | Notification preference control plane | DONE   |
-| P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ                     | P7-011,P1-008        | Resilient notification delivery       | DONE   |
-| P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                                      | P7-011,P8-004        | Notification telemetry                | DONE   |
-| P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow      | P7-011,P7-013        | Notification validation suite         | DONE   |
-| P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack         | DONE   |
+| P7-001 | P0  | FastAPI control plane        | Implement auth, strategy control, mode control, health and metadata endpoints              | P0-002,P1-003        | API service baseline                  | DONE |
+| P7-002 | P0  | RBAC enforcement             | Implement `viewer/operator/admin` role checks on sensitive endpoints                       | P7-001               | RBAC control plane                    | DONE |
+| P7-003 | P1  | Trading ops endpoints        | Orders, positions, portfolio snapshots, risk status, circuit breaker controls              | P5-001,P5-004,P5-007 | Operator APIs                         | DONE |
+| P7-004 | P1  | LLM governance endpoints     | Expose per-strategy/per-agent usage, cost, quota and breach history                        | P3-007,P3-008        | Governance APIs                       | DONE |
+| P7-005 | P1  | Replay endpoints             | Expose replay request and decision trace retrieval endpoints                               | P3-011               | Replay APIs                           | DONE |
+| P7-006 | P1  | Dashboard shell              | Implement UI navigation and live status pages                                              | P7-001               | Dashboard baseline                    | DONE |
+| P7-007 | P1  | Token usage dashboard UI     | Per strategy/agent daily/monthly cost and quota views                                      | P7-004               | Governance UI                         | DONE |
+| P7-008 | P1  | Prompt/response inspector UI | Drill-down by decision and agent with raw payload views                                    | P7-005               | Explainability UI                     | DONE |
+| P7-009 | P1  | Trading mode panel UI        | Explicit mode display/control with audit history                                           | P7-001,P4-001        | Mode control UI                       | DONE |
+| P7-010 | P2  | News panel UI                | News stream, summaries, symbol impact insights                                             | P6-004               | News operations UI                    | DONE |
+| P7-011 | P0  | Notification service module  | Implement event intake, policy router, gateway dispatch, dedupe/rate-limit skeleton        | P1-008,P1-009        | Notification runtime core             | DONE |
+| P7-012 | P0  | Event publisher integration  | Emit notification events from strategy, OMS, risk, system-health pipelines                 | P7-011,P5-001        | End-to-end event routing              | DONE |
+| P7-013 | P0  | Telegram gateway             | Implement Telegram bot sender, message templates, retryable error handling                 | P7-011               | Telegram delivery channel             | DONE |
+| P7-014 | P1  | Preference management APIs   | Add per-user/per-strategy/event severity preference CRUD and validation                    | P7-001,P7-011        | Notification preference control plane | DONE |
+| P7-015 | P1  | Spam control + retry policy  | Enforce dedupe windows, rate limits, backoff retries, and delivery DLQ                     | P7-011,P1-008        | Resilient notification delivery       | DONE |
+| P7-016 | P1  | Notification observability   | Add delivery metrics/logs/traces and dashboard panels                                      | P7-011,P8-004        | Notification telemetry                | DONE |
+| P7-017 | P1  | Notification test suite      | Unit tests for policy/gateway routing and integration tests for publish->deliver flow      | P7-011,P7-013        | Notification validation suite         | DONE |
+| P7-018 | P1  | Deployment + config wiring   | Add `.env` keys, compose wiring, secrets docs, startup validation for notification service | P0-004,P1-001,P7-011 | Deployable notification stack         | DONE |
 
 ---
 
@@ -833,15 +873,15 @@ Implement full monitoring stack, alerting, encryption at rest for keys, network 
 
 | ID     | Pri | Task                           | Actionable Steps                                                                             | Dependencies         | Deliverable                    | Status |
 | ------ | --- | ------------------------------ | -------------------------------------------------------------------------------------------- | -------------------- | ------------------------------ | ------ |
-| P8-001 | P0  | Structured logging standard    | Enforce JSON log schema across all services                                                  | P0-001               | Unified logs with IDs          | DONE   |
-| P8-002 | P0  | Metrics instrumentation        | Add Prometheus metrics to every service                                                      | P0-001               | Full service metrics           | DONE   |
-| P8-003 | P0  | Distributed tracing            | Add OpenTelemetry spans/context propagation Python<->Go                                      | P0-002,P0-003        | Cross-service tracing          | DONE   |
-| P8-004 | P0  | Observability stack in Compose | Configure Prometheus, Grafana, Loki, Tempo, Alertmanager                                     | P1-001               | Observability platform running | DONE   |
-| P8-005 | P0  | Alert rules                    | Implement critical alerts for disconnects, quota breaches, risk breaches, integrity failures | P8-004               | Alert catalog                  | DONE   |
-| P8-006 | P0  | Key encryption at rest         | Implement AES-256-GCM for persisted exchange keys                                            | P1-003               | Encrypted key storage          | DONE   |
-| P8-007 | P0  | Network isolation in Compose   | Split public/internal networks and limit service exposure                                    | P1-001               | Hardened network topology      | DONE   |
-| P8-008 | P1  | Security test suite            | Auth/RBAC/transport/persistence security checks                                              | P7-002,P8-006,P8-007 | Security validation reports    | DONE   |
-| P8-009 | P1  | Runbook documentation          | Incident response for exchange outage, quota overrun, risk trips                             | P8-005               | Ops runbooks                   | DONE   |
+| P8-001 | P0  | Structured logging standard    | Enforce JSON log schema across all services                                                  | P0-001               | Unified logs with IDs          | DONE |
+| P8-002 | P0  | Metrics instrumentation        | Add Prometheus metrics to every service                                                      | P0-001               | Full service metrics           | DONE |
+| P8-003 | P0  | Distributed tracing            | Add OpenTelemetry spans/context propagation Python<->Go                                      | P0-002,P0-003        | Cross-service tracing          | DONE |
+| P8-004 | P0  | Observability stack in Compose | Configure Prometheus, Grafana, Loki, Tempo, Alertmanager                                     | P1-001               | Observability platform running | DONE |
+| P8-005 | P0  | Alert rules                    | Implement critical alerts for disconnects, quota breaches, risk breaches, integrity failures | P8-004               | Alert catalog                  | DONE |
+| P8-006 | P0  | Key encryption at rest         | Implement AES-256-GCM for persisted exchange keys                                            | P1-003               | Encrypted key storage          | DONE |
+| P8-007 | P0  | Network isolation in Compose   | Split public/internal networks and limit service exposure                                    | P1-001               | Hardened network topology      | DONE |
+| P8-008 | P1  | Security test suite            | Auth/RBAC/transport/persistence security checks                                              | P7-002,P8-006,P8-007 | Security validation reports    | DONE |
+| P8-009 | P1  | Runbook documentation          | Incident response for exchange outage, quota overrun, risk trips                             | P8-005               | Ops runbooks                   | DONE |
 
 ---
 
@@ -861,15 +901,15 @@ Run integration, replay, load, and reliability validation; finalize release read
 
 | ID     | Pri | Task                        | Actionable Steps                                                          | Dependencies         | Deliverable                      | Status |
 | ------ | --- | --------------------------- | ------------------------------------------------------------------------- | -------------------- | -------------------------------- | ------ |
-| P9-001 | P0  | E2E mock flow test          | Validate full path market -> agent -> mock execution -> portfolio updates | P4-002,P5-004,P7-001 | E2E mock test pass               | DONE   |
-| P9-002 | P0  | E2E real flow test          | Validate full path market -> agent -> real execution -> reconciliation    | P4-004,P5-002,P7-001 | E2E real test pass               | DONE   |
-| P9-003 | P0  | Mode isolation verification | Automated assertion that MOCK never hits exchange order endpoints         | P4-003,P9-001        | Compliance evidence              | DONE   |
-| P9-004 | P0  | Replay determinism tests    | Verify decision replay reproduces stored decision chain                   | P3-011,P7-005        | Replay validation report         | DONE   |
-| P9-005 | P0  | Performance tests           | Measure dispatch latency, queue throughput, ingestion lag                 | P8-004,P4-004        | Performance benchmark report     | DONE   |
-| P9-006 | P1  | Chaos/resilience drills     | Broker restart, exchange disconnect, LLM timeout, DB restart scenarios    | P8-004,P8-005        | Resilience report                | DONE   |
-| P9-007 | P1  | Data integrity audits       | Validate resync/gap detection/kline reconstruction behavior under faults  | P2-004,P2-005        | Data integrity report            | DONE   |
-| P9-008 | P1  | Security acceptance         | Validate encryption, RBAC, network isolation, secret handling             | P8-008               | Security sign-off                | DONE   |
-| P9-009 | P1  | Release checklist + cutover | Final release checklist, rollback plan, go-live approval                  | P9-001..P9-008       | Production-ready release package | DONE   |
+| P9-001 | P0  | E2E mock flow test          | Validate full path market -> agent -> mock execution -> portfolio updates | P4-002,P5-004,P7-001 | E2E mock test pass               | DONE |
+| P9-002 | P0  | E2E real flow test          | Validate full path market -> agent -> real execution -> reconciliation    | P4-004,P5-002,P7-001 | E2E real test pass               | DONE |
+| P9-003 | P0  | Mode isolation verification | Automated assertion that MOCK never hits exchange order endpoints         | P4-003,P9-001        | Compliance evidence              | DONE |
+| P9-004 | P0  | Replay determinism tests    | Verify decision replay reproduces stored decision chain                   | P3-011,P7-005        | Replay validation report         | DONE |
+| P9-005 | P0  | Performance tests           | Measure dispatch latency, queue throughput, ingestion lag                 | P8-004,P4-004        | Performance benchmark report     | DONE |
+| P9-006 | P1  | Chaos/resilience drills     | Broker restart, exchange disconnect, LLM timeout, DB restart scenarios    | P8-004,P8-005        | Resilience report                | DONE |
+| P9-007 | P1  | Data integrity audits       | Validate resync/gap detection/kline reconstruction behavior under faults  | P2-004,P2-005        | Data integrity report            | DONE |
+| P9-008 | P1  | Security acceptance         | Validate encryption, RBAC, network isolation, secret handling             | P8-008               | Security sign-off                | DONE |
+| P9-009 | P1  | Release checklist + cutover | Final release checklist, rollback plan, go-live approval                  | P9-001..P9-008       | Production-ready release package | DONE |
 
 ---
 
@@ -890,12 +930,12 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 
 | ID      | Pri | Task                                   | Actionable Steps                                                                                                                     | Dependencies           | Deliverable                       | Status      |
 | ------- | --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | --------------------------------- | ----------- |
-| P10-001 | P0  | Runtime entrypoint workers             | Implement process entrypoints for market ingestion, orchestrator, simulation execution, OMS lifecycle/reconciliation, and news loops | P9-009                 | Runnable service binaries/CLIs    | IN_PROGRESS |
-| P10-002 | P0  | RabbitMQ adapter replacement           | Replace in-memory broker usage on production runtime path with RabbitMQ producer/consumer adapters and ack/nack behavior             | P10-001,P1-008         | Infra-backed event path           | IN_PROGRESS |
+| P10-001 | P0  | Runtime entrypoint workers             | Implement process entrypoints for market ingestion, orchestrator, simulation execution, OMS lifecycle/reconciliation, and news loops | P9-009                 | Runnable service binaries/CLIs    | DONE |
+| P10-002 | P0  | RabbitMQ adapter replacement           | Replace in-memory broker usage on production runtime path with RabbitMQ producer/consumer adapters and ack/nack behavior             | P10-001,P1-008         | Infra-backed event path           | DONE |
 | P10-003 | P0  | Postgres/Timescale adapter replacement | Replace SQLite/in-memory runtime stores for market/LLM/memory/news/notification/ops with PostgreSQL/Timescale-backed adapters        | P10-001,P1-002         | Infra-backed persistence path     | IN_PROGRESS |
-| P10-004 | P0  | Go real execution concrete integration | Replace noop consumer/bridge in `main.go` with concrete queue client + execution bridge + OMS event publishing contract              | P10-002,P10-003,P4-006 | Real execution runtime path       | NOT_STARTED |
-| P10-005 | P1  | Full compose service topology          | Add all core runtime services to compose default startup and health checks (no profile gating)                                       | P10-001..P10-004       | One-command local stack boot      | NOT_STARTED |
-| P10-006 | P1  | Runtime E2E test gate                  | Add integration suite that validates full runtime flow against real infra dependencies                                               | P10-002..P10-005       | Production-like validation report | NOT_STARTED |
+| P10-004 | P0  | Go real execution concrete integration | Replace noop consumer/bridge in `main.go` with concrete queue client + execution bridge + OMS event publishing contract              | P10-002,P10-003,P4-006 | Real execution runtime path       | DONE |
+| P10-005 | P1  | Full compose service topology          | Add all core runtime services to compose default startup and health checks (no profile gating)                                       | P10-001..P10-004       | One-command local stack boot      | IN_PROGRESS |
+| P10-006 | P1  | Runtime E2E test gate                  | Add integration suite that validates full runtime flow against real infra dependencies                                               | P10-002..P10-005       | Production-like validation report | IN_PROGRESS |
 | P10-007 | P1  | Documentation and runbook alignment    | Update ARD/PRD/README/runbooks to match concrete runtime topology and operations                                                     | P10-001..P10-006       | Aligned architecture and ops docs | IN_PROGRESS |
 
 ## 5. Cross-Phase Critical Path
@@ -1004,112 +1044,112 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 
 | Task ID | Owner | Start Date | Target Date | Status      | %   | Blocker          | Last Update |
 | ------- | ----- | ---------- | ----------- | ----------- | --- | ---------------- | ----------- |
-| P0-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P0-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P0-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P0-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P1-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P2-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-012  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-013  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-014  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-015  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P3-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P4-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P5-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P6-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-010  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-011  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-012  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-013  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-014  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-015  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-016  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-017  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P7-018  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-004  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-005  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-006  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-007  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-008  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P8-009  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P9-001  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P9-002  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P9-003  | TBD   | 2026-02-14 | -           | DONE        | 100 | -                | 2026-02-14  |
-| P9-004  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P9-005  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P9-006  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P9-007  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P9-008  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P9-009  | TBD   | 2026-02-15 | -           | DONE        | 100 | -                | 2026-02-15  |
-| P10-001 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 30  | -                | 2026-02-15  |
-| P10-002 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 20  | -                | 2026-02-15  |
-| P10-003 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 20  | -                | 2026-02-15  |
-| P10-004 | TBD   | 2026-02-15 | -           | NOT_STARTED | 0   | P10-002,P10-003  | 2026-02-15  |
-| P10-005 | TBD   | 2026-02-15 | -           | NOT_STARTED | 0   | P10-001..P10-004 | 2026-02-15  |
-| P10-006 | TBD   | 2026-02-15 | -           | NOT_STARTED | 0   | P10-002..P10-005 | 2026-02-15  |
-| P10-007 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 35  | -                | 2026-02-15  |
+| P0-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P0-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P0-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P0-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P1-010  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P2-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-010  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-011  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-012  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-013  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-014  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-015  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P3-016  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P4-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P5-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P6-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-010  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-011  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-012  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-013  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-014  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-015  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-016  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-017  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P7-018  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-004  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-005  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-006  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-007  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-008  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P8-009  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P9-001  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P9-002  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P9-003  | TBD   | 2026-02-14 | -           | DONE | 100 | -                | 2026-02-14  |
+| P9-004  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P9-005  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P9-006  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P9-007  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P9-008  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P9-009  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P10-001 | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P10-002 | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
+| P10-003 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 80  | -                | 2026-02-15  |
+| P10-004 | TBD   | 2026-02-15 | -           | DONE | 100 | P10-002,P10-003  | 2026-02-15  |
+| P10-005 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 70  | P10-001..P10-004 | 2026-02-15  |
+| P10-006 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 60  | P10-002..P10-005 | 2026-02-15  |
+| P10-007 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 60  | -                | 2026-02-15  |
 
 > Note: Keep this board concise for active critical-path tasks. Full task catalog remains in phase sections above.
 
@@ -1118,6 +1158,7 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 1. Populate owner names for all `TBD` fields in `docs/release/p9-post-phase-handoff-pack-2026-02-15.md`.
 2. Execute hypercare checklist windows and track status in war-room channel.
 3. Convert `BL-001..BL-007` triage items into sprint tickets with owners/dates.
-4. Execute `P10-001` runtime worker entrypoints for ingestion/orchestration/execution/news loops.
-5. Execute `P10-002` RabbitMQ adapter replacement on runtime-critical paths.
-6. Execute `P10-003` PostgreSQL/Timescale adapter replacement for runtime persistence.
+4. Continue `P10-003` by replacing remaining in-memory/runtime-synthetic persistence paths (market/ops/notification slices) with PostgreSQL/Timescale-backed adapters.
+5. Continue `P10-005` by removing `uv sync` from container startup paths and adding explicit health checks for runtime workers to ensure deterministic compose boot.
+6. Continue `P10-006` by promoting smoke checks into a dedicated runtime integration suite with strict pass/fail criteria and artifact output.
+7. Continue `P10-007` documentation/runbook updates to reflect the current Phase 10 runtime topology and new smoke/E2E gates.
