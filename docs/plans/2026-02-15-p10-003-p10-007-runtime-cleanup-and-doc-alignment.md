@@ -114,3 +114,19 @@
 - `uv run ruff check ...` on changed Python/tests.
 - `uv run pytest ...` on changed suites.
 - `make smoke` and `make runtime-gate`.
+
+---
+
+## Execution Update (2026-02-15)
+
+- Completed:
+  - Runtime policy hardening for notification worker strict DB mode.
+  - Integrity service boundary concretization via explicit compatibility modules.
+  - Compose/runtime issue fixes, including OMS snapshot persistence mismatch in Postgres.
+  - Deterministic comprehensive workflow script (`make mock-workflow`) with queue-pressure controls.
+  - Documentation alignment across README, PRD, ARD, implementation plan, and runbooks.
+- Validation:
+  - `uv run ruff check ...` (changed files) passed.
+  - `uv run pytest -q` passed.
+  - `make runtime-gate` passed.
+  - `make mock-workflow` passed.

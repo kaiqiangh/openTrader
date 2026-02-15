@@ -3,8 +3,8 @@
 ## LLM-Based Multi-Exchange Crypto Trading System
 
 - Version: 1.1 (Revised)
-- Date: 2026-02-14
-- Status: Implementation-ready architecture baseline
+- Date: 2026-02-15
+- Status: Implementation-ready architecture baseline with Phase 10 runtime integration completion
 - Related PRD: `./docs/PRD_Consolidated.md`
 
 ## 1. Scope and Architectural Objectives
@@ -21,16 +21,16 @@ Architecture objectives:
 
 ### 1.1 Current Implementation Reality (2026-02-15)
 
-The codebase contains strong contract models and test harnesses, but several production runtime paths remain partial. This section is intentionally explicit to prevent contract/runtime drift.
+The codebase now has concrete runtime coverage for the critical trading path in compose. This section remains explicit to prevent future contract/runtime drift.
 
-| Domain              | Target Architecture                                                          | Current Implementation Status                                                                                                                                            |
-| ------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Service entrypoints | Dedicated runtime service entry for each bounded context                     | Concrete Python process entry exists primarily for `notification_worker`; API has factory entry; ingestion/orchestrator/OMS/news runtime loops are mostly harness-driven |
-| Broker path         | RabbitMQ consumers/producers across pipeline                                 | Test/runtime foundation uses in-process broker abstraction broadly; notification worker has RabbitMQ HTTP polling path                                                   |
-| Persistence         | PostgreSQL + TimescaleDB as system of record                                 | Alembic schema exists, but several runtime adapters still persist to SQLite/in-memory stores                                                                             |
-| Real execution (Go) | Queue consumer + concrete bridge adapters + exchange/persistence integration | Queue runner/handler/idempotency contracts exist, but `main.go` remains skeleton with noop consumer/bridge                                                               |
-| Integrity service   | Dedicated service boundary                                                   | `services/integrity_service/` boundary exists but runtime service implementation is not complete                                                                         |
-| Docker runtime      | Full stack boot with one compose command                                     | Current compose primarily runs infra + notification + observability; full trading pipeline services are not yet all bootstrapped                                         |
+| Domain              | Target Architecture                                                          | Current Implementation Status                                                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service entrypoints | Dedicated runtime service entry for each bounded context                     | Concrete Python runtime entrypoints are active for market ingestion, orchestrator, simulation, OMS, news, notification worker, and API; Go real execution runs as a concrete compose service |
+| Broker path         | RabbitMQ consumers/producers across pipeline                                 | Runtime-critical paths are RabbitMQ-backed (HTTP API producer/consumer adapters); in-memory broker remains test/dev harness only                                                                |
+| Persistence         | PostgreSQL + TimescaleDB as system of record                                 | Runtime-critical persistence is Postgres/Timescale-first with fail-fast DB policy (`RUNTIME_REQUIRE_DATABASE=true`); SQLite is explicit test-only opt-in                                      |
+| Real execution (Go) | Queue consumer + concrete bridge adapters + exchange/persistence integration | Concrete queue consumer, bridge contracts, idempotent dispatch, and OMS lifecycle publication are implemented and compose-validated                                                              |
+| Integrity service   | Dedicated service boundary                                                   | `services/integrity_service/` is now an explicit compatibility boundary exposing gap detection, k-line validation, and order-book sync modules                                                  |
+| Docker runtime      | Full stack boot with one compose command                                     | `docker compose up -d` boots full runtime + observability stack; `migrator` is intentionally one-shot (`Exited (0)`), runtime services remain long-running                                     |
 
 ### 1.2 Architecture Hard Decisions (Locked)
 
@@ -46,6 +46,9 @@ The codebase contains strong contract models and test harnesses, but several pro
   - Direct cross-service calls are allowed only for local process composition and control-plane reads, not for critical trading dataflow.
 - Deployment:
   - `docker compose up -d` must boot all critical services without profiles for release readiness.
+- UI access:
+  - UI is read-only by default (`API_READ_ONLY_MODE=true`).
+  - Mutating operations are backend-governed authenticated API actions; UI has no direct DB write path.
 
 ## 2. Technology Stack Selection by Component
 
@@ -218,7 +221,7 @@ flowchart LR
 - OMS (Python): order lifecycle state machine, fill reconciliation, position updates.
 - News Ingestion + Summarization Services (Python): external news collection, normalization, summarization, agent context enrichment.
 - Notification Service (Python): severity-aware event routing, preference filtering, gateway dispatch, retry and DLQ handling.
-- API Service (Python/FastAPI): UI/API surface, RBAC, control plane, dashboards.
+- API Service (Python/FastAPI): UI/API surface, RBAC, control plane, dashboards, and read-only UI enforcement for public/operator panels.
 
 ## 4. Deployment Topology (Docker Compose)
 
@@ -771,16 +774,20 @@ Architecture implementation is complete when:
 - Token governance dashboard and quota enforcement are operational.
 - Integrity, risk, and observability controls are validated in staged failure drills.
 
-## 21. Phase 10 Remediation Architecture Track
+## 21. Phase 10 Runtime Integration Completion
 
-This remediation track closes the current gap between architectural intent and runtime implementation:
+Phase 10 remediation objectives are now implemented and validated:
 
-1. Replace in-memory broker usage on runtime critical paths with RabbitMQ clients.
-2. Replace SQLite/in-memory runtime stores with PostgreSQL/Timescale-backed adapters.
-3. Implement dedicated long-running workers for ingestion, orchestrator, simulation execution, OMS reconciliation, and news workflows.
-4. Upgrade Go real execution runtime from noop skeleton to concrete queue + bridge + lifecycle publication path.
-5. Expand compose topology to include the full platform runtime and bootstrap checks.
-6. Enforce end-to-end runtime validation gate before post-Phase-9 go-live.
+1. Runtime-critical broker paths use RabbitMQ adapters (in-memory broker restricted to tests/dev harness).
+2. Runtime-critical persistence paths are Postgres/Timescale-backed with fail-fast startup DB checks.
+3. Dedicated long-running workers are active for ingestion, orchestrator, simulation execution, OMS, and news workflows.
+4. Go real-execution runtime uses concrete queue consumer + bridge + lifecycle publication path.
+5. Compose topology boots all core runtime services without profile gating.
+6. Runtime validation gates are operational via `make runtime-gate` and deterministic workflow validation via `make mock-workflow`.
+
+Residual architecture follow-up:
+
+- Replace synthetic runtime market/news connectors with concrete exchange/news connectors in production mode while preserving deterministic test harnesses.
 
 ## 20. Notification Architecture
 

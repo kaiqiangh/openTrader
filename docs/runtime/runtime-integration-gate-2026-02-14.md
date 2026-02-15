@@ -1,5 +1,7 @@
 # Runtime Integration Gate Verification 2026-02-14
 
+> Historical baseline document. Current operational source of truth for runtime bootstrap/gate is `docs/runbooks/runtime-bootstrap-and-gate.md` and `make runtime-gate`.
+
 ## Scope
 
 This verification captures the runtime integration gate delivered before continuing Phase 4 execution work.
@@ -26,7 +28,7 @@ Capabilities:
 
 ### Concrete persistence adapters
 
-- `services/market_ingestion/sqlalchemy_store.py` (SQLite-backed concrete timeseries upserts)
+- `services/market_ingestion/sqlalchemy_store.py` (SQLAlchemy concrete timeseries upserts; Postgres/Timescale runtime-first)
 - `services/agent_orchestrator/sqlalchemy_memory_store.py` (short-term TTL + long-term decision summary store)
 - `services/llm_gateway/sqlalchemy_stores.py` (LLM call persistence + quota usage/limit store)
 
@@ -65,6 +67,17 @@ Result:
 
 - `17 passed`
 - no failures
+
+Current runtime gate operation:
+
+```bash
+make runtime-gate
+make mock-workflow
+```
+
+Current evidence artifact:
+
+- `artifacts/runtime_integration_gate/latest.json`
 
 Repository regression suite:
 

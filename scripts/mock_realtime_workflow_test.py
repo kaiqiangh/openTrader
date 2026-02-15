@@ -8,10 +8,13 @@ import asyncio
 import json
 import os
 import subprocess
+import sys
 import time
 import uuid
 
-from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPError, LiteLLMHTTPProviderClient
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 REQUIRED_SERVICES = (
     "postgres_timescaledb",
@@ -28,11 +31,24 @@ REQUIRED_SERVICES = (
 )
 
 AUDIT_QUEUES = {
-    "execution_intent": ("smoke.audit.execution_intent", "execution.events", "execution.intent.mock"),
+    "execution_intent": ("smoke.audit.execution_intent", "execution.events", "execution.intent.#"),
     "oms_updates": ("smoke.audit.oms_order_updates", "oms.events", "oms.order.*"),
     "strategy_lifecycle": ("smoke.audit.strategy_lifecycle", "strategy.events", "strategy.decision.#"),
     "notify": ("smoke.audit.notify", "notify.events", "notify.#"),
 }
+
+RUNTIME_QUEUES_TO_PURGE = (
+    "market.canonical",
+    "strategy.events.lifecycle",
+    "execution.intent.mock",
+    "execution.intent.real",
+    "oms.events.order_updates",
+    "notify.events.raw",
+    "smoke.audit.execution_intent",
+    "smoke.audit.oms_order_updates",
+    "smoke.audit.strategy_lifecycle",
+    "smoke.audit.notify",
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,83 +58,100 @@ def main(argv: list[str] | None = None) -> int:
     _run(["make", "env-validate"], cwd=repo_root)
     _run(["docker", "compose", "up", "-d"], cwd=repo_root)
     _assert_services_running(repo_root=repo_root, timeout_seconds=args.service_wait_timeout)
+    _run(["docker", "compose", "stop", "runtime_worker_market"], cwd=repo_root)
+    market_worker_stopped = True
+    try:
+        rabbitmq_api = _resolve_rabbitmq_http_api_for_host(
+            os.getenv("RUNTIME_RABBITMQ_HTTP_API_URL", "http://127.0.0.1:15672/api")
+        )
+        rabbitmq_user = os.getenv("RABBITMQ_DEFAULT_USER", "guest")
+        rabbitmq_pass = os.getenv("RABBITMQ_DEFAULT_PASS", "guest")
+        _bootstrap_audit_topology(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+        )
+        _purge_runtime_queues(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+        )
 
-    rabbitmq_api = _resolve_rabbitmq_http_api_for_host(
-        os.getenv("RUNTIME_RABBITMQ_HTTP_API_URL", "http://127.0.0.1:15672/api")
-    )
-    rabbitmq_user = os.getenv("RABBITMQ_DEFAULT_USER", "guest")
-    rabbitmq_pass = os.getenv("RABBITMQ_DEFAULT_PASS", "guest")
-    _bootstrap_audit_topology(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-    )
+        llm_content = _probe_litellm_or_mock(require_litellm=args.require_litellm)
+        binance_decision_id = _publish_market_event(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            exchange="binance",
+            symbol="BTC/USDT",
+            decision_suffix="binance",
+        )
+        bitget_decision_id = _publish_market_event(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            exchange="bitget",
+            symbol="BTC/USDT",
+            decision_suffix="bitget",
+        )
+        published_decisions = {binance_decision_id, bitget_decision_id}
+        _publish_notification_probe_event(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            llm_content=llm_content,
+        )
 
-    llm_content = _probe_litellm_or_mock(require_litellm=args.require_litellm)
-    _publish_market_event(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        exchange="binance",
-        symbol="BTC/USDT",
-        decision_suffix="binance",
-    )
-    _publish_market_event(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        exchange="bitget",
-        symbol="BTC/USDT",
-        decision_suffix="bitget",
-    )
-    _publish_notification_probe_event(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        llm_content=llm_content,
-    )
+        _await_queue_message(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            queue_name=AUDIT_QUEUES["strategy_lifecycle"][0],
+            timeout_seconds=args.workflow_timeout_seconds,
+            required_event_prefix="agent.decision.",
+            decision_ids=published_decisions,
+        )
+        _await_queue_message(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            queue_name=AUDIT_QUEUES["execution_intent"][0],
+            timeout_seconds=args.workflow_timeout_seconds,
+            required_event_prefix="execution.intent.",
+            decision_ids=published_decisions,
+        )
+        _await_queue_message(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            queue_name=AUDIT_QUEUES["oms_updates"][0],
+            timeout_seconds=args.workflow_timeout_seconds,
+            required_event_prefix="oms.order.",
+            decision_ids=published_decisions,
+        )
+        _await_queue_message(
+            api_base=rabbitmq_api,
+            username=rabbitmq_user,
+            password=rabbitmq_pass,
+            queue_name=AUDIT_QUEUES["notify"][0],
+            timeout_seconds=args.workflow_timeout_seconds,
+            required_event_prefix="notify.",
+        )
 
-    _await_queue_message(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        queue_name=AUDIT_QUEUES["strategy_lifecycle"][0],
-        timeout_seconds=args.workflow_timeout_seconds,
-        required_event_prefix="agent.decision.",
-    )
-    _await_queue_message(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        queue_name=AUDIT_QUEUES["execution_intent"][0],
-        timeout_seconds=args.workflow_timeout_seconds,
-        required_event_prefix="execution.intent.",
-    )
-    _await_queue_message(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        queue_name=AUDIT_QUEUES["oms_updates"][0],
-        timeout_seconds=args.workflow_timeout_seconds,
-        required_event_prefix="oms.order.",
-    )
-    _await_queue_message(
-        api_base=rabbitmq_api,
-        username=rabbitmq_user,
-        password=rabbitmq_pass,
-        queue_name=AUDIT_QUEUES["notify"][0],
-        timeout_seconds=args.workflow_timeout_seconds,
-        required_event_prefix="notify.",
-    )
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM orderbook_snapshots", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_orders", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_portfolio_snapshots", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM news_items", minimum=1)
 
-    _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM orderbook_snapshots", minimum=1)
-    _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_orders", minimum=1)
-    _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_portfolio_snapshots", minimum=1)
-    _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM news_items", minimum=1)
-
-    _assert_worker_log_contains(repo_root=repo_root, service="notification_worker", needle="notification.worker.envelope")
-    print("Mock realtime workflow test passed")
-    return 0
+        _assert_worker_log_contains(repo_root=repo_root, service="notification_worker", needle="notification.worker.envelope")
+        print("Mock realtime workflow test passed")
+        return 0
+    finally:
+        if market_worker_stopped:
+            try:
+                _run(["docker", "compose", "start", "runtime_worker_market"], cwd=repo_root)
+            except RuntimeError as exc:
+                print(f"Warning: failed to restart runtime_worker_market after mock workflow test: {exc}")
 
 
 def _publish_market_event(
@@ -129,10 +162,11 @@ def _publish_market_event(
     exchange: str,
     symbol: str,
     decision_suffix: str,
-) -> None:
+) -> str:
+    decision_id = str(uuid.uuid4())
     event = {
-        "trace_id": f"mock-trace-{decision_suffix}-{uuid.uuid4()}",
-        "decision_id": f"mock-decision-{decision_suffix}-{uuid.uuid4()}",
+        "trace_id": str(uuid.uuid4()),
+        "decision_id": decision_id,
         "mode": "MOCK",
         "idempotency_key": f"mock.market.{decision_suffix}:{uuid.uuid4()}",
         "event_type": "market.canonical.orderbook_delta",
@@ -141,8 +175,9 @@ def _publish_market_event(
             "exchange": exchange,
             "symbol": symbol,
             "timestamp_ms": int(time.time() * 1000),
-            "bids": [{"price": 42000.0, "amount": 3.0}, {"price": 41999.5, "amount": 2.0}],
-            "asks": [{"price": 42001.0, "amount": 2.5}, {"price": 42001.5, "amount": 1.5}],
+            # Force a buy-dominant imbalance so planner/risk/guardrail paths generate an executable intent.
+            "bids": [{"price": 42000.0, "amount": 9.0}, {"price": 41999.5, "amount": 4.0}],
+            "asks": [{"price": 42001.0, "amount": 1.0}, {"price": 42001.5, "amount": 0.8}],
             "news": {
                 "summary": "Macro risk stable; volatility contained",
                 "sentiment": 0.1,
@@ -163,6 +198,7 @@ def _publish_market_event(
             "payload_encoding": "string",
         },
     )
+    return decision_id
 
 
 def _publish_notification_probe_event(
@@ -173,8 +209,8 @@ def _publish_notification_probe_event(
     llm_content: str,
 ) -> None:
     event = {
-        "trace_id": f"notify-trace-{uuid.uuid4()}",
-        "decision_id": f"notify-decision-{uuid.uuid4()}",
+        "trace_id": str(uuid.uuid4()),
+        "decision_id": str(uuid.uuid4()),
         "mode": "MOCK",
         "idempotency_key": f"notify.event:{uuid.uuid4()}",
         "event_type": "notify.system.critical_error",
@@ -210,6 +246,7 @@ def _await_queue_message(
     queue_name: str,
     timeout_seconds: float,
     required_event_prefix: str,
+    decision_ids: set[str] | None = None,
 ) -> dict[str, object]:
     deadline = time.time() + timeout_seconds
     queue_ref = _encode_segment(queue_name)
@@ -233,12 +270,34 @@ def _await_queue_message(
                 continue
             event_type = str(parsed.get("event_type", ""))
             if event_type.startswith(required_event_prefix):
+                if decision_ids is not None and str(parsed.get("decision_id", "")) not in decision_ids:
+                    continue
                 return parsed
         time.sleep(0.3)
     raise RuntimeError(f"Timeout waiting for event prefix {required_event_prefix} in queue {queue_name}")
 
 
+def _purge_runtime_queues(
+    *,
+    api_base: str,
+    username: str,
+    password: str,
+) -> None:
+    for queue_name in RUNTIME_QUEUES_TO_PURGE:
+        queue_ref = _encode_segment(queue_name)
+        _rabbitmq_api_call(
+            api_base=api_base,
+            username=username,
+            password=password,
+            path=f"/queues/%2F/{queue_ref}/contents",
+            payload={},
+            method="DELETE",
+        )
+
+
 def _probe_litellm_or_mock(*, require_litellm: bool) -> str:
+    from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPError, LiteLLMHTTPProviderClient
+
     base_url = os.getenv("LITELLM_BASE_URL", "").strip()
     model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
     api_key = os.getenv("LITELLM_API_KEY", "").strip() or None
