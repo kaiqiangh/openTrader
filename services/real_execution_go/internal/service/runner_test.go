@@ -152,3 +152,33 @@ func TestRunnerNacksOnHandlerError(t *testing.T) {
 		t.Fatalf("expected span decision id decision-2, got %s", snapshot.RecentSpans[0].DecisionID)
 	}
 }
+
+func TestRunnerContinuesAfterConsumerError(t *testing.T) {
+	cons := &fakeConsumer{
+		errors: []error{
+			errors.New("transient consumer failure"),
+		},
+	}
+	handler := &fakeBodyHandler{}
+	collector := metrics.NewCollector()
+	runner := &Runner{
+		QueueName: "execution.intent.real",
+		Consumer:  cons,
+		Handler:   handler,
+		Metrics:   collector,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+	}()
+
+	if err := runner.Run(ctx); err != nil {
+		t.Fatalf("runner returned error: %v", err)
+	}
+	snapshot := collector.Snapshot()
+	if snapshot.Totals.FailureTotal == 0 {
+		t.Fatal("expected consumer failure metric to be recorded")
+	}
+}

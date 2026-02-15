@@ -23,6 +23,19 @@ func (f *fakeBridge) Execute(command bridge.Command) (bridge.Result, error) {
 	return bridge.Result{OrderID: "order-1", Status: "submitted"}, nil
 }
 
+type fakePublisher struct {
+	routingKeys []string
+	envelopes   []map[string]any
+	err         error
+}
+
+func (f *fakePublisher) Publish(ctx context.Context, routingKey string, message map[string]any) error {
+	_ = ctx
+	f.routingKeys = append(f.routingKeys, routingKey)
+	f.envelopes = append(f.envelopes, message)
+	return f.err
+}
+
 func realEnvelope(t *testing.T, action string, idempotencyKey string) []byte {
 	t.Helper()
 	payload := map[string]any{
@@ -158,5 +171,41 @@ func TestHandlerMarksFailureWhenBridgeFails(t *testing.T) {
 	}
 	if record.Status != idempotency.StatusFailed {
 		t.Fatalf("expected failed status, got %s", record.Status)
+	}
+}
+
+func TestHandlerPublishesSubmittedEventOnSuccess(t *testing.T) {
+	bridgeClient := &fakeBridge{}
+	store := idempotency.NewInMemoryStore()
+	eventPublisher := &fakePublisher{}
+	handler := NewHandler(bridgeClient, store, eventPublisher)
+
+	err := handler.Handle(context.Background(), realEnvelope(t, "BUY", "idem-publish-success"))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(eventPublisher.routingKeys) != 1 {
+		t.Fatalf("expected one lifecycle event, got %d", len(eventPublisher.routingKeys))
+	}
+	if eventPublisher.routingKeys[0] != "oms.order.submitted" {
+		t.Fatalf("expected oms.order.submitted, got %s", eventPublisher.routingKeys[0])
+	}
+}
+
+func TestHandlerPublishesRejectedEventWhenBridgeFails(t *testing.T) {
+	bridgeClient := &fakeBridge{err: errors.New("bridge down")}
+	store := idempotency.NewInMemoryStore()
+	eventPublisher := &fakePublisher{}
+	handler := NewHandler(bridgeClient, store, eventPublisher)
+
+	err := handler.Handle(context.Background(), realEnvelope(t, "SELL", "idem-publish-fail"))
+	if err == nil {
+		t.Fatal("expected bridge failure")
+	}
+	if len(eventPublisher.routingKeys) != 1 {
+		t.Fatalf("expected one lifecycle event, got %d", len(eventPublisher.routingKeys))
+	}
+	if eventPublisher.routingKeys[0] != "oms.order.rejected" {
+		t.Fatalf("expected oms.order.rejected, got %s", eventPublisher.routingKeys[0])
 	}
 }

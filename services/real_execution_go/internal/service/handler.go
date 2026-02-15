@@ -9,26 +9,36 @@ import (
 
 	"open-trader/real_execution_go/internal/bridge"
 	"open-trader/real_execution_go/internal/idempotency"
+	"open-trader/real_execution_go/internal/publisher"
 )
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
 type Handler struct {
-	Bridge bridge.Client
-	Store  idempotency.Store
-	Now    func() time.Time
+	Bridge    bridge.Client
+	Store     idempotency.Store
+	Publisher publisher.MessagePublisher
+	Now       func() time.Time
 }
 
-func NewHandler(bridgeClient bridge.Client, store idempotency.Store) *Handler {
+func NewHandler(
+	bridgeClient bridge.Client,
+	store idempotency.Store,
+	eventPublisher ...publisher.MessagePublisher,
+) *Handler {
+	var configuredPublisher publisher.MessagePublisher
+	if len(eventPublisher) > 0 {
+		configuredPublisher = eventPublisher[0]
+	}
 	return &Handler{
-		Bridge: bridgeClient,
-		Store:  store,
-		Now:    time.Now,
+		Bridge:    bridgeClient,
+		Store:     store,
+		Publisher: configuredPublisher,
+		Now:       time.Now,
 	}
 }
 
 func (h *Handler) Handle(ctx context.Context, body []byte) error {
-	_ = ctx
 	envelope, err := DecodeEnvelope(body)
 	if err != nil {
 		return err
@@ -46,9 +56,15 @@ func (h *Handler) Handle(ctx context.Context, body []byte) error {
 	result, err := h.Bridge.Execute(command)
 	if err != nil {
 		h.Store.MarkFailed(dispatchKey, err.Error())
+		if publishErr := h.publishLifecycleEvent(ctx, envelope, command, bridge.Result{}, err); publishErr != nil {
+			return fmt.Errorf("bridge execute failed: %w; publish failed: %v", err, publishErr)
+		}
 		return fmt.Errorf("bridge execute failed: %w", err)
 	}
 	h.Store.MarkCompleted(dispatchKey, result.OrderID)
+	if publishErr := h.publishLifecycleEvent(ctx, envelope, command, result, nil); publishErr != nil {
+		return fmt.Errorf("publish lifecycle event failed: %w", publishErr)
+	}
 	return nil
 }
 
@@ -95,4 +111,83 @@ func (h *Handler) toBridgeCommand(envelope Envelope) (bridge.Command, string, er
 	default:
 		return bridge.Command{}, "", fmt.Errorf("%w: %s", ErrUnsupportedAction, action)
 	}
+}
+
+func (h *Handler) publishLifecycleEvent(
+	ctx context.Context,
+	envelope Envelope,
+	command bridge.Command,
+	result bridge.Result,
+	bridgeErr error,
+) error {
+	if h.Publisher == nil {
+		return nil
+	}
+	emittedAt := h.Now().UTC().Format(time.RFC3339Nano)
+	status := strings.ToUpper(strings.TrimSpace(result.Status))
+	eventType := "oms.order.submitted"
+	if bridgeErr != nil {
+		eventType = "oms.order.rejected"
+		status = "REJECTED"
+	} else {
+		switch status {
+		case "FILLED":
+			eventType = "oms.order.filled"
+		case "PARTIALLY_FILLED":
+			eventType = "oms.order.partially_filled"
+		case "CANCELLED", "CANCELED":
+			eventType = "oms.order.canceled"
+		case "REJECTED":
+			eventType = "oms.order.rejected"
+		default:
+			status = "SUBMITTED"
+		}
+	}
+
+	orderID := firstNonEmpty(
+		strings.TrimSpace(result.OrderID),
+		strings.TrimSpace(command.ExchangeOrderID),
+		strings.TrimSpace(command.ClientOrderID),
+		fmt.Sprintf("order-%s", envelope.DecisionID),
+	)
+	quantity := command.Quantity
+	if quantity < 0 {
+		quantity = -quantity
+	}
+	eventPayload := map[string]any{
+		"strategy_id":       envelope.Payload.StrategyID,
+		"order_id":          orderID,
+		"exchange_order_id": firstNonEmpty(strings.TrimSpace(result.OrderID), strings.TrimSpace(command.ExchangeOrderID)),
+		"client_order_id":   command.ClientOrderID,
+		"symbol":            command.Symbol,
+		"mode":              "REAL",
+		"action":            string(command.Action),
+		"quantity":          quantity,
+		"status":            status,
+	}
+	if bridgeErr != nil {
+		eventPayload["error"] = bridgeErr.Error()
+	}
+
+	eventEnvelope := map[string]any{
+		"trace_id":        envelope.TraceID,
+		"decision_id":     envelope.DecisionID,
+		"mode":            "REAL",
+		"idempotency_key": fmt.Sprintf("%s:%s", eventType, envelope.IdempotencyKey),
+		"event_type":      eventType,
+		"emitted_at":      emittedAt,
+		"payload":         eventPayload,
+		"service":         "real_execution_go",
+	}
+	return h.Publisher.Publish(ctx, eventType, eventEnvelope)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

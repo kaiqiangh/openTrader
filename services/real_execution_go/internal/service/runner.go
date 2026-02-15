@@ -22,6 +22,8 @@ type Runner struct {
 	Metrics   *metrics.Collector
 }
 
+const consumerErrorBackoff = 500 * time.Millisecond
+
 func (r *Runner) Run(ctx context.Context) error {
 	if r.QueueName == "" {
 		return errors.New("queue name is required")
@@ -49,7 +51,12 @@ func (r *Runner) Run(ctx context.Context) error {
 			if r.Metrics != nil {
 				r.Metrics.RecordRunFailure(r.QueueName, 0, "consumer_error", "", "")
 			}
-			return err
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(consumerErrorBackoff):
+			}
+			continue
 		}
 
 		started := time.Now()
