@@ -131,7 +131,6 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     internal_only_services = (
         "postgres_timescaledb",
         "redis",
-        "rabbitmq",
         "notification_worker",
         "prometheus",
         "alertmanager",
@@ -144,6 +143,10 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     grafana_block = _service_block(compose, "grafana")
     assert "ports:" in grafana_block
     assert "127.0.0.1:3000:3000" in grafana_block
+
+    rabbitmq_block = _service_block(compose, "rabbitmq")
+    assert "ports:" in rabbitmq_block
+    assert "127.0.0.1:15672:15672" in rabbitmq_block
 
 
 def test_p9_security_acceptance_secret_placeholder_rejection() -> None:

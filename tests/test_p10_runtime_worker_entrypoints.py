@@ -151,6 +151,43 @@ async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is
 
 
 @pytest.mark.asyncio
+async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_engine_is_provided(tmp_path: Path) -> None:
+    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-market.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE orderbook_snapshots (
+                    snapshot_time TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    bids TEXT NOT NULL,
+                    asks TEXT NOT NULL,
+                    best_bid REAL NOT NULL,
+                    best_ask REAL NOT NULL,
+                    spread_bps REAL NOT NULL,
+                    PRIMARY KEY (snapshot_time, exchange, symbol)
+                )
+                """
+            )
+        )
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(
+        settings=_settings(worker="market"),
+        broker=broker,
+        runtime_engine=engine,
+    )
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+    with engine.connect() as connection:
+        snapshot_count = connection.execute(text("SELECT COUNT(*) FROM orderbook_snapshots")).scalar_one()
+    assert snapshot_count >= 1
+
+
+@pytest.mark.asyncio
 async def test_simulation_worker_runner_consumes_execution_intent_and_publishes_oms_events() -> None:
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(settings=_settings(worker="simulation"), broker=broker)

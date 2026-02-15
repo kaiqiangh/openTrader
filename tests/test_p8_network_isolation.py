@@ -17,7 +17,6 @@ def test_internal_services_do_not_publish_host_ports() -> None:
     internal_only_services = (
         "postgres_timescaledb",
         "redis",
-        "rabbitmq",
         "notification_worker",
         "prometheus",
         "alertmanager",
@@ -27,6 +26,13 @@ def test_internal_services_do_not_publish_host_ports() -> None:
     for service_name in internal_only_services:
         block = _service_block(compose, service_name)
         assert "ports:" not in block, service_name
+
+
+def test_rabbitmq_management_port_is_localhost_bound_only() -> None:
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    rabbitmq = _service_block(compose, "rabbitmq")
+    assert "ports:" in rabbitmq
+    assert '127.0.0.1:15672:15672' in rabbitmq
 
 
 def test_only_grafana_is_exposed_for_observability_surface() -> None:
@@ -47,4 +53,3 @@ def _service_block(content: str, service_name: str) -> str:
     if match is None:
         return remainder
     return remainder[: match.start()]
-

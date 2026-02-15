@@ -16,6 +16,7 @@ from services.agent_orchestrator.sqlalchemy_memory_store import (
 from services.llm_gateway.persistence import LLMCallRecord
 from services.llm_gateway.sqlalchemy_stores import SQLAlchemyLLMCallStore, SQLAlchemyLLMQuotaStore
 from services.market_ingestion.sqlalchemy_store import SQLAlchemyTimeseriesStore
+from services.workers.runtime_persistence import SQLAlchemyRuntimeMarketStore
 
 
 @pytest.mark.asyncio
@@ -286,6 +287,64 @@ async def test_timeseries_store_accepts_sqlalchemy_engine(tmp_path) -> None:
         kline_count = connection.execute(text("SELECT COUNT(*) FROM klines")).scalar_one()
     assert snapshot_count == 1
     assert kline_count == 1
+
+
+@pytest.mark.asyncio
+async def test_runtime_market_store_persists_canonical_orderbook_envelope(tmp_path) -> None:
+    db_path = Path(tmp_path) / "runtime-market-store.db"
+    engine = create_engine(f"sqlite+pysqlite:///{db_path}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE orderbook_snapshots (
+                    snapshot_time TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    bids TEXT NOT NULL,
+                    asks TEXT NOT NULL,
+                    best_bid REAL NOT NULL,
+                    best_ask REAL NOT NULL,
+                    spread_bps REAL NOT NULL,
+                    PRIMARY KEY (snapshot_time, exchange, symbol)
+                )
+                """
+            )
+        )
+
+    store = SQLAlchemyRuntimeMarketStore(connection=engine)
+    await store.persist_orderbook_envelope(
+        {
+            "trace_id": "trace-market",
+            "decision_id": "decision-market",
+            "mode": "MOCK",
+            "idempotency_key": "market.canonical:binance:1",
+            "event_type": "market.canonical.orderbook_delta",
+            "emitted_at": "2026-02-15T00:00:00Z",
+            "payload": {
+                "exchange": "binance",
+                "symbol": "BTC/USDT",
+                "timestamp_ms": 1739577600000,
+                "bids": [{"price": 42000.0, "amount": 1.2}],
+                "asks": [{"price": 42001.0, "amount": 0.8}],
+            },
+            "service": "market_ingestion",
+        }
+    )
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                """
+                SELECT exchange, symbol, best_bid, best_ask, spread_bps
+                FROM orderbook_snapshots
+                """
+            )
+        ).mappings().one()
+    assert row["exchange"] == "binance"
+    assert row["symbol"] == "BTC/USDT"
+    assert row["best_bid"] == pytest.approx(42000.0)
+    assert row["best_ask"] == pytest.approx(42001.0)
+    assert row["spread_bps"] > 0.0
 
 
 @pytest.mark.asyncio
