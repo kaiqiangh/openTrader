@@ -93,6 +93,7 @@ Use this exact format in each update:
 | 50   | 2026-02-15 | Runtime DB policy hardening + doc-test fixes     | P10-001,P10-002,P10-003   | -           | Added shared runtime database layer (`services/shared/runtime/database.py`) with Postgres-first policy and explicit sqlite test override, verified doc-format tests, and kept full pytest/ruff green                | 100%      |
 | 51   | 2026-02-15 | P10 DB fail-fast + worker SQL stores + Go concrete start | P10-001,P10-002,P10-003,P10-004 | -           | Added runtime worker DB startup fail-fast check, SQL-backed OMS/news worker stores, and concrete Go RabbitMQ consumer/bridge/publisher wiring with lifecycle event publishing; Python lint/tests and Go tests green | 100%      |
 | 52   | 2026-02-15 | P10 runtime compose/smoke hardening + status rebaseline | P10-001,P10-002,P10-004   | P10-003,P10-005,P10-006,P10-007 | Hardened real-execution consumer resiliency, fixed smoke RabbitMQ host/topology probes, validated `make smoke` + targeted pytest/Go tests, and rebaselined Phase 10 status board to runtime evidence               | 100%      |
+| 53   | 2026-02-15 | P10 runtime determinism + integration gate pass | P10-003,P10-007            | -           | Added market runtime SQL persistence, removed startup-path `uv sync` from compose workers, added compose migrator dependency wiring, added strategy lifecycle topology bindings to prevent unrouted orchestrator publishes, hardened smoke probe/stability checks, and validated `make runtime-gate` with passing artifact output | 100%      |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -562,6 +563,15 @@ Use this exact format in each update:
 - Next Task IDs: [P10-003, P10-005, P10-006, P10-007]
 - Overall Progress: 100%
 
+### Turn Update 2026-02-15 22:05
+
+- Completed Task IDs: [P10-005 runtime startup determinism hardening, P10-006 dedicated runtime integration gate baseline]
+- In Progress Task IDs: [P10-003, P10-007]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: Runtime compose boot is now deterministic and gate-passing, but `P10-003` still retains optional in-memory fallback code paths outside strict runtime mode and should be fully retired/documented.
+- Next Task IDs: [P10-003, P10-007]
+- Overall Progress: 100%
+
 ## 2. Milestone Roadmap (Multi-Phase)
 
 | Phase | Name                               | Objective                                                                     | Exit Gate                                           | Status      |
@@ -934,8 +944,8 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 | P10-002 | P0  | RabbitMQ adapter replacement           | Replace in-memory broker usage on production runtime path with RabbitMQ producer/consumer adapters and ack/nack behavior             | P10-001,P1-008         | Infra-backed event path           | DONE |
 | P10-003 | P0  | Postgres/Timescale adapter replacement | Replace SQLite/in-memory runtime stores for market/LLM/memory/news/notification/ops with PostgreSQL/Timescale-backed adapters        | P10-001,P1-002         | Infra-backed persistence path     | IN_PROGRESS |
 | P10-004 | P0  | Go real execution concrete integration | Replace noop consumer/bridge in `main.go` with concrete queue client + execution bridge + OMS event publishing contract              | P10-002,P10-003,P4-006 | Real execution runtime path       | DONE |
-| P10-005 | P1  | Full compose service topology          | Add all core runtime services to compose default startup and health checks (no profile gating)                                       | P10-001..P10-004       | One-command local stack boot      | IN_PROGRESS |
-| P10-006 | P1  | Runtime E2E test gate                  | Add integration suite that validates full runtime flow against real infra dependencies                                               | P10-002..P10-005       | Production-like validation report | IN_PROGRESS |
+| P10-005 | P1  | Full compose service topology          | Add all core runtime services to compose default startup and health checks (no profile gating)                                       | P10-001..P10-004       | One-command local stack boot      | DONE |
+| P10-006 | P1  | Runtime E2E test gate                  | Add integration suite that validates full runtime flow against real infra dependencies                                               | P10-002..P10-005       | Production-like validation report | DONE |
 | P10-007 | P1  | Documentation and runbook alignment    | Update ARD/PRD/README/runbooks to match concrete runtime topology and operations                                                     | P10-001..P10-006       | Aligned architecture and ops docs | IN_PROGRESS |
 
 ## 5. Cross-Phase Critical Path
@@ -1145,11 +1155,11 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 | P9-009  | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
 | P10-001 | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
 | P10-002 | TBD   | 2026-02-15 | -           | DONE | 100 | -                | 2026-02-15  |
-| P10-003 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 80  | -                | 2026-02-15  |
+| P10-003 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 90  | -                | 2026-02-15  |
 | P10-004 | TBD   | 2026-02-15 | -           | DONE | 100 | P10-002,P10-003  | 2026-02-15  |
-| P10-005 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 70  | P10-001..P10-004 | 2026-02-15  |
-| P10-006 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 60  | P10-002..P10-005 | 2026-02-15  |
-| P10-007 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 60  | -                | 2026-02-15  |
+| P10-005 | TBD   | 2026-02-15 | -           | DONE | 100 | P10-001..P10-004 | 2026-02-15  |
+| P10-006 | TBD   | 2026-02-15 | -           | DONE | 100 | P10-002..P10-005 | 2026-02-15  |
+| P10-007 | TBD   | 2026-02-15 | -           | IN_PROGRESS | 65  | -                | 2026-02-15  |
 
 > Note: Keep this board concise for active critical-path tasks. Full task catalog remains in phase sections above.
 
@@ -1158,7 +1168,6 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 1. Populate owner names for all `TBD` fields in `docs/release/p9-post-phase-handoff-pack-2026-02-15.md`.
 2. Execute hypercare checklist windows and track status in war-room channel.
 3. Convert `BL-001..BL-007` triage items into sprint tickets with owners/dates.
-4. Continue `P10-003` by replacing remaining in-memory/runtime-synthetic persistence paths (market/ops/notification slices) with PostgreSQL/Timescale-backed adapters.
-5. Continue `P10-005` by removing `uv sync` from container startup paths and adding explicit health checks for runtime workers to ensure deterministic compose boot.
-6. Continue `P10-006` by promoting smoke checks into a dedicated runtime integration suite with strict pass/fail criteria and artifact output.
-7. Continue `P10-007` documentation/runbook updates to reflect the current Phase 10 runtime topology and new smoke/E2E gates.
+4. Continue `P10-003` by retiring remaining optional in-memory fallbacks from runtime-critical notification/ops paths and aligning schema types with migration-first contracts.
+5. Continue `P10-007` documentation/runbook updates to reflect runtime image build flow, compose migrator dependency, and `runtime-gate` evidence artifacts.
+6. Promote `runtime-gate` execution into CI/nightly validation so Phase 10 regression is detected before local/operator runtime.
