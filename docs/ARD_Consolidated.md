@@ -37,6 +37,9 @@ The codebase now has concrete runtime coverage for the critical trading path in 
 - Time-series storage:
   - Persist `klines` and sampled `orderbook_snapshots` in TimescaleDB.
   - Do not persist full raw websocket depth streams end-to-end.
+- Market ingestion transport mode:
+  - Runtime supports configurable delta transport mode (`rest` polling or `websocket` streaming) behind the same canonical adapter contract.
+  - Default local/dev runtime profile uses REST polling with configurable cadence (default 300 seconds) for deterministic validation and lower operational noise.
 - Agent triggering:
   - Hybrid model is mandatory.
   - Primary event trigger on canonical market events (especially candle-close / context-ready).

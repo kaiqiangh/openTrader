@@ -95,6 +95,8 @@ Use this exact format in each update:
 | 52   | 2026-02-15 | P10 runtime compose/smoke hardening + status rebaseline | P10-001,P10-002,P10-004   | P10-003,P10-005,P10-006,P10-007 | Hardened real-execution consumer resiliency, fixed smoke RabbitMQ host/topology probes, validated `make smoke` + targeted pytest/Go tests, and rebaselined Phase 10 status board to runtime evidence               | 100%      |
 | 53   | 2026-02-15 | P10 runtime determinism + integration gate pass | P10-003,P10-007            | -           | Added market runtime SQL persistence, removed startup-path `uv sync` from compose workers, added compose migrator dependency wiring, added strategy lifecycle topology bindings to prevent unrouted orchestrator publishes, hardened smoke probe/stability checks, and validated `make runtime-gate` with passing artifact output | 100%      |
 | 54   | 2026-02-15 | P10 runtime cleanup/doc alignment closure | P10-003,P10-007            | -           | Retired runtime notification in-memory fallback under strict runtime policy, fixed OMS runtime snapshot persistence schema mismatch for Postgres, added deterministic `make mock-workflow` end-to-end script, and aligned README/PRD/ARD/runbook docs with runtime-gate operations | 100%      |
+| 55   | 2026-02-15 | Post-P10 connector hardening (market fetch mode + real-data mock workflow) | - | - | Added REST/WebSocket market fetch-mode contract (REST default @ 5-minute cadence), wired runtime market worker to concrete Binance/Bitget HTTP adapters for production path, upgraded mock realtime workflow to fetch live exchange/news data with strict LiteLLM/DeepSeek checks, and refreshed README/frontend run guidance | 100%      |
+| 56   | 2026-02-15 | Runtime market worker resilience hotfix + workflow gate stability | - | - | Hardened runtime worker loop to survive transient exchange DNS/network failures without container crash/restart loops, preserved `--once` failure semantics, switched mock workflow to real-first with explicit strict flags, and revalidated `make smoke`, `make runtime-gate`, and `make mock-workflow` | 100%      |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -580,6 +582,24 @@ Use this exact format in each update:
 - Blocked Task IDs: [-]
 - New Risks/Blockers: No new blockers; runtime DB/broker/notification/compose flows validated with `uv run pytest -q`, `make runtime-gate`, and `make mock-workflow`.
 - Next Task IDs: [Post-P10 connector hardening, UI read-only dashboard expansion, CI runtime-gate scheduling]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:40
+
+- Completed Task IDs: [Post-P10 connector hardening slice: runtime market fetch mode + mock workflow real-data wiring]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: WebSocket-native exchange transport remains intentionally deferred; current runtime mode switch supports deterministic REST polling default and websocket-mode contract path over exchange HTTP client interfaces.
+- Next Task IDs: [WebSocket-native adapter parity hardening, UI read-only dashboard expansion, CI runtime-gate scheduling]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:50
+
+- Completed Task IDs: [Runtime market worker resilience hotfix, mock workflow fallback strictness controls, gate revalidation]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: External exchange and LiteLLM DNS/connectivity remain environment-dependent; workflow now defaults to real-source-first with controlled fallback while strict real-only probes are available via flags.
+- Next Task IDs: [WebSocket-native adapter parity hardening, runtime log-rate tuning for repeated exchange connectivity failures, CI runtime-gate scheduling]
 - Overall Progress: 100%
 
 ## 2. Milestone Roadmap (Multi-Phase)
