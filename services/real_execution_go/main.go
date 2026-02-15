@@ -2,45 +2,45 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
 	"open-trader/real_execution_go/internal/bridge"
 	"open-trader/real_execution_go/internal/consumer"
 	"open-trader/real_execution_go/internal/idempotency"
 	"open-trader/real_execution_go/internal/metrics"
+	"open-trader/real_execution_go/internal/publisher"
 	"open-trader/real_execution_go/internal/service"
 )
 
-type noopConsumer struct{}
-
-func (c *noopConsumer) Receive(ctx context.Context, queue string) (consumer.Delivery, error) {
-	_ = ctx
-	_ = queue
-	return consumer.Delivery{}, consumer.ErrNoMessage
-}
-
-type noopBridge struct{}
-
-func (b *noopBridge) Execute(command bridge.Command) (bridge.Result, error) {
-	_ = command
-	return bridge.Result{}, errors.New("bridge client not configured")
-}
-
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	queueName := strings.TrimSpace(os.Getenv("REAL_EXECUTION_QUEUE_NAME"))
+	if queueName == "" {
+		queueName = "execution.intent.real"
+	}
+
 	store := idempotency.NewInMemoryStore()
-	handler := service.NewHandler(&noopBridge{}, store)
+	bridgeClient := bridge.NewHTTPBridgeClientFromEnv()
+	queueConsumer := consumer.NewRabbitMQHTTPConsumerFromEnv()
+	eventPublisher := publisher.NewRabbitMQHTTPPublisherFromEnv()
+	handler := service.NewHandler(bridgeClient, store, eventPublisher)
 	runner := &service.Runner{
-		QueueName: "execution.intent.real",
-		Consumer:  &noopConsumer{},
+		QueueName: queueName,
+		Consumer:  queueConsumer,
 		Handler:   handler,
 		Metrics:   metrics.NewCollector(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	_ = runner.Run(ctx)
-
-	fmt.Println("real_execution_go queue consumer skeleton ready")
+	fmt.Printf("real_execution_go started (queue=%s)\n", queueName)
+	if err := runner.Run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "real_execution_go stopped with error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("real_execution_go stopped")
 }

@@ -23,23 +23,23 @@ const (
 )
 
 type Command struct {
-	CommandID       string
-	Operation       Operation
-	Action          Action
-	Symbol          string
-	Quantity        float64
-	ReduceOnly      bool
-	IdempotencyKey  string
-	ClientOrderID   string
-	ExchangeOrderID string
-	TraceID         string
-	DecisionID      string
+	CommandID       string    `json:"command_id"`
+	Operation       Operation `json:"operation"`
+	Action          Action    `json:"action"`
+	Symbol          string    `json:"symbol"`
+	Quantity        float64   `json:"quantity"`
+	ReduceOnly      bool      `json:"reduce_only"`
+	IdempotencyKey  string    `json:"idempotency_key"`
+	ClientOrderID   string    `json:"client_order_id,omitempty"`
+	ExchangeOrderID string    `json:"exchange_order_id,omitempty"`
+	TraceID         string    `json:"trace_id"`
+	DecisionID      string    `json:"decision_id"`
 }
 
 type Result struct {
-	OrderID     string
-	Status      string
-	RawResponse map[string]any
+	OrderID     string         `json:"order_id"`
+	Status      string         `json:"status"`
+	RawResponse map[string]any `json:"raw_response"`
 }
 
 type Client interface {
