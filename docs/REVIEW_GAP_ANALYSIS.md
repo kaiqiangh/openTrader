@@ -103,3 +103,5 @@ Full-only extras are not started in core mode and are available via `docker comp
 | Verification scripts for kline/orderbook | `7043c05` | `uv run pytest tests/test_verify_persistence_scripts.py -q` |
 | Compose core/full profile split + gate updates | `9e5e367` | `uv run pytest tests/test_smoke_script.py tests/test_runtime_integration_gate.py tests/test_p8_observability_stack.py -q` |
 | Runtime bool upsert fix for exchange/symbol refs | `b55c6cc` | `uv run pytest tests/test_runtime_persistence_adapters.py tests/test_mock_realtime_workflow_script.py -q` |
+| Docs alignment across ARD/PRD/plan/README/review | `e8150a0` | `rg -n "core runtime|--profile full|ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS" docs README.md` |
+| Security acceptance tests aligned to localhost Postgres exposure policy | `024162f` | `uv run pytest -q` |
