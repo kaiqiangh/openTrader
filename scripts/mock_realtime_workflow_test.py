@@ -84,33 +84,37 @@ def main(argv: list[str] | None = None) -> int:
 
         llm_content = _probe_litellm_or_mock(require_litellm=args.require_litellm)
         news_context = _fetch_real_news_context(require_real_news=args.require_real_news)
-        binance_decision_id = _publish_market_event(
-            api_base=rabbitmq_api,
-            username=rabbitmq_user,
-            password=rabbitmq_pass,
-            exchange="binance",
-            symbol="BTC/USDT",
-            decision_suffix="binance",
-            news_context=news_context,
-            require_real_market=args.require_real_market,
-        )
-        bitget_decision_id = _publish_market_event(
-            api_base=rabbitmq_api,
-            username=rabbitmq_user,
-            password=rabbitmq_pass,
-            exchange="bitget",
-            symbol="BTC/USDT",
-            decision_suffix="bitget",
-            news_context=news_context,
-            require_real_market=args.require_real_market,
-        )
-        published_decisions = {binance_decision_id, bitget_decision_id}
+        selected_exchanges = _parse_exchange_list(args.market_exchanges)
+        published_decisions: set[str] = set()
+        market_fetch_results: list[dict[str, object]] = []
+        for exchange in selected_exchanges:
+            result = _publish_market_event(
+                api_base=rabbitmq_api,
+                username=rabbitmq_user,
+                password=rabbitmq_pass,
+                exchange=exchange,
+                symbol="BTC/USDT",
+                decision_suffix=exchange,
+                news_context=news_context,
+                require_real_market=args.require_real_market,
+            )
+            published_decisions.add(str(result["decision_id"]))
+            market_fetch_results.append(result)
         _publish_notification_probe_event(
             api_base=rabbitmq_api,
             username=rabbitmq_user,
             password=rabbitmq_pass,
             llm_content=llm_content,
         )
+        for result in market_fetch_results:
+            print(
+                "market_fetch"
+                f" exchange={result['exchange']}"
+                f" source={result['market_data_source']}"
+                f" best_bid={result['best_bid']}"
+                f" best_ask={result['best_ask']}"
+                f" error={result['fetch_error']}"
+            )
 
         _await_queue_message(
             api_base=rabbitmq_api,
@@ -174,7 +178,7 @@ def _publish_market_event(
     decision_suffix: str,
     news_context: dict[str, object],
     require_real_market: bool,
-) -> str:
+) -> dict[str, object]:
     order_book = _fetch_live_order_book(
         exchange=exchange,
         symbol=symbol,
@@ -202,6 +206,8 @@ def _publish_market_event(
             "asks": asks,
             "news": news_context,
             "source": "exchange.rest",
+            "market_data_source": order_book["data_source"],
+            "market_fetch_error": order_book["fetch_error"],
         },
         "service": "mock_realtime_workflow_test",
     }
@@ -217,7 +223,14 @@ def _publish_market_event(
             "payload_encoding": "string",
         },
     )
-    return decision_id
+    return {
+        "decision_id": decision_id,
+        "exchange": exchange,
+        "market_data_source": order_book["data_source"],
+        "fetch_error": order_book["fetch_error"],
+        "best_bid": bids[0]["price"] if bids else None,
+        "best_ask": asks[0]["price"] if asks else None,
+    }
 
 
 def _publish_notification_probe_event(
@@ -294,8 +307,10 @@ def _fetch_live_order_book(
             "timestamp_ms": timestamp_ms,
             "bids": bids,
             "asks": asks,
+            "data_source": "live_rest",
+            "fetch_error": None,
         }
-    except Exception:
+    except Exception as exc:
         if require_real_market:
             raise
         now_ms = int(time.time() * 1000)
@@ -310,6 +325,8 @@ def _fetch_live_order_book(
                 {"price": base_price + 0.5, "amount": 1.0},
                 {"price": base_price + 1.0, "amount": 0.8},
             ],
+            "data_source": "fallback_synthetic",
+            "fetch_error": f"{exc.__class__.__name__}: {exc}",
         }
 
 
@@ -768,7 +785,23 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         action="store_true",
         help="require live exchange orderbook fetch success instead of fallback mocked market payload",
     )
+    parser.add_argument(
+        "--market-exchanges",
+        default="binance,bitget",
+        help="comma-separated exchange ids to publish market events for (supported: binance,bitget)",
+    )
     return parser.parse_args(argv)
+
+
+def _parse_exchange_list(raw: str) -> tuple[str, ...]:
+    supported = {"binance", "bitget"}
+    parsed = tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+    if not parsed:
+        raise RuntimeError("at least one exchange must be provided in --market-exchanges")
+    invalid = sorted(set(parsed) - supported)
+    if invalid:
+        raise RuntimeError(f"unsupported exchanges in --market-exchanges: {', '.join(invalid)}")
+    return parsed
 
 
 if __name__ == "__main__":

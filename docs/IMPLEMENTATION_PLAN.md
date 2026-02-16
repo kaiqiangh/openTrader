@@ -97,6 +97,7 @@ Use this exact format in each update:
 | 54   | 2026-02-15 | P10 runtime cleanup/doc alignment closure | P10-003,P10-007            | -           | Retired runtime notification in-memory fallback under strict runtime policy, fixed OMS runtime snapshot persistence schema mismatch for Postgres, added deterministic `make mock-workflow` end-to-end script, and aligned README/PRD/ARD/runbook docs with runtime-gate operations | 100%      |
 | 55   | 2026-02-15 | Post-P10 connector hardening (market fetch mode + real-data mock workflow) | - | - | Added REST/WebSocket market fetch-mode contract (REST default @ 5-minute cadence), wired runtime market worker to concrete Binance/Bitget HTTP adapters for production path, upgraded mock realtime workflow to fetch live exchange/news data with strict LiteLLM/DeepSeek checks, and refreshed README/frontend run guidance | 100%      |
 | 56   | 2026-02-15 | Runtime market worker resilience hotfix + workflow gate stability | - | - | Hardened runtime worker loop to survive transient exchange DNS/network failures without container crash/restart loops, preserved `--once` failure semantics, switched mock workflow to real-first with explicit strict flags, and revalidated `make smoke`, `make runtime-gate`, and `make mock-workflow` | 100%      |
+| 57   | 2026-02-15 | Compose egress network fix + market verification diagnostics | - | - | Root-caused market fetch failures to Docker `internal: true` egress isolation, attached market/orchestrator/news/real-execution services to `public` network for external exchange/LLM/news access, enhanced mock workflow exchange-source reporting (`live_rest` vs fallback), and revalidated smoke/runtime-gate/mock-workflow with live Binance+Bitget fetch evidence | 100%      |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -600,6 +601,15 @@ Use this exact format in each update:
 - Blocked Task IDs: [-]
 - New Risks/Blockers: External exchange and LiteLLM DNS/connectivity remain environment-dependent; workflow now defaults to real-source-first with controlled fallback while strict real-only probes are available via flags.
 - Next Task IDs: [WebSocket-native adapter parity hardening, runtime log-rate tuning for repeated exchange connectivity failures, CI runtime-gate scheduling]
+- Overall Progress: 100%
+
+### Turn Update 2026-02-15 23:58
+
+- Completed Task IDs: [Compose external egress networking fix for runtime workers, Bitget strict fetch verification, DB persistence verification workflow]
+- In Progress Task IDs: [-]
+- Blocked Task IDs: [-]
+- New Risks/Blockers: None identified in current local runtime; exchange/network dependency remains external-infra dependent by nature.
+- Next Task IDs: [Dashboard surfacing of market fetch source/health, websocket-native transport parity, CI runtime-gate scheduling]
 - Overall Progress: 100%
 
 ## 2. Milestone Roadmap (Multi-Phase)
