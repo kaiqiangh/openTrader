@@ -535,8 +535,21 @@ def _fetch_latest_news_context(*, engine: Engine, lookback_minutes: int) -> News
         params={"since": since},
     )
     if row is None:
+        row = _fetch_one(
+            engine=engine,
+            query=text(
+                """
+                SELECT summary_id, summary_text, generated_at
+                FROM news_summaries
+                ORDER BY generated_at DESC
+                LIMIT 1
+                """
+            ),
+            params={},
+        )
+    if row is None:
         raise RuntimeError(
-            "No fresh news_summaries row found. Run runtime_worker_news and retry."
+            "No news_summaries row found. Run runtime_worker_news and retry."
         )
 
     summary_id = str(row["summary_id"])
