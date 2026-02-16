@@ -21,11 +21,20 @@ REQUIRED_KEYS = [
     "RABBITMQ_DEFAULT_USER",
     "RABBITMQ_DEFAULT_PASS",
     "EXCHANGE_DEFAULT",
+    "MARKET_EXCHANGES",
+    "MARKET_SYMBOLS",
     "MARKET_DATA_FETCH_MODE",
     "MARKET_DATA_REST_POLL_SECONDS",
+    "ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS",
+    "KLINE_INTERVALS",
+    "KLINE_POLL_INTERVAL_SECONDS",
+    "KLINE_FETCH_LIMIT",
     "EXECUTION_MODE_DEFAULT",
     "SIMULATION_SLIPPAGE_BPS",
     "SIMULATION_FEE_BPS",
+    "NEWS_SOURCE_MODE",
+    "NEWS_RSS_FEEDS",
+    "NEWS_FETCH_TIMEOUT_SECONDS",
     "NOTIFY_ENABLED",
     "NOTIFY_DEFAULT_GATEWAY",
     "NOTIFICATION_DEFAULT_SEVERITY",
@@ -84,6 +93,21 @@ def main() -> int:
         print("EXCHANGE_DEFAULT must be binance or bitget")
         return 1
 
+    market_exchanges = tuple(
+        token.strip().lower() for token in os.getenv("MARKET_EXCHANGES", "").split(",") if token.strip()
+    )
+    if not market_exchanges:
+        print("MARKET_EXCHANGES must include at least one exchange")
+        return 1
+    if any(exchange not in {"binance", "bitget"} for exchange in market_exchanges):
+        print("MARKET_EXCHANGES entries must be binance or bitget")
+        return 1
+
+    market_symbols = tuple(token.strip().upper() for token in os.getenv("MARKET_SYMBOLS", "").split(",") if token.strip())
+    if not market_symbols:
+        print("MARKET_SYMBOLS must include at least one symbol")
+        return 1
+
     market_fetch_mode = os.getenv("MARKET_DATA_FETCH_MODE", "").strip().lower()
     if market_fetch_mode not in {"rest", "restful", "http", "websocket", "ws"}:
         print("MARKET_DATA_FETCH_MODE must be rest or websocket")
@@ -97,6 +121,62 @@ def main() -> int:
         return 1
     if rest_poll_seconds <= 0:
         print("MARKET_DATA_REST_POLL_SECONDS must be a positive number")
+        return 1
+
+    orderbook_interval_raw = os.getenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS", "").strip()
+    try:
+        orderbook_interval = float(orderbook_interval_raw)
+    except ValueError:
+        print("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS must be a positive number")
+        return 1
+    if orderbook_interval <= 0:
+        print("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS must be a positive number")
+        return 1
+
+    kline_intervals = tuple(token.strip().lower() for token in os.getenv("KLINE_INTERVALS", "").split(",") if token.strip())
+    if not kline_intervals:
+        print("KLINE_INTERVALS must include at least one interval")
+        return 1
+
+    kline_poll_raw = os.getenv("KLINE_POLL_INTERVAL_SECONDS", "").strip()
+    try:
+        kline_poll = float(kline_poll_raw)
+    except ValueError:
+        print("KLINE_POLL_INTERVAL_SECONDS must be a positive number")
+        return 1
+    if kline_poll <= 0:
+        print("KLINE_POLL_INTERVAL_SECONDS must be a positive number")
+        return 1
+
+    kline_fetch_limit_raw = os.getenv("KLINE_FETCH_LIMIT", "").strip()
+    try:
+        kline_fetch_limit = int(kline_fetch_limit_raw)
+    except ValueError:
+        print("KLINE_FETCH_LIMIT must be a positive integer")
+        return 1
+    if kline_fetch_limit <= 0:
+        print("KLINE_FETCH_LIMIT must be a positive integer")
+        return 1
+
+    news_source_mode = os.getenv("NEWS_SOURCE_MODE", "").strip().lower()
+    if news_source_mode not in {"real", "mock"}:
+        print("NEWS_SOURCE_MODE must be real or mock")
+        return 1
+    if news_source_mode == "real":
+        feed_urls = tuple(
+            token.strip() for token in os.getenv("NEWS_RSS_FEEDS", "").split(",") if token.strip()
+        )
+        if not feed_urls:
+            print("NEWS_RSS_FEEDS must include at least one URL when NEWS_SOURCE_MODE=real")
+            return 1
+    news_fetch_timeout_raw = os.getenv("NEWS_FETCH_TIMEOUT_SECONDS", "").strip()
+    try:
+        news_fetch_timeout = float(news_fetch_timeout_raw)
+    except ValueError:
+        print("NEWS_FETCH_TIMEOUT_SECONDS must be a positive number")
+        return 1
+    if news_fetch_timeout <= 0:
+        print("NEWS_FETCH_TIMEOUT_SECONDS must be a positive number")
         return 1
 
     if not _is_valid_aes256_key(os.getenv("ENCRYPTION_KEY_BASE64", "")):
