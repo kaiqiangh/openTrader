@@ -14,6 +14,8 @@ def test_mock_realtime_workflow_script_exists_and_covers_expected_flow() -> None
     assert "BinanceHTTPOrderBookClient" in content
     assert "BitgetHTTPOrderBookClient" in content
     assert "_fetch_real_news_context" in content
+    assert "--market-exchanges" in content
+    assert "market_data_source" in content
 
 
 def test_makefile_exposes_mock_workflow_target() -> None:
