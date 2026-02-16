@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
 from urllib import request
@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import asyncio
 import os
 import time
+import uuid
 import xml.etree.ElementTree as ET
 
 from sqlalchemy.engine import Engine
@@ -21,6 +22,7 @@ from services.agent_orchestrator.sqlalchemy_memory_store import (
     SQLAlchemyLongTermMemoryStore,
     SQLAlchemyShortTermMemoryStore,
 )
+from services.agent_orchestrator.sqlalchemy_trace_store import SQLAlchemyTraceStore, TraceAgentRun
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
 from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
 from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
@@ -163,16 +165,42 @@ class MarketWorkerRunner:
 
 
 class OrchestratorWorkerRunner:
-    def __init__(self, *, worker: AgentOrchestratorRuntimeWorker, strategy: StrategyConfig) -> None:
+    def __init__(
+        self,
+        *,
+        worker: AgentOrchestratorRuntimeWorker,
+        strategy: StrategyConfig,
+        trace_store: SQLAlchemyTraceStore | None = None,
+    ) -> None:
         self.worker = worker
         self.strategy = strategy
+        self.trace_store = trace_store
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         result = await self.worker.run_once(
             strategy=self.strategy,
             timeout_seconds=timeout_seconds,
         )
-        return result is not None
+        if result is None:
+            return False
+        if self.trace_store is not None:
+            await self.trace_store.persist_cycle(
+                trace_id=result.trace_id,
+                decision_id=result.decision_id,
+                strategy_id=self.strategy.strategy_id,
+                mode=result.mode,
+                status=result.status,
+                started_at=_decision_started_at(result.lifecycle),
+                completed_at=_decision_completed_at(result.lifecycle),
+                runs=_build_trace_runs(
+                    result=result,
+                    strategy=self.strategy,
+                    last_market_envelope=self.worker.last_envelope,
+                    recent_spans=_decision_spans(self.worker, decision_id=result.decision_id),
+                ),
+                decision_news_links=_decision_news_links(self.worker.last_envelope),
+            )
+        return True
 
 
 class SimulationWorkerRunner:
@@ -468,12 +496,14 @@ def build_runtime_worker(
         )
     if settings.worker == "orchestrator":
         memory_layer: AgentMemoryLayer | None = None
+        trace_store: SQLAlchemyTraceStore | None = None
         if runtime_engine is not None:
             memory_layer = AgentMemoryLayer(
                 short_term_store=SQLAlchemyShortTermMemoryStore(connection=runtime_engine),
                 long_term_store=SQLAlchemyLongTermMemoryStore(connection=runtime_engine),
                 decision_ttl_seconds=max(60, int(os.getenv("AGENT_DECISION_TTL_SECONDS", "900"))),
             )
+            trace_store = SQLAlchemyTraceStore(connection=runtime_engine)
         orchestrator_worker = AgentOrchestratorRuntimeWorker(
             broker_consumer=runtime_broker,
             orchestrator=AgentOrchestrator(
@@ -483,7 +513,11 @@ def build_runtime_worker(
         )
         strategy = _strategy_from_settings(settings=settings)
         return RuntimeWorkerBuildResult(
-            worker=OrchestratorWorkerRunner(worker=orchestrator_worker, strategy=strategy),
+            worker=OrchestratorWorkerRunner(
+                worker=orchestrator_worker,
+                strategy=strategy,
+                trace_store=trace_store,
+            ),
             broker=runtime_broker,
         )
     if settings.worker == "simulation":
@@ -753,6 +787,221 @@ def _position_fill_to_reconciliation_fill(*, fill: PositionFill):
         fee=float(fill.fee),
         source="runtime_worker",
     )
+
+
+def _decision_spans(worker: AgentOrchestratorRuntimeWorker, *, decision_id: str) -> tuple[Mapping[str, Any], ...]:
+    snapshot = worker.orchestrator.metrics.snapshot()
+    spans = snapshot.get("recent_spans")
+    if not isinstance(spans, list):
+        return ()
+    matched: list[Mapping[str, Any]] = []
+    for span in spans:
+        if not isinstance(span, Mapping):
+            continue
+        if str(span.get("decision_id", "")) != decision_id:
+            continue
+        matched.append(span)
+    return tuple(matched)
+
+
+def _build_trace_runs(
+    *,
+    result: Any,
+    strategy: StrategyConfig,
+    last_market_envelope: Mapping[str, Any] | None,
+    recent_spans: tuple[Mapping[str, Any], ...],
+) -> tuple[TraceAgentRun, ...]:
+    span_by_stage = {str(item.get("stage", "")): item for item in recent_spans if isinstance(item, Mapping)}
+    ordered_stages = (
+        ("market_context_agent", "context", _context_stage_input(last_market_envelope), _context_stage_output(result)),
+        ("planner_agent", "planner", _planner_stage_input(result), _planner_stage_output(result)),
+        ("risk_agent", "risk", _risk_stage_input(result, strategy), _risk_stage_output(result)),
+        (
+            "execution_decision_agent",
+            "execution",
+            _execution_stage_input(result),
+            _execution_stage_output(result),
+        ),
+        ("guardrail_validation", "guardrail", _guardrail_stage_input(result), _guardrail_stage_output(result)),
+    )
+    runs: list[TraceAgentRun] = []
+    for stage_key, agent_name, input_payload, output_payload in ordered_stages:
+        span = span_by_stage.get(stage_key)
+        if span is None:
+            status = "succeeded"
+            latency_ms = None
+            started_at = _decision_started_at(result.lifecycle)
+            completed_at = _decision_completed_at(result.lifecycle)
+        else:
+            status = str(span.get("status", "succeeded"))
+            latency_raw = span.get("latency_ms")
+            latency_ms = float(latency_raw) if latency_raw is not None else None
+            started_at = str(span.get("started_at", _utc_now_iso()))
+            completed_at_raw = span.get("completed_at")
+            completed_at = str(completed_at_raw) if completed_at_raw else None
+        runs.append(
+            TraceAgentRun(
+                agent_name=agent_name,
+                status=status,
+                latency_ms=latency_ms,
+                started_at=started_at,
+                completed_at=completed_at,
+                input_payload=input_payload,
+                output_payload=output_payload,
+            )
+        )
+    return tuple(runs)
+
+
+def _context_stage_input(last_market_envelope: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(last_market_envelope, Mapping):
+        return {}
+    payload = last_market_envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return {}
+    return {
+        "exchange": payload.get("exchange"),
+        "symbol": payload.get("symbol"),
+        "timestamp_ms": payload.get("timestamp_ms"),
+        "bids": _safe_list(payload.get("bids")),
+        "asks": _safe_list(payload.get("asks")),
+        "news": _safe_mapping(payload.get("news")),
+    }
+
+
+def _context_stage_output(result: Any) -> dict[str, Any]:
+    output = {
+        "context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+        "microstructure": _to_payload_mapping(getattr(result.market_context, "microstructure", {})),
+        "news": _to_payload_mapping(getattr(result.market_context, "news", {})),
+        "quality": _to_payload_mapping(getattr(result.market_context, "quality", {})),
+        "notes": list(getattr(result.market_context, "notes", ()) or ()),
+    }
+    return output
+
+
+def _planner_stage_input(result: Any) -> dict[str, Any]:
+    return {"market_context": _to_payload_mapping(getattr(result.market_context, "context", {}))}
+
+
+def _planner_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "plan", {}))
+
+
+def _risk_stage_input(result: Any, strategy: StrategyConfig) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+        "strategy": _to_payload_mapping(strategy),
+    }
+
+
+def _risk_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "risk", {}))
+
+
+def _execution_stage_input(result: Any) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "risk": _to_payload_mapping(getattr(result, "risk", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+    }
+
+
+def _execution_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "execution_decision", {}))
+
+
+def _guardrail_stage_input(result: Any) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "risk": _to_payload_mapping(getattr(result, "risk", {})),
+        "execution_decision": _to_payload_mapping(getattr(result, "execution_decision", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+    }
+
+
+def _guardrail_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "guardrail", {}))
+
+
+def _decision_started_at(lifecycle: tuple[Mapping[str, Any], ...]) -> str:
+    if lifecycle:
+        first = lifecycle[0]
+        emitted_at = first.get("emitted_at")
+        if isinstance(emitted_at, str) and emitted_at.strip():
+            return emitted_at
+    return _utc_now_iso()
+
+
+def _decision_completed_at(lifecycle: tuple[Mapping[str, Any], ...]) -> str:
+    if lifecycle:
+        last = lifecycle[-1]
+        emitted_at = last.get("emitted_at")
+        if isinstance(emitted_at, str) and emitted_at.strip():
+            return emitted_at
+    return _utc_now_iso()
+
+
+def _decision_news_links(last_market_envelope: Mapping[str, Any] | None) -> tuple[tuple[str, str], ...]:
+    if not isinstance(last_market_envelope, Mapping):
+        return ()
+    payload = last_market_envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return ()
+    news = payload.get("news")
+    if not isinstance(news, Mapping):
+        return ()
+    summary_id = _maybe_uuid(news.get("summary_id"))
+    if summary_id is None:
+        return ()
+    news_ids: list[str] = []
+    candidate_ids = news.get("news_ids")
+    if isinstance(candidate_ids, list):
+        for raw in candidate_ids:
+            parsed = _maybe_uuid(raw)
+            if parsed is not None:
+                news_ids.append(parsed)
+    items = news.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            parsed = _maybe_uuid(item.get("news_id"))
+            if parsed is not None:
+                news_ids.append(parsed)
+    deduped_news_ids = tuple(dict.fromkeys(news_ids))
+    return tuple((summary_id, news_id) for news_id in deduped_news_ids)
+
+
+def _to_payload_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if is_dataclass(value):
+        return asdict(value)
+    return {}
+
+
+def _safe_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return dict(value)
+
+
+def _safe_list(value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        return []
+    return list(value)
+
+
+def _maybe_uuid(value: Any) -> str | None:
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(raw))
+    except ValueError:
+        return None
 
 
 def _utc_now_ms() -> int:
