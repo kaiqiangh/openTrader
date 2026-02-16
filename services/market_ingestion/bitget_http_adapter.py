@@ -125,6 +125,7 @@ class BitgetHTTPOrderBookClient:
             if not isinstance(item, list) or len(item) < 7:
                 continue
             try:
+                trades = _parse_int(item[7]) if len(item) > 7 else None
                 bars.append(
                     {
                         "open_time_ms": int(item[0]),
@@ -134,7 +135,7 @@ class BitgetHTTPOrderBookClient:
                         "close": float(item[4]),
                         "volume": float(item[5]),
                         "quote_volume": float(item[6]),
-                        "trades": int(item[7]) if len(item) > 7 else 0,
+                        "trades": trades if trades is not None else 0,
                     }
                 )
             except (TypeError, ValueError):
