@@ -165,6 +165,7 @@ class AgentOrchestratorRuntimeWorker:
         self.broker_consumer = broker_consumer
         self.orchestrator = orchestrator
         self.queue_name = queue_name
+        self.last_envelope: Mapping[str, Any] | None = None
 
     async def run_once(
         self,
@@ -177,7 +178,9 @@ class AgentOrchestratorRuntimeWorker:
             timeout_seconds=timeout_seconds,
         )
         if envelope is None:
+            self.last_envelope = None
             return None
+        self.last_envelope = envelope
         return await self.orchestrator.handle_market_event(envelope, strategy=strategy)
 
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
+import uuid
 
 import pytest
 from sqlalchemy import create_engine, text
 
+from services.agent_orchestrator.sqlalchemy_trace_store import SQLAlchemyTraceStore, TraceAgentRun
 from services.agent_orchestrator.memory_layer import DecisionMemoryRecord
 from services.agent_orchestrator.sqlalchemy_memory_store import (
     InMemoryTTLShortTermStore,
@@ -405,6 +407,61 @@ async def test_runtime_market_store_persists_kline_rows(tmp_path) -> None:
     with engine.connect() as connection:
         count = connection.execute(text("SELECT COUNT(*) FROM klines")).scalar_one()
     assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_trace_store_persists_decision_runs_messages_and_news_links(tmp_path) -> None:
+    engine = create_engine(f"sqlite+pysqlite:///{Path(tmp_path) / 'trace-store.db'}")
+    store = SQLAlchemyTraceStore(connection=engine, ensure_schema=True)
+
+    decision_id = str(uuid.uuid4())
+    summary_id = str(uuid.uuid4())
+    news_id = str(uuid.uuid4())
+    await store.persist_cycle(
+        trace_id="trace-001",
+        decision_id=decision_id,
+        strategy_id="default-strategy",
+        mode="MOCK",
+        status="RISK_APPROVED",
+        started_at="2026-02-16T00:00:00Z",
+        completed_at="2026-02-16T00:00:01Z",
+        runs=(
+            TraceAgentRun(
+                agent_name="context",
+                status="succeeded",
+                latency_ms=12.5,
+                started_at="2026-02-16T00:00:00Z",
+                completed_at="2026-02-16T00:00:00.200000Z",
+                input_payload={"symbol": "BTC/USDT"},
+                output_payload={"mid_price": 42000.0},
+            ),
+            TraceAgentRun(
+                agent_name="planner",
+                status="succeeded",
+                latency_ms=8.0,
+                started_at="2026-02-16T00:00:00.200000Z",
+                completed_at="2026-02-16T00:00:00.300000Z",
+                input_payload={"mid_price": 42000.0},
+                output_payload={"action": "BUY"},
+            ),
+        ),
+        decision_news_links=((summary_id, news_id),),
+    )
+
+    with engine.connect() as connection:
+        trace_count = connection.execute(text("SELECT COUNT(*) FROM decision_traces")).scalar_one()
+        run_count = connection.execute(text("SELECT COUNT(*) FROM agent_runs")).scalar_one()
+        message_count = connection.execute(text("SELECT COUNT(*) FROM agent_messages")).scalar_one()
+        link_count = connection.execute(text("SELECT COUNT(*) FROM decision_news_links")).scalar_one()
+    assert trace_count == 1
+    assert run_count == 2
+    assert message_count == 4
+    assert link_count == 1
+
+    loaded = await store.read_decision_trace(decision_id=decision_id)
+    assert loaded is not None
+    runs = await store.list_agent_runs(decision_id=decision_id)
+    assert {run.agent_name for run in runs} == {"context", "planner"}
 
 
 @pytest.mark.asyncio

@@ -151,8 +151,48 @@ async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is
     with engine.connect() as connection:
         summary_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_memory")).scalar_one()
         slot_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_slots")).scalar_one()
+        trace_count = connection.execute(text("SELECT COUNT(*) FROM decision_traces")).scalar_one()
+        run_count = connection.execute(text("SELECT COUNT(*) FROM agent_runs")).scalar_one()
+        message_count = connection.execute(text("SELECT COUNT(*) FROM agent_messages")).scalar_one()
     assert summary_count >= 1
     assert slot_count >= 1
+    assert trace_count == 1
+    assert run_count >= 5
+    assert message_count >= 10
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_worker_runner_persists_decision_news_links_when_news_ids_are_present(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-orchestrator-news.db'}")
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(
+        settings=_settings(worker="orchestrator"),
+        broker=broker,
+        runtime_engine=engine,
+    )
+
+    summary_id = str(uuid.uuid4())
+    news_id = str(uuid.uuid4())
+    market_event = _market_envelope()
+    payload = dict(market_event["payload"])
+    payload["news"] = {
+        "summary": "Macro neutral",
+        "sentiment": 0.1,
+        "source_count": 1,
+        "summary_id": summary_id,
+        "news_ids": [news_id],
+    }
+    market_event["payload"] = payload
+    await broker.publish(routing_key="market.canonical", message=market_event)
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+    with engine.connect() as connection:
+        link_count = connection.execute(text("SELECT COUNT(*) FROM decision_news_links")).scalar_one()
+    assert link_count == 1
 
 
 @pytest.mark.asyncio
