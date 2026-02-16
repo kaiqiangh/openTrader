@@ -15,8 +15,9 @@ def test_mock_realtime_workflow_script_exists_and_covers_expected_flow() -> None
     assert "decision_traces" in content
     assert "agent_runs" in content
     assert "agent_messages" in content
-    assert "runtime_oms_orders" in content
-    assert "runtime_oms_portfolio_snapshots" in content
+    assert "orders" in content
+    assert "fills" in content
+    assert "portfolio_snapshots" in content
     assert "decision_news_links" in content
     assert "--seed" in content
     assert "--symbol" in content

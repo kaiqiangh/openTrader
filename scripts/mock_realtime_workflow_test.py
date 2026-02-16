@@ -624,7 +624,7 @@ def _await_workflow_persistence(
         )
         order_count = _scalar_int(
             engine=engine,
-            query=text("SELECT COUNT(*) FROM runtime_oms_orders WHERE order_id = :order_id"),
+            query=text("SELECT COUNT(*) FROM orders WHERE id = :order_id"),
             params={"order_id": expected_order_id},
         )
         lifecycle_count = _scalar_int(
@@ -632,7 +632,7 @@ def _await_workflow_persistence(
             query=text(
                 """
                 SELECT COUNT(*)
-                FROM runtime_oms_lifecycle_events
+                FROM fills
                 WHERE order_id = :order_id
                 """
             ),
@@ -643,7 +643,7 @@ def _await_workflow_persistence(
             query=text(
                 """
                 SELECT COUNT(*)
-                FROM runtime_oms_portfolio_snapshots
+                FROM portfolio_snapshots
                 WHERE created_at >= :started_at
                 """
             ),
@@ -662,7 +662,7 @@ def _await_workflow_persistence(
             and run_count >= required_runs
             and message_count >= required_messages
             and order_count >= 1
-            and lifecycle_count >= 2
+            and lifecycle_count >= 1
             and snapshot_count >= 1
             and news_links_ok
         ):
