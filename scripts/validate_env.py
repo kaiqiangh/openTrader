@@ -179,6 +179,14 @@ def main() -> int:
         print("NEWS_FETCH_TIMEOUT_SECONDS must be a positive number")
         return 1
 
+    litellm_model_error = _validate_litellm_model_binding(
+        base_url=os.getenv("LITELLM_BASE_URL", ""),
+        model=os.getenv("LITELLM_MODEL", ""),
+    )
+    if litellm_model_error:
+        print(litellm_model_error)
+        return 1
+
     if not _is_valid_aes256_key(os.getenv("ENCRYPTION_KEY_BASE64", "")):
         print("ENCRYPTION_KEY_BASE64 must be a valid base64 string that decodes to 32 bytes (AES-256-GCM key)")
         return 1
@@ -200,6 +208,16 @@ def _is_placeholder_secret(value: str | None) -> bool:
         return True
     normalized = value.strip().lower()
     return normalized in {"", "changeme", "change_me", "set_me", "<set-me>", "your_token_here"}
+
+
+def _validate_litellm_model_binding(*, base_url: str, model: str) -> str | None:
+    normalized_base = base_url.strip().lower()
+    normalized_model = model.strip()
+    if not normalized_base or not normalized_model:
+        return None
+    if "api.deepseek.com" in normalized_base and normalized_model.startswith("deepseek/"):
+        return "LITELLM_MODEL must be deepseek-chat when LITELLM_BASE_URL points to api.deepseek.com"
+    return None
 
 
 def _is_valid_aes256_key(value: str) -> bool:

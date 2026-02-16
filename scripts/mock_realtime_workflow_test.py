@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 import asyncio
 import json
 import os
@@ -241,7 +242,8 @@ async def _run_strict_llm_call(
     if not base_url:
         raise RuntimeError("LITELLM_BASE_URL is required for strict workflow execution")
 
-    model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
+    configured_model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
+    model = _normalize_litellm_model(base_url=base_url, model=configured_model)
     timeout_seconds = max(1.0, float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0")))
     api_key = os.getenv("LITELLM_API_KEY", "").strip() or None
 
@@ -324,6 +326,19 @@ async def _run_strict_llm_call(
     if not content:
         raise RuntimeError("LLM call succeeded but returned empty content")
     return content
+
+
+def _normalize_litellm_model(*, base_url: str, model: str) -> str:
+    normalized_model = model.strip()
+    if not normalized_model:
+        return "deepseek/deepseek-chat"
+    parsed_host = urlparse(base_url).netloc.lower()
+    host_scope = parsed_host or base_url.lower()
+    # Direct DeepSeek endpoint expects "deepseek-chat"; LiteLLM proxy commonly uses "deepseek/deepseek-chat".
+    if "api.deepseek.com" in host_scope and normalized_model.startswith("deepseek/"):
+        suffix = normalized_model.split("/", 1)[1].strip()
+        return suffix or "deepseek-chat"
+    return normalized_model
 
 
 def _build_market_event(
