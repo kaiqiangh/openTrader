@@ -182,9 +182,14 @@ flowchart TB
    # Edit .env with your keys (or leave defaults for mock mode)
    ```
 
-3. **Launch Stack**
+3. **Launch Core Stack (real data + mock trading workflow)**
    ```bash
    docker compose up -d
+   ```
+
+   Full stack (API, real-execution bridge, observability):
+   ```bash
+   docker compose --profile full up -d
    ```
 
 4. **Open Frontend Dashboard (read-only UI shell served by API)**
@@ -272,7 +277,8 @@ The Phase 1 baseline is configured with Docker Compose:
 
 Useful commands:
 
-1. `docker compose up -d` (starts the full local stack)
+1. `docker compose up -d` (starts the core local stack for real-data + mock workflow)
+2. `docker compose --profile full up -d` (optional full stack with API/real-exec/observability extras)
 2. `docker compose ps`
 3. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
 4. `make migrate-revision MSG='create_initial_tables'`
@@ -404,6 +410,8 @@ LLM env notes:
 - Validate wiring:
   - `make mock-workflow` (real-source first probe with fallback stubs when external endpoints are unavailable)
   - `uv run python scripts/mock_realtime_workflow_test.py --require-litellm --require-real-market --require-real-news` (strict real-only probe)
+  - `uv run python scripts/verify_klines_persistence.py --exchanges binance,bitget --symbols BTC/USDT --interval 1m --lookback-minutes 30`
+  - `uv run python scripts/verify_orderbook_snapshots.py --exchanges binance,bitget --symbols BTC/USDT --lookback-minutes 30`
 
 Market ingestion mode notes:
 
@@ -411,6 +419,7 @@ Market ingestion mode notes:
   - `rest` (default, recommended for deterministic testing)
   - `websocket` (continuous feed mode)
 - `MARKET_DATA_REST_POLL_SECONDS` controls REST poll cadence (default `300`, i.e., every 5 minutes).
+- `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` overrides snapshot cadence for runtime market polling (default `180`).
 - `MARKET_DATA_HTTP_TIMEOUT_SECONDS` controls exchange HTTP timeout for REST polling.
 
 API auth env notes:
@@ -573,7 +582,7 @@ Core runtime env categories:
 - Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
 - DB/runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `RUNTIME_REQUIRE_DATABASE`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
-- Market ingestion: `EXCHANGE_DEFAULT`, `MARKET_DATA_FETCH_MODE`, `MARKET_DATA_REST_POLL_SECONDS`, `MARKET_DATA_HTTP_TIMEOUT_SECONDS`
+- Market ingestion: `EXCHANGE_DEFAULT`, `MARKET_DATA_FETCH_MODE`, `MARKET_DATA_REST_POLL_SECONDS`, `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS`, `MARKET_DATA_HTTP_TIMEOUT_SECONDS`
 - LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
