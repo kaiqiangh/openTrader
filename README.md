@@ -37,21 +37,20 @@ Open Trader is designed to be the reference architecture for **AI-native, policy
 
 ## Current Runtime Status
 
-As of **2026-02-15**, the repository has strong contract coverage through Phase 9 and a complete doc/test harness.  
-The next execution track (Phase 10) is focused on closing runtime gaps:
+As of **2026-02-16**, the repository is runtime-aligned for a strict **real-data + mock-trade** core workflow:
 
-- replacing in-memory broker/persistence paths on critical runtime flow,
-- wiring full long-running workers for all major services,
-- and making full pipeline startup/validation reproducible via one `docker compose up -d`.
+- core services boot with `docker compose up -d`,
+- observability + Go real-execution extras boot with `docker compose --profile full up -d`,
+- market/news ingestion, orchestration traces, LLM calls, and mock execution persistence are wired to Postgres.
 
 ## Key Features
 
 - **Agentic Strategy Engine**: Multi-agent runtime with Planner, Risk, and Execution agents using short/long-term memory.
 - **Dual Trading Modes**: Seamlessly switch between `MOCK` (simulated fills) and `REAL` (exchange execution) modes.
-- **Omni-Channel Ingestion**: Real-time WebSocket integration with Binance & Bitget (CCXT Pro).
+- **Omni-Channel Ingestion**: Real-data ingestion for Binance + Bitget with REST polling default and websocket compatibility.
 - **News Intelligence**: Real-time crypto news ingestion, summarization, and sentiment analysis injected into strategy context.
 - **Institutional Risk**: Hard guards for daily loss, max drawdown, and per-symbol exposure.
-- **Full Observability**: Prometheus/Grafana dashboards, Loki logs, and Tempo traces for every decision.
+- **Full Observability (Full Profile)**: Prometheus/Grafana dashboards, Loki logs, and Tempo traces via `--profile full`.
 - **Operator Alerts**: Severity-based notifications via Telegram for signals, fills, and risk events.
 
 ## Architecture
@@ -272,17 +271,20 @@ The Phase 1 baseline is configured with Docker Compose:
 
 Useful commands:
 
-1. `docker compose up -d` (starts the full local stack)
-2. `docker compose ps`
-3. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
-4. `make migrate-revision MSG='create_initial_tables'`
-5. `make runtime-gate` (compose + smoke + targeted runtime/Go validation gate)
-6. `make mock-workflow` (deterministic mocked realtime workflow check)
+1. `docker compose up -d` (starts core runtime stack)
+2. `docker compose --profile full up -d` (adds observability + Go real-execution extras)
+3. `docker compose ps`
+4. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
+5. `make migrate-revision MSG='create_initial_tables'`
+6. `make runtime-gate` (core compose + smoke + targeted runtime validation gate)
+7. `make runtime-gate-full` (core + full-profile validation gate)
+8. `make mock-workflow` (strict real-data + mock-trade workflow check)
 
 Compose startup note:
 
 - `migrator` is a one-shot bootstrap service and should appear as `Exited (0)` after migrations complete.
-- Long-running services (`api`, runtime workers, `notification_worker`, `real_execution_go`) should remain `Up`.
+- Long-running core services (`api`, runtime workers, `notification_worker`) should remain `Up`.
+- `real_execution_go` is expected only when `--profile full` is enabled.
 
 Notification worker runtime (`P7-018`) commands:
 
@@ -312,8 +314,8 @@ Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
 
 Phase 8 observability stack + security (`P8-004`/`P8-005`/`P8-006`) commands:
 
-1. Start observability stack (or run full stack with `docker compose up -d`):
-   - `docker compose up -d prometheus grafana loki tempo alertmanager`
+1. Start observability stack:
+   - `docker compose --profile full up -d prometheus grafana loki tempo alertmanager`
 2. Validate stack endpoints:
    - `docker compose exec prometheus wget -qO- http://localhost:9090/-/ready || true`
    - `curl -s http://127.0.0.1:3000/api/health`
@@ -397,20 +399,22 @@ LLM env notes:
 
 - `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, and `LITELLM_MODEL` configure the LiteLLM-compatible adapter in `services/llm_gateway/litellm_http_adapter.py`.
 - DeepSeek via LiteLLM example:
-  - `LITELLM_BASE_URL=http://<litellm-host>:4000`
-  - `LITELLM_API_KEY=<litellm-api-key>`
-  - `LITELLM_MODEL=deepseek/deepseek-chat`
+  - `LITELLM_BASE_URL=https://api.deepseek.com`
+  - `LITELLM_API_KEY=<deepseek-api-key>`
+  - `LITELLM_MODEL=deepseek-chat`
 - `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment backend and are not directly read by openTrader runtime modules.
 - Validate wiring:
-  - `make mock-workflow` (real-source first probe with fallback stubs when external endpoints are unavailable)
-  - `uv run python scripts/mock_realtime_workflow_test.py --require-litellm --require-real-market --require-real-news` (strict real-only probe)
+  - `make mock-workflow`
+  - `uv run python scripts/mock_realtime_workflow_test.py --seed 42 --symbol BTC/USDT --interval 1m` (strict real-data + mock-trade probe)
 
 Market ingestion mode notes:
 
 - `MARKET_DATA_FETCH_MODE` selects runtime delta fetch mode:
   - `rest` (default, recommended for deterministic testing)
   - `websocket` (continuous feed mode)
-- `MARKET_DATA_REST_POLL_SECONDS` controls REST poll cadence (default `300`, i.e., every 5 minutes).
+- `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` controls snapshot cadence (default `180` seconds).
+- `MARKET_DATA_REST_POLL_SECONDS` is a deprecated fallback for snapshot cadence.
+- `KLINE_INTERVALS`, `KLINE_POLL_INTERVAL_SECONDS`, and `KLINE_FETCH_LIMIT` control kline ingestion scope/cadence.
 - `MARKET_DATA_HTTP_TIMEOUT_SECONDS` controls exchange HTTP timeout for REST polling.
 
 API auth env notes:
@@ -663,7 +667,7 @@ To add a new strategy/runtime behavior:
 
 ## Roadmap
 
-- Phase 10 runtime production integration (completed): concrete worker entrypoints, RabbitMQ/DB adapter replacement, compose full-stack boot, runtime gate, and deterministic mocked realtime workflow validation.
+- Phase 10 runtime production integration (completed): concrete worker entrypoints, RabbitMQ/DB adapter replacement, core/full compose profile split, and strict real-data mock-workflow validation.
 - Next: production deployment automation, scaling policies, exchange-specific hardening, and expanded notification gateways.
 - Longer term: additional notification gateways (Slack/email/webhook/SMS/push), richer strategy plugin marketplace, and advanced risk simulation.
 

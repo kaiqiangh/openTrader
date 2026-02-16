@@ -3,8 +3,8 @@
 ## LLM-Based Multi-Exchange Crypto Trading System
 
 - Version: 1.1 (Revised)
-- Date: 2026-02-15
-- Status: Implementation-ready with Phase 10 runtime integration completion
+- Date: 2026-02-16
+- Status: Runtime-aligned with real-data + mock-trade core profile defaults
 
 ## 1. Executive Summary
 
@@ -77,7 +77,7 @@ The following decisions are mandatory and final:
 - FR-003: System must initialize order books via REST snapshot and apply ordered deltas.
 - FR-004: System must validate and normalize all market events into a canonical schema.
 - FR-004A: System must support configurable market delta ingestion mode per runtime (`rest` or `websocket`) without changing downstream contracts.
-- FR-004B: Default local/dev runtime mode must be deterministic REST polling with configurable cadence (default recommendation: 5 minutes).
+- FR-004B: Default local/dev runtime mode must be deterministic REST polling with configurable cadence (`ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` default `180`, `KLINE_POLL_INTERVAL_SECONDS` default `60`).
 
 ### 6.2 Trading Modes
 
@@ -199,7 +199,7 @@ The following decisions are mandatory and final:
 
 ### 7.6 Runtime Readiness and Deployment
 
-- NFR-017: A single `docker compose up -d` must boot the full local platform topology (data, ingestion, orchestration, execution, news, notification, API, observability) without profile-specific startup commands.
+- NFR-017: A single `docker compose up -d` must boot the full core local topology required for real-data + mock-trade runtime (data, ingestion, orchestration, simulation, OMS, news, notification, API). `docker compose --profile full up -d` adds observability and Go real-execution extras.
 - NFR-018: Production-mode runtime paths must avoid in-memory persistence and in-process broker shims; these are allowed only for tests/dev harnesses.
 - NFR-019: End-to-end runtime validation must include real infrastructure dependencies (RabbitMQ + PostgreSQL/TimescaleDB + Redis) and not rely exclusively on contract-only tests.
 
