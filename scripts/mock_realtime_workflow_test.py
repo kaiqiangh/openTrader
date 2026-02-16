@@ -22,14 +22,12 @@ REQUIRED_SERVICES = (
     "postgres_timescaledb",
     "redis",
     "rabbitmq",
-    "api",
     "notification_worker",
     "runtime_worker_market",
     "runtime_worker_orchestrator",
     "runtime_worker_simulation",
     "runtime_worker_oms",
     "runtime_worker_news",
-    "real_execution_go",
 )
 
 AUDIT_QUEUES = {
@@ -82,7 +80,6 @@ def main(argv: list[str] | None = None) -> int:
             password=rabbitmq_pass,
         )
 
-        llm_content = _probe_litellm_or_mock(require_litellm=args.require_litellm)
         news_context = _fetch_real_news_context(require_real_news=args.require_real_news)
         selected_exchanges = _parse_exchange_list(args.market_exchanges)
         published_decisions: set[str] = set()
@@ -99,7 +96,11 @@ def main(argv: list[str] | None = None) -> int:
                 require_real_market=args.require_real_market,
             )
             published_decisions.add(str(result["decision_id"]))
+            _persist_market_snapshot_and_kline(repo_root=repo_root, exchange=exchange, symbol="BTC/USDT", orderbook=result)
             market_fetch_results.append(result)
+        llm_result = _run_llm_gateway_call_from_db_context(repo_root=repo_root, require_litellm=args.require_litellm)
+        llm_content = str(llm_result.get("content", ""))
+
         _publish_notification_probe_event(
             api_base=rabbitmq_api,
             username=rabbitmq_user,
@@ -152,7 +153,11 @@ def main(argv: list[str] | None = None) -> int:
             required_event_prefix="notify.",
         )
 
-        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM orderbook_snapshots", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM orderbook_snapshots", minimum=2)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM klines", minimum=2)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM llm_calls", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_decision_slots", minimum=1)
+        _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_decision_memory", minimum=1)
         _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_orders", minimum=1)
         _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM runtime_oms_portfolio_snapshots", minimum=1)
         _assert_db_count(repo_root=repo_root, query="SELECT COUNT(*) FROM news_items", minimum=1)
@@ -548,58 +553,147 @@ def _purge_runtime_queues(
         )
 
 
-def _probe_litellm_or_mock(*, require_litellm: bool) -> str:
-    from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPError, LiteLLMHTTPProviderClient
+def _persist_market_snapshot_and_kline(*, repo_root: Path, exchange: str, symbol: str, orderbook: dict[str, object]) -> None:
+    timestamp_ms = _to_int(orderbook.get("timestamp_ms")) or int(time.time() * 1000)
+    snapshot_iso = _iso_from_ms(timestamp_ms)
+    minute_iso = _iso_minute_floor(timestamp_ms)
+
+    best_bid = float(orderbook.get("best_bid") or 0.0)
+    best_ask = float(orderbook.get("best_ask") or 0.0)
+    if best_bid <= 0.0 or best_ask <= 0.0:
+        raise RuntimeError(f"invalid best bid/ask for {exchange} {symbol}: {best_bid}/{best_ask}")
+    spread_bps = ((best_ask - best_bid) / best_bid * 10_000.0) if best_bid > 0 else 0.0
+    mid = round((best_bid + best_ask) / 2.0, 8)
+
+    bids_json = json.dumps(orderbook.get("bids", []), ensure_ascii=True).replace("'", "''")
+    asks_json = json.dumps(orderbook.get("asks", []), ensure_ascii=True).replace("'", "''")
+
+    upsert_sql = f"""
+    INSERT INTO orderbook_snapshots
+        (snapshot_time, exchange, symbol, bids, asks, best_bid, best_ask, spread_bps)
+    VALUES
+        ('{snapshot_iso}', '{exchange}', '{symbol}', '{bids_json}'::jsonb, '{asks_json}'::jsonb, {best_bid}, {best_ask}, {spread_bps})
+    ON CONFLICT (snapshot_time, exchange, symbol)
+    DO UPDATE SET
+        bids = excluded.bids,
+        asks = excluded.asks,
+        best_bid = excluded.best_bid,
+        best_ask = excluded.best_ask,
+        spread_bps = excluded.spread_bps;
+
+    INSERT INTO klines
+        (time, exchange, symbol, interval, open, high, low, close, volume, quote_volume, trades)
+    VALUES
+        ('{minute_iso}', '{exchange}', '{symbol}', '1m', {mid}, {mid}, {mid}, {mid}, 0, 0, 0)
+    ON CONFLICT (time, exchange, symbol, interval)
+    DO UPDATE SET
+        open = excluded.open,
+        high = GREATEST(klines.high, excluded.high),
+        low = LEAST(klines.low, excluded.low),
+        close = excluded.close;
+    """
+    _run_psql(repo_root=repo_root, sql=upsert_sql)
+
+
+def _run_llm_gateway_call_from_db_context(*, repo_root: Path, require_litellm: bool) -> dict[str, object]:
+    from services.llm_gateway.contracts import GatewaySettings, LLMRequest, ProviderSettings
+    from services.llm_gateway.gateway import LLMGateway
+    from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPProviderClient
+    from services.llm_gateway.sqlalchemy_stores import SQLiteLLMCallStore
+    from services.shared.runtime.database import create_runtime_engine_from_env
+
+    context_rows = _fetch_latest_context_rows(repo_root=repo_root)
+    prompt = (
+        "Use this market context and return a short mock trade recommendation. "
+        f"Orderbook={context_rows['orderbook']} News={context_rows['news']}"
+    )
 
     base_url = os.getenv("LITELLM_BASE_URL", "").strip()
     model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
-    expected_prefix = os.getenv("MOCK_WORKFLOW_LITELLM_EXPECTED_MODEL_PREFIX", "deepseek/").strip().lower()
     api_key = os.getenv("LITELLM_API_KEY", "").strip() or None
     timeout_seconds = float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0"))
 
-    if require_litellm and expected_prefix and not model.lower().startswith(expected_prefix):
-        raise RuntimeError(
-            f"LITELLM_MODEL must start with '{expected_prefix}' for this workflow. Current value: {model}"
-        )
-
     if not base_url:
         if require_litellm:
-            raise RuntimeError("LITELLM_BASE_URL is required when strict LiteLLM mode is enabled")
-        return "mock_llm_decision: BUY 0.1 BTC/USDT (litellm not configured)"
+            raise RuntimeError("LITELLM_BASE_URL is required when --require-litellm is set")
+        return {"content": "mock_llm_decision: HOLD", "provider": "mock"}
 
-    client = LiteLLMHTTPProviderClient(
-        base_url=base_url,
-        api_key=api_key,
-        timeout_seconds=timeout_seconds,
+    runtime_engine = create_runtime_engine_from_env()
+    call_store = SQLiteLLMCallStore(connection=runtime_engine)
+    gateway = LLMGateway(
+        settings=GatewaySettings(
+            providers={
+                "primary": ProviderSettings(
+                    alias="primary",
+                    model=model,
+                    timeout_ms=max(int(timeout_seconds * 1000), 1000),
+                    max_retries=0,
+                )
+            },
+            default_provider_order=("primary",),
+        ),
+        provider_clients={
+            "primary": LiteLLMHTTPProviderClient(base_url=base_url, api_key=api_key, timeout_seconds=timeout_seconds)
+        },
+        call_store=call_store,
     )
     try:
-        payload = asyncio.run(
-            client.complete(
-                model=model,
-                messages=(
-                    {"role": "system", "content": "You are a trading assistant."},
-                    {"role": "user", "content": "Return one mock BTC/USDT action with quantity."},
-                ),
-                request_kwargs={"temperature": 0.1, "max_tokens": 64},
+        response = asyncio.run(
+            gateway.generate(
+                LLMRequest(
+                    trace_id=str(uuid.uuid4()),
+                    decision_id=str(uuid.uuid4()),
+                    strategy_id="mock-workflow-strategy",
+                    agent_name="mock_workflow_probe",
+                    messages=(
+                        {"role": "system", "content": "You are a strict trading copilot."},
+                        {"role": "user", "content": prompt},
+                    ),
+                    temperature=0.1,
+                    max_tokens=120,
+                    metadata={"source": "mock_realtime_workflow_test"},
+                )
             )
         )
-        content = ""
-        if isinstance(payload, dict):
-            choices = payload.get("choices")
-            if isinstance(choices, list) and choices and isinstance(choices[0], dict):
-                message = choices[0].get("message")
-                if isinstance(message, dict):
-                    content = str(message.get("content", "")).strip()
-        if content:
-            return content
-    except (LiteLLMHTTPError, ValueError):
+    except Exception:
         if require_litellm:
             raise
-        return f"mock_llm_decision: HOLD (litellm probe unavailable, model={model})"
+        return {"content": "mock_llm_decision: HOLD", "provider": "fallback"}
 
-    if require_litellm:
-        raise RuntimeError(f"LiteLLM probe failed for model '{model}'. Verify LITELLM_BASE_URL/LITELLM_API_KEY.")
-    return f"mock_llm_decision: HOLD (litellm probe unavailable, model={model})"
+    return {
+        "content": response.content,
+        "provider": response.provider,
+        "model": response.model,
+        "latency_ms": response.latency_ms,
+    }
+
+
+def _fetch_latest_context_rows(*, repo_root: Path) -> dict[str, str]:
+    orderbook = _query_psql_single_value(
+        repo_root=repo_root,
+        query="""
+        SELECT row_to_json(t)::text
+        FROM (
+            SELECT exchange, symbol, snapshot_time, best_bid, best_ask
+            FROM orderbook_snapshots
+            ORDER BY snapshot_time DESC
+            LIMIT 1
+        ) AS t
+        """,
+    )
+    news = _query_psql_single_value(
+        repo_root=repo_root,
+        query="""
+        SELECT row_to_json(t)::text
+        FROM (
+            SELECT source, title, published_at
+            FROM news_items
+            ORDER BY published_at DESC NULLS LAST, created_at DESC
+            LIMIT 1
+        ) AS t
+        """,
+    )
+    return {"orderbook": orderbook or "{}", "news": news or "{}"}
 
 
 def _assert_services_running(*, repo_root: Path, timeout_seconds: float) -> None:
@@ -622,6 +716,65 @@ def _assert_services_running(*, repo_root: Path, timeout_seconds: float) -> None
             return
         time.sleep(1.0)
     raise RuntimeError(f"Missing required running services: {', '.join(missing)}")
+
+
+def _run_psql(*, repo_root: Path, sql: str) -> None:
+    user = os.getenv("POSTGRES_USER", "open_trader")
+    database = os.getenv("POSTGRES_DB", "open_trader")
+    proc = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres_timescaledb",
+            "psql",
+            "-U",
+            user,
+            "-d",
+            database,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            sql,
+        ],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"DB SQL failed: {proc.stderr.strip()}")
+
+
+def _query_psql_single_value(*, repo_root: Path, query: str) -> str:
+    user = os.getenv("POSTGRES_USER", "open_trader")
+    database = os.getenv("POSTGRES_DB", "open_trader")
+    proc = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres_timescaledb",
+            "psql",
+            "-U",
+            user,
+            "-d",
+            database,
+            "-At",
+            "-c",
+            query,
+        ],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"DB query failed: {query} ({proc.stderr.strip()})")
+    lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
 
 
 def _assert_db_count(*, repo_root: Path, query: str, minimum: int) -> None:
@@ -730,7 +883,10 @@ def _rabbitmq_api_call(
 
 def _run(cmd: list[str], *, cwd: Path) -> None:
     print("$ " + " ".join(cmd))
-    proc = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, check=False)
+    try:
+        proc = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, check=False)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"command not found: {cmd[0]}") from exc
     if proc.stdout.strip():
         print(proc.stdout.strip())
     if proc.returncode != 0:
@@ -754,6 +910,19 @@ def _utc_now_iso() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _iso_from_ms(value: int) -> str:
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(value / 1000.0, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _iso_minute_floor(value: int) -> str:
+    from datetime import datetime, timezone
+
+    dt = datetime.fromtimestamp(value / 1000.0, tz=timezone.utc).replace(second=0, microsecond=0)
+    return dt.isoformat().replace("+00:00", "Z")
 
 
 def _parse_args(argv: list[str] | None) -> Namespace:

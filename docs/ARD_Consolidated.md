@@ -872,3 +872,13 @@ Residual architecture follow-up:
 - When gateway is degraded:
   - non-critical notifications may be deferred/coalesced
   - critical notifications escalate to fallback gateway when configured.
+
+
+## 2026-02-16 Alignment Addendum
+
+- Core runtime path is **real data ingestion + mock execution only** by default; real execution bridge is moved to optional `full` compose profile.
+- Runtime orderbook polling cadence is controlled by `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` (fallback: `MARKET_DATA_REST_POLL_SECONDS`).
+- Operational verification scripts now include:
+  - `scripts/mock_realtime_workflow_test.py` (real market/news context, LLM gateway call, orchestration + mock execution persistence assertions)
+  - `scripts/verify_klines_persistence.py`
+  - `scripts/verify_orderbook_snapshots.py`

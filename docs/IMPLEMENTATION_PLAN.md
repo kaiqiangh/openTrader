@@ -1212,3 +1212,11 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 5. Promote `runtime-gate` and `mock-workflow` into CI/nightly automation for regression detection on runtime-critical paths.
 6. Replace remaining synthetic runtime connectors with production exchange/news connectors while preserving deterministic harness tests.
 7. Expand React read-only dashboard coverage for runtime/OMS/LLM/news telemetry surfaces.
+
+
+## 2026-02-16 Incremental Runtime Alignment
+
+- Added explicit `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` support to runtime market worker cadence.
+- Extended mock realtime workflow validation to include LLM gateway persistence checks (`llm_calls`) plus decision/memory and OMS persistence assertions.
+- Added standalone verification scripts for kline and orderbook persistence (`scripts/verify_klines_persistence.py`, `scripts/verify_orderbook_snapshots.py`).
+- Simplified compose runtime by moving non-core services behind optional `full` profile.

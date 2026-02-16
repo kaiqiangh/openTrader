@@ -299,3 +299,12 @@ These decisions are now explicit product constraints:
 - Phase advancement gate:
   - Contract-only test completion is insufficient for readiness.
   - Phase advancement requires real end-to-end runtime validation on concrete infrastructure adapters.
+
+
+## 2026-02-16 Alignment Note
+
+- Product runtime default remains mock trading for safety; real market and news inputs are still required in the core validation workflow.
+- For local/dev operations, compose startup is split into:
+  - default/core services for real-data + mock-trading workflow
+  - `--profile full` for API/real-execution/observability extras
+- Orderbook snapshot interval is externally configurable via `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS`.

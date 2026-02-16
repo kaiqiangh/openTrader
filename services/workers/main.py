@@ -769,7 +769,15 @@ def _normalize_market_fetch_mode(value: str) -> str:
 def _market_worker_cycle_interval_seconds() -> float:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     if fetch_mode == "rest":
-        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+        return max(
+            0.0,
+            float(
+                os.getenv(
+                    "ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS",
+                    os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300"),
+                )
+            ),
+        )
     return 0.0
 
 
