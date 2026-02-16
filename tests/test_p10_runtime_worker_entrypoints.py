@@ -359,16 +359,17 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
 
     assert worked_first is True
     assert worked_second is True
+    persisted_order_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "order-persist-1"))
     with engine.connect() as connection:
         order_status = connection.execute(
             text(
                 """
                 SELECT status
-                FROM runtime_oms_orders
-                WHERE order_id = :order_id
+                FROM orders
+                WHERE id = :order_id
                 """
             ),
-            {"order_id": "order-persist-1"},
+            {"order_id": persisted_order_id},
         ).scalar_one()
         lifecycle_count = connection.execute(
             text(
@@ -378,15 +379,26 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
                 WHERE order_id = :order_id
                 """
             ),
-            {"order_id": "order-persist-1"},
+            {"order_id": persisted_order_id},
         ).scalar_one()
-        position_count = connection.execute(text("SELECT COUNT(*) FROM runtime_oms_positions")).scalar_one()
+        fill_count = connection.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM fills
+                WHERE order_id = :order_id
+                """
+            ),
+            {"order_id": persisted_order_id},
+        ).scalar_one()
+        position_count = connection.execute(text("SELECT COUNT(*) FROM positions WHERE mode = 'MOCK'")).scalar_one()
         snapshot_count = connection.execute(
-            text("SELECT COUNT(*) FROM runtime_oms_portfolio_snapshots")
+            text("SELECT COUNT(*) FROM portfolio_snapshots")
         ).scalar_one()
 
     assert order_status == "FILLED"
     assert lifecycle_count == 2
+    assert fill_count == 2
     assert position_count == 1
     assert snapshot_count >= 1
 
