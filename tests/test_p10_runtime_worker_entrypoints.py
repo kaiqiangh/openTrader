@@ -326,6 +326,37 @@ async def test_news_worker_runner_uses_real_rss_mode_when_database_is_required(
     assert cycle.results[0].source != "mock.crypto"
 
 
+def test_parse_rss_items_bounds_source_item_id_for_long_links() -> None:
+    long_link = "https://news.example.com/" + ("x" * 300)
+    rss_xml = f"""
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Long URL item</title>
+          <link>{long_link}</link>
+          <pubDate>Mon, 16 Feb 2026 00:00:00 GMT</pubDate>
+          <description>Payload</description>
+        </item>
+      </channel>
+    </rss>
+    """
+    items_first = runtime_main._parse_rss_items(
+        feed_url="https://news.example.com/rss",
+        rss_xml=rss_xml,
+        limit=10,
+    )
+    items_second = runtime_main._parse_rss_items(
+        feed_url="https://news.example.com/rss",
+        rss_xml=rss_xml,
+        limit=10,
+    )
+
+    assert len(items_first) == 1
+    source_item_id = str(items_first[0]["source_item_id"])
+    assert len(source_item_id) <= 128
+    assert source_item_id == items_second[0]["source_item_id"]
+
+
 @pytest.mark.asyncio
 async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-oms.db'}")

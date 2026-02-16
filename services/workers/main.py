@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from urllib import request
 from urllib.parse import urlparse
 import asyncio
+import hashlib
 import os
 import time
 import uuid
@@ -56,6 +57,7 @@ from services.workers.runtime_pipeline import MultiExchangeMarketIngestionRuntim
 
 _WORKER_SERVICE_NAME = "runtime_worker"
 _WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news")
+_NEWS_SOURCE_ITEM_ID_MAX_LEN = 128
 
 
 class RuntimeWorkerRunner(Protocol):
@@ -1171,7 +1173,7 @@ def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[st
         items.append(
             {
                 "source": source,
-                "source_item_id": f"{source}:{link}",
+                "source_item_id": _build_source_item_id(source=source, link=link),
                 "title": title,
                 "url": link,
                 "published_at": published_at,
@@ -1199,7 +1201,7 @@ def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[st
         items.append(
             {
                 "source": source,
-                "source_item_id": f"{source}:{link}",
+                "source_item_id": _build_source_item_id(source=source, link=link),
                 "title": title,
                 "url": link,
                 "published_at": updated or _utc_now_iso(),
@@ -1224,6 +1226,16 @@ def _infer_source_name(feed_url: str) -> str:
     if hostname.startswith("www."):
         hostname = hostname[4:]
     return hostname or "unknown"
+
+
+def _build_source_item_id(*, source: str, link: str) -> str:
+    source_key = (source or "unknown").strip().lower()
+    candidate = f"{source_key}:{link.strip()}"
+    if len(candidate) <= _NEWS_SOURCE_ITEM_ID_MAX_LEN:
+        return candidate
+    digest = hashlib.sha256(candidate.encode("utf-8")).hexdigest()
+    bounded_source = source_key[:63] if source_key else "unknown"
+    return f"{bounded_source}:{digest}"
 
 
 def _market_worker_cycle_interval_seconds() -> float:
