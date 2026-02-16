@@ -15,7 +15,6 @@ def test_compose_defines_public_and_internal_networks() -> None:
 def test_internal_services_do_not_publish_host_ports() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     internal_only_services = (
-        "postgres_timescaledb",
         "redis",
         "notification_worker",
         "prometheus",
@@ -33,6 +32,13 @@ def test_rabbitmq_management_port_is_localhost_bound_only() -> None:
     rabbitmq = _service_block(compose, "rabbitmq")
     assert "ports:" in rabbitmq
     assert '127.0.0.1:15672:15672' in rabbitmq
+
+
+def test_postgres_port_is_localhost_bound_only() -> None:
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    postgres = _service_block(compose, "postgres_timescaledb")
+    assert "ports:" in postgres
+    assert '127.0.0.1:5432:5432' in postgres
 
 
 def test_only_grafana_is_exposed_for_observability_surface() -> None:
