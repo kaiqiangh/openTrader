@@ -238,6 +238,55 @@ async def test_news_worker_runner_generates_summary_artifact() -> None:
 
 
 @pytest.mark.asyncio
+async def test_news_worker_runner_uses_real_rss_mode_when_database_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rss_xml = """
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Market update</title>
+          <link>https://news.example.com/market-update</link>
+          <pubDate>Mon, 16 Feb 2026 00:00:00 GMT</pubDate>
+          <description>BTC momentum stabilizes.</description>
+        </item>
+      </channel>
+    </rss>
+    """
+    monkeypatch.setenv("NEWS_SOURCE_MODE", "mock")
+    monkeypatch.setenv("NEWS_RSS_FEEDS", "https://news.example.com/rss")
+    monkeypatch.setattr(runtime_main, "_http_get_text", lambda url, timeout_seconds: rss_xml)
+
+    settings = RuntimeWorkerSettings(
+        worker="news",
+        broker_backend="inmemory",
+        topology_path="config/rabbitmq/topology.json",
+        mode="MOCK",
+        symbol="BTC/USDT",
+        strategy_id="default-strategy",
+        once=True,
+        validate_only=False,
+        max_idle_cycles=0,
+        poll_timeout_seconds=0.0,
+        idle_sleep_seconds=0.0,
+        bootstrap_topology=False,
+        portfolio_base_balance_usd=100000.0,
+        require_database=True,
+    )
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=settings, broker=broker)
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+    assert build.worker.source_mode == "real"
+    cycle = build.worker.framework.fetch_cycle(limit_per_source=1)
+    assert cycle.sources_total == 1
+    assert cycle.results[0].source.startswith("rss.")
+    assert cycle.results[0].source != "mock.crypto"
+
+
+@pytest.mark.asyncio
 async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-oms.db'}")
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")

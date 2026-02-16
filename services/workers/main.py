@@ -5,9 +5,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
+from urllib import request
+from urllib.parse import urlparse
 import asyncio
 import os
 import time
+import xml.etree.ElementTree as ET
 
 from sqlalchemy.engine import Engine
 
@@ -318,19 +321,41 @@ class NewsWorkerRunner:
         item_store: Any | None = None,
         tag_store: Any | None = None,
         summary_store: Any | None = None,
+        source_mode: str = "mock",
+        rss_feeds: tuple[str, ...] = (),
+        fetch_timeout_seconds: float = 8.0,
     ) -> None:
         self.item_store = item_store or InMemoryNewsItemStore()
         self.tag_store = tag_store or InMemoryNewsTagStore()
         self.summary_store = summary_store or InMemoryNewsSummaryStore()
+        self.source_mode = source_mode.strip().lower() or "mock"
+        self.rss_feeds = tuple(feed.strip() for feed in rss_feeds if feed.strip())
+        self.fetch_timeout_seconds = max(1.0, float(fetch_timeout_seconds))
 
         registry = SourceConnectorRegistry()
-        registry.register(
-            CallableSourceConnector(
-                connector_id="mock.crypto",
-                connector_kind="custom",
-                fetcher=self._fetch_mock_records,
+        if self.source_mode == "real":
+            feeds = self.rss_feeds or _default_news_rss_feeds()
+            for idx, feed_url in enumerate(feeds):
+                connector_id = f"rss.{_infer_source_name(feed_url)}.{idx + 1}"
+                registry.register(
+                    CallableSourceConnector(
+                        connector_id=connector_id,
+                        connector_kind="rss",
+                        fetcher=lambda since, limit, _feed_url=feed_url: self._fetch_rss_records(
+                            feed_url=_feed_url,
+                            since=since,
+                            limit=limit,
+                        ),
+                    )
+                )
+        else:
+            registry.register(
+                CallableSourceConnector(
+                    connector_id="mock.crypto",
+                    connector_kind="custom",
+                    fetcher=self._fetch_mock_records,
+                )
             )
-        )
         self.framework = NewsSourceConnectorFramework(registry=registry)
         self.ingestion = NewsIngestionService(store=self.item_store)
         self.tagging = NewsTaggingRelevancePipeline(store=self.tag_store)
@@ -378,6 +403,13 @@ class NewsWorkerRunner:
                 "metadata": {"language": "en"},
             }
         ]
+
+    def _fetch_rss_records(self, *, feed_url: str, since: str | None, limit: int) -> list[dict[str, Any]]:
+        _ = since
+        if limit <= 0:
+            return []
+        rss_xml = _http_get_text(feed_url, timeout_seconds=self.fetch_timeout_seconds)
+        return _parse_rss_items(feed_url=feed_url, rss_xml=rss_xml, limit=limit)
 
 
 def load_runtime_worker_settings(args: Namespace | None = None) -> RuntimeWorkerSettings:
@@ -475,13 +507,23 @@ def build_runtime_worker(
             broker=runtime_broker,
         )
     if settings.worker == "news":
+        source_mode = _resolve_news_source_mode(require_database=settings.require_database)
+        rss_feeds = _parse_csv_tokens(os.getenv("NEWS_RSS_FEEDS")) or _default_news_rss_feeds()
+        fetch_timeout_seconds = max(1.0, float(os.getenv("NEWS_FETCH_TIMEOUT_SECONDS", "8.0")))
         if runtime_engine is None:
-            news_worker = NewsWorkerRunner()
+            news_worker = NewsWorkerRunner(
+                source_mode=source_mode,
+                rss_feeds=rss_feeds,
+                fetch_timeout_seconds=fetch_timeout_seconds,
+            )
         else:
             news_worker = NewsWorkerRunner(
                 item_store=SQLAlchemyNewsItemStore(connection=runtime_engine),
                 tag_store=SQLAlchemyNewsTagStore(connection=runtime_engine),
                 summary_store=SQLAlchemyNewsSummaryStore(connection=runtime_engine),
+                source_mode=source_mode,
+                rss_feeds=rss_feeds,
+                fetch_timeout_seconds=fetch_timeout_seconds,
             )
         return RuntimeWorkerBuildResult(worker=news_worker, broker=runtime_broker)
     raise ValueError(f"unsupported runtime worker: {settings.worker}")
@@ -834,6 +876,22 @@ def _resolve_market_symbols(*, default_symbol: str) -> tuple[str, ...]:
     return tuple(value.upper() for value in configured)
 
 
+def _resolve_news_source_mode(*, require_database: bool) -> str:
+    configured = os.getenv("NEWS_SOURCE_MODE", "").strip().lower()
+    if configured and configured not in {"real", "mock"}:
+        raise ValueError("NEWS_SOURCE_MODE must be 'real' or 'mock'")
+    if require_database:
+        return "real"
+    return configured or "mock"
+
+
+def _default_news_rss_feeds() -> tuple[str, ...]:
+    return (
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://cointelegraph.com/rss",
+    )
+
+
 def _orderbook_snapshot_interval_seconds() -> float:
     explicit = os.getenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS")
     if explicit is not None and explicit.strip():
@@ -841,6 +899,82 @@ def _orderbook_snapshot_interval_seconds() -> float:
     if os.getenv("MARKET_DATA_REST_POLL_SECONDS", "").strip():
         return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
     return 180.0
+
+
+def _http_get_text(url: str, *, timeout_seconds: float) -> str:
+    req = request.Request(url=url, method="GET")
+    with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310 - explicit URL target
+        return response.read().decode("utf-8", errors="ignore")
+
+
+def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[str, Any]]:
+    root = ET.fromstring(rss_xml)
+    items: list[dict[str, Any]] = []
+    source = _infer_source_name(feed_url)
+
+    for item in root.findall(".//item"):
+        title = _first_child_text(item, ("title",))
+        link = _first_child_text(item, ("link",))
+        published_at = _first_child_text(item, ("pubDate", "published")) or _utc_now_iso()
+        description = _first_child_text(item, ("description", "summary"))
+        if not title or not link:
+            continue
+        items.append(
+            {
+                "source": source,
+                "source_item_id": f"{source}:{link}",
+                "title": title,
+                "url": link,
+                "published_at": published_at,
+                "content": description,
+                "metadata": {"language": "en"},
+            }
+        )
+        if len(items) >= limit:
+            return items
+
+    for entry in root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+        if len(items) >= limit:
+            break
+        title = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}title",))
+        updated = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}updated",))
+        content = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}summary",))
+        link = ""
+        for link_node in entry.findall("{http://www.w3.org/2005/Atom}link"):
+            href = str(link_node.attrib.get("href", "")).strip()
+            if href:
+                link = href
+                break
+        if not title or not link:
+            continue
+        items.append(
+            {
+                "source": source,
+                "source_item_id": f"{source}:{link}",
+                "title": title,
+                "url": link,
+                "published_at": updated or _utc_now_iso(),
+                "content": content,
+                "metadata": {"language": "en"},
+            }
+        )
+    return items
+
+
+def _first_child_text(element: ET.Element, tags: tuple[str, ...]) -> str:
+    for tag in tags:
+        child = element.find(tag)
+        if child is not None and child.text is not None and child.text.strip():
+            return child.text.strip()
+    return ""
+
+
+def _infer_source_name(feed_url: str) -> str:
+    parsed = urlparse(feed_url)
+    hostname = (parsed.hostname or "unknown").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    return hostname or "unknown"
 
 
 def _market_worker_cycle_interval_seconds() -> float:
