@@ -348,6 +348,66 @@ async def test_runtime_market_store_persists_canonical_orderbook_envelope(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_runtime_market_store_persists_kline_rows(tmp_path) -> None:
+    db_path = Path(tmp_path) / "runtime-market-store-klines.db"
+    engine = create_engine(f"sqlite+pysqlite:///{db_path}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE klines (
+                    time TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    "interval" TEXT NOT NULL,
+                    open REAL NOT NULL,
+                    high REAL NOT NULL,
+                    low REAL NOT NULL,
+                    close REAL NOT NULL,
+                    volume REAL NOT NULL,
+                    quote_volume REAL NOT NULL,
+                    trades INTEGER NOT NULL,
+                    PRIMARY KEY (time, exchange, symbol, "interval")
+                )
+                """
+            )
+        )
+
+    store = SQLAlchemyRuntimeMarketStore(connection=engine)
+    await store.persist_kline_rows(
+        exchange="binance",
+        symbol="BTC/USDT",
+        interval="1m",
+        bars=(
+            {
+                "open_time_ms": 1739535600000,
+                "open": 42000.0,
+                "high": 42010.0,
+                "low": 41990.0,
+                "close": 42005.0,
+                "volume": 12.5,
+                "quote_volume": 525000.0,
+                "trades": 120,
+            },
+            {
+                "open_time_ms": 1739535660000,
+                "open": 42005.0,
+                "high": 42015.0,
+                "low": 42000.0,
+                "close": 42012.0,
+                "volume": 11.0,
+                "quote_volume": 462000.0,
+                "trades": 110,
+            },
+        ),
+    )
+
+    with engine.connect() as connection:
+        count = connection.execute(text("SELECT COUNT(*) FROM klines")).scalar_one()
+    assert count == 2
+
+
+@pytest.mark.asyncio
 async def test_long_term_memory_store_accepts_sqlalchemy_engine(tmp_path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{Path(tmp_path) / 'memory-sa.db'}")
     store = SQLAlchemyLongTermMemoryStore(connection=engine)

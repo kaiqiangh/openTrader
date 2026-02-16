@@ -56,6 +56,42 @@ class SQLAlchemyRuntimeMarketStore:
             }
         )
 
+    async def persist_kline_rows(
+        self,
+        *,
+        exchange: str,
+        symbol: str,
+        interval: str,
+        bars: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+    ) -> None:
+        normalized_exchange = exchange.strip()
+        normalized_symbol = symbol.strip()
+        normalized_interval = interval.strip() or "1m"
+        if not normalized_exchange or not normalized_symbol:
+            raise ValueError("persist_kline_rows requires non-empty exchange and symbol")
+
+        for bar in bars:
+            open_time_ms = _to_int(bar.get("open_time_ms"))
+            if open_time_ms is None:
+                open_time_ms = _to_int(bar.get("open_time"))
+            if open_time_ms is None:
+                continue
+            await self._timeseries.upsert_kline(
+                {
+                    "exchange": normalized_exchange,
+                    "symbol": normalized_symbol,
+                    "interval": normalized_interval,
+                    "open_time_ms": open_time_ms,
+                    "open": _to_float(bar.get("open"), default=0.0),
+                    "high": _to_float(bar.get("high"), default=0.0),
+                    "low": _to_float(bar.get("low"), default=0.0),
+                    "close": _to_float(bar.get("close"), default=0.0),
+                    "volume": _to_float(bar.get("volume"), default=0.0),
+                    "quote_volume": _to_float(bar.get("quote_volume"), default=0.0),
+                    "trades": int(_to_float(bar.get("trades"), default=0.0)),
+                }
+            )
+
 
 class SQLAlchemyRuntimeOMSStateStore:
     """Runtime OMS state store backed by sqlite or SQLAlchemy."""
@@ -703,3 +739,12 @@ def _to_float(value: Any, *, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _to_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None

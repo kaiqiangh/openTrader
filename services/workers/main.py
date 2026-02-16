@@ -47,6 +47,7 @@ from services.workers.runtime_persistence import (
     SQLAlchemyRuntimeOMSStateStore,
 )
 from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker, MarketIngestionRuntimeWorker
+from services.workers.runtime_pipeline import MultiExchangeMarketIngestionRuntimeWorker, MarketRuntimeWorker
 
 _WORKER_SERVICE_NAME = "runtime_worker"
 _WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news")
@@ -92,6 +93,28 @@ class _SyntheticRestOrderBookClient:
             timestamp_ms=_utc_now_ms(),
         )
 
+    async def fetch_klines(
+        self,
+        symbol: str,
+        *,
+        interval: str,
+        limit: int = 200,
+    ) -> tuple[dict[str, Any], ...]:
+        _ = symbol, interval, limit
+        now_ms = _utc_now_ms()
+        return (
+            {
+                "open_time_ms": now_ms - 60_000,
+                "open": self.base_price - 3.0,
+                "high": self.base_price + 8.0,
+                "low": self.base_price - 10.0,
+                "close": self.base_price + 2.0,
+                "volume": 25.0,
+                "quote_volume": 25.0 * self.base_price,
+                "trades": 80,
+            },
+        )
+
 
 class _SyntheticWsOrderBookClient:
     def __init__(self, *, base_price: float) -> None:
@@ -113,7 +136,7 @@ class MarketWorkerRunner:
     def __init__(
         self,
         *,
-        worker: MarketIngestionRuntimeWorker,
+        worker: MarketRuntimeWorker,
         min_cycle_interval_seconds: float = 0.0,
     ) -> None:
         self.worker = worker
@@ -561,46 +584,65 @@ def _build_market_worker(
     settings: RuntimeWorkerSettings,
     broker: Any,
     runtime_engine: Engine | None,
-) -> MarketIngestionRuntimeWorker:
+) -> MarketRuntimeWorker:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
-    exchange = os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower()
     http_timeout_seconds = max(0.1, float(os.getenv("MARKET_DATA_HTTP_TIMEOUT_SECONDS", "10.0")))
+    kline_intervals = _parse_csv_tokens(os.getenv("KLINE_INTERVALS", "1m")) or ("1m",)
+    kline_poll_interval_seconds = max(1.0, float(os.getenv("KLINE_POLL_INTERVAL_SECONDS", "60")))
+    kline_fetch_limit = max(1, int(os.getenv("KLINE_FETCH_LIMIT", "200")))
+    exchanges = _resolve_market_exchanges()
+    symbols = _resolve_market_symbols(default_symbol=settings.symbol)
 
-    if settings.require_database:
-        if exchange == "binance":
-            real_client = BinanceHTTPOrderBookClient(
-                base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
-                timeout_seconds=http_timeout_seconds,
-            )
-        elif exchange == "bitget":
-            real_client = BitgetHTTPOrderBookClient(
-                base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
-                timeout_seconds=http_timeout_seconds,
-            )
-        else:
-            raise ValueError("EXCHANGE_DEFAULT must be 'binance' or 'bitget' when RUNTIME_REQUIRE_DATABASE=true")
-        rest_client = real_client
-        ws_client = real_client
-    else:
-        rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
-        ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
-
-    adapter = CCXTIngestionAdapter(
-        exchange=exchange,
-        rest_client=rest_client,
-        ws_client=ws_client,
-        delta_source=fetch_mode,
-    )
     state_store = SQLAlchemyRuntimeMarketStore(connection=runtime_engine) if runtime_engine is not None else None
-    return MarketIngestionRuntimeWorker(
-        adapter=adapter,
-        pipeline=CanonicalNormalizationPipeline(publisher=broker),
-        symbol=settings.symbol,
-        mode=settings.mode,
-        depth=20,
-        state_store=state_store,
-    )
+    workers: list[MarketIngestionRuntimeWorker] = []
+    for exchange in exchanges:
+        if settings.require_database:
+            if exchange == "binance":
+                real_client = BinanceHTTPOrderBookClient(
+                    base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
+                    timeout_seconds=http_timeout_seconds,
+                )
+            elif exchange == "bitget":
+                real_client = BitgetHTTPOrderBookClient(
+                    base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
+                    timeout_seconds=http_timeout_seconds,
+                )
+            else:
+                raise ValueError("MARKET_EXCHANGES entries must be 'binance' or 'bitget'")
+            rest_client = real_client
+            ws_client = real_client
+            kline_client = real_client
+        else:
+            rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
+            ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
+            kline_client = rest_client
+
+        for symbol in symbols:
+            adapter = CCXTIngestionAdapter(
+                exchange=exchange,
+                rest_client=rest_client,
+                ws_client=ws_client,
+                delta_source=fetch_mode,
+            )
+            workers.append(
+                MarketIngestionRuntimeWorker(
+                    adapter=adapter,
+                    pipeline=CanonicalNormalizationPipeline(publisher=broker),
+                    symbol=symbol,
+                    mode=settings.mode,
+                    depth=20,
+                    state_store=state_store,
+                    kline_client=kline_client,
+                    kline_intervals=kline_intervals,
+                    kline_poll_interval_seconds=kline_poll_interval_seconds,
+                    kline_fetch_limit=kline_fetch_limit,
+                )
+            )
+
+    if len(workers) == 1:
+        return workers[0]
+    return MultiExchangeMarketIngestionRuntimeWorker(workers=tuple(workers))
 
 
 def _strategy_from_settings(*, settings: RuntimeWorkerSettings) -> StrategyConfig:
@@ -766,10 +808,45 @@ def _normalize_market_fetch_mode(value: str) -> str:
     raise ValueError("MARKET_DATA_FETCH_MODE must be 'rest' or 'websocket'")
 
 
+def _parse_csv_tokens(raw: str | None) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    return tuple(token.strip() for token in raw.split(",") if token.strip())
+
+
+def _resolve_market_exchanges() -> tuple[str, ...]:
+    configured = _parse_csv_tokens(os.getenv("MARKET_EXCHANGES"))
+    if not configured:
+        fallback = os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower()
+        configured = (fallback,) if fallback else ("binance",)
+    normalized = tuple(value.lower() for value in configured)
+    invalid = tuple(value for value in normalized if value not in {"binance", "bitget"})
+    if invalid:
+        raise ValueError("MARKET_EXCHANGES entries must be binance or bitget")
+    return normalized
+
+
+def _resolve_market_symbols(*, default_symbol: str) -> tuple[str, ...]:
+    configured = _parse_csv_tokens(os.getenv("MARKET_SYMBOLS"))
+    if not configured:
+        fallback = default_symbol.strip().upper()
+        return (fallback,) if fallback else ("BTC/USDT",)
+    return tuple(value.upper() for value in configured)
+
+
+def _orderbook_snapshot_interval_seconds() -> float:
+    explicit = os.getenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS")
+    if explicit is not None and explicit.strip():
+        return max(0.0, float(explicit))
+    if os.getenv("MARKET_DATA_REST_POLL_SECONDS", "").strip():
+        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+    return 180.0
+
+
 def _market_worker_cycle_interval_seconds() -> float:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     if fetch_mode == "rest":
-        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+        return _orderbook_snapshot_interval_seconds()
     return 0.0
 
 

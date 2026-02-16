@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
+import time
 import uuid
 
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
@@ -22,6 +23,31 @@ class RuntimeMarketStateStore(Protocol):
     async def persist_orderbook_envelope(self, envelope: Mapping[str, Any]) -> None: ...
 
 
+class RuntimeMarketTimeseriesStore(RuntimeMarketStateStore, Protocol):
+    async def persist_kline_rows(
+        self,
+        *,
+        exchange: str,
+        symbol: str,
+        interval: str,
+        bars: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+    ) -> None: ...
+
+
+class RuntimeKlineClient(Protocol):
+    async def fetch_klines(
+        self,
+        symbol: str,
+        *,
+        interval: str,
+        limit: int = 200,
+    ) -> tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]]: ...
+
+
+class MarketRuntimeWorker(Protocol):
+    async def run_once(self) -> dict[str, Any]: ...
+
+
 class MarketIngestionRuntimeWorker:
     def __init__(
         self,
@@ -33,6 +59,10 @@ class MarketIngestionRuntimeWorker:
         depth: int = 200,
         notification_bridge: NotificationEventBridge | None = None,
         state_store: RuntimeMarketStateStore | None = None,
+        kline_client: RuntimeKlineClient | None = None,
+        kline_intervals: tuple[str, ...] = (),
+        kline_poll_interval_seconds: float = 60.0,
+        kline_fetch_limit: int = 200,
     ) -> None:
         self.adapter = adapter
         self.pipeline = pipeline
@@ -41,7 +71,14 @@ class MarketIngestionRuntimeWorker:
         self.depth = depth
         self.notification_bridge = notification_bridge
         self.state_store = state_store
+        self.kline_client = kline_client
+        self.kline_intervals = tuple(
+            interval.strip() for interval in kline_intervals if interval is not None and interval.strip()
+        )
+        self.kline_poll_interval_seconds = max(1.0, float(kline_poll_interval_seconds))
+        self.kline_fetch_limit = max(1, int(kline_fetch_limit))
         self._bootstrapped = False
+        self._last_kline_poll_monotonic: float | None = None
 
     async def run_once(self) -> dict[str, Any]:
         try:
@@ -53,6 +90,7 @@ class MarketIngestionRuntimeWorker:
             envelope = await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
             if self.state_store is not None:
                 await self.state_store.persist_orderbook_envelope(envelope)
+            await self._poll_klines_if_due()
             return envelope
         except Exception as exc:  # noqa: BLE001 - runtime worker preserves failure propagation
             if self.notification_bridge is not None:
@@ -65,6 +103,55 @@ class MarketIngestionRuntimeWorker:
                     details={"symbol": self.symbol, "error": str(exc)},
                 )
             raise
+
+    async def _poll_klines_if_due(self) -> None:
+        if self.kline_client is None or not self.kline_intervals:
+            return
+        if self.state_store is None:
+            return
+
+        persist_kline_rows = getattr(self.state_store, "persist_kline_rows", None)
+        if persist_kline_rows is None:
+            return
+
+        now_monotonic = time.monotonic()
+        if self._last_kline_poll_monotonic is not None:
+            elapsed = now_monotonic - self._last_kline_poll_monotonic
+            if elapsed < self.kline_poll_interval_seconds:
+                return
+
+        for interval in self.kline_intervals:
+            bars = await self.kline_client.fetch_klines(
+                self.symbol,
+                interval=interval,
+                limit=self.kline_fetch_limit,
+            )
+            await persist_kline_rows(
+                exchange=self.adapter.exchange,
+                symbol=self.symbol,
+                interval=interval,
+                bars=tuple(bars),
+            )
+        self._last_kline_poll_monotonic = now_monotonic
+
+
+class MultiExchangeMarketIngestionRuntimeWorker:
+    """Wrapper that runs multiple market ingestion workers in a single runtime process."""
+
+    def __init__(self, *, workers: Sequence[MarketIngestionRuntimeWorker]) -> None:
+        if not workers:
+            raise ValueError("workers must be non-empty")
+        self.workers = tuple(workers)
+        # Backward-compatible field used by existing tests.
+        self.adapter = self.workers[0].adapter
+
+    async def run_once(self) -> dict[str, Any]:
+        last_envelope: dict[str, Any] | None = None
+        for worker in self.workers:
+            last_envelope = await worker.run_once()
+        if last_envelope is None:
+            raise RuntimeError("multi-exchange market worker executed with no workers")
+        return last_envelope
 
 
 class AgentOrchestratorRuntimeWorker:
@@ -98,7 +185,7 @@ class RuntimeIntegrationGate:
     def __init__(
         self,
         *,
-        market_worker: MarketIngestionRuntimeWorker,
+        market_worker: MarketRuntimeWorker,
         orchestrator_worker: AgentOrchestratorRuntimeWorker,
         strategy: StrategyConfig,
     ) -> None:

@@ -176,6 +176,26 @@ async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_eng
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE klines (
+                    time TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    "interval" TEXT NOT NULL,
+                    open REAL NOT NULL,
+                    high REAL NOT NULL,
+                    low REAL NOT NULL,
+                    close REAL NOT NULL,
+                    volume REAL NOT NULL,
+                    quote_volume REAL NOT NULL,
+                    trades INTEGER NOT NULL,
+                    PRIMARY KEY (time, exchange, symbol, "interval")
+                )
+                """
+            )
+        )
 
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(
@@ -328,12 +348,39 @@ def test_market_worker_defaults_to_rest_fetch_mode_and_five_minute_cadence(
 ) -> None:
     monkeypatch.delenv("MARKET_DATA_FETCH_MODE", raising=False)
     monkeypatch.delenv("MARKET_DATA_REST_POLL_SECONDS", raising=False)
+    monkeypatch.delenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS", raising=False)
 
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
 
     assert build.worker.worker.adapter.delta_source == "rest"
-    assert build.worker.min_cycle_interval_seconds == 300.0
+    assert build.worker.min_cycle_interval_seconds == 180.0
+
+
+def test_market_worker_orderbook_interval_overrides_rest_poll_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARKET_DATA_FETCH_MODE", "rest")
+    monkeypatch.setenv("MARKET_DATA_REST_POLL_SECONDS", "300")
+    monkeypatch.setenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS", "45")
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert build.worker.min_cycle_interval_seconds == 45.0
+
+
+def test_market_worker_supports_multi_exchange_single_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARKET_EXCHANGES", "binance,bitget")
+    monkeypatch.setenv("MARKET_SYMBOLS", "BTC/USDT")
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert hasattr(build.worker.worker, "workers")
+    assert len(build.worker.worker.workers) == 2
 
 
 def test_market_worker_websocket_mode_disables_rest_poll_cadence(
