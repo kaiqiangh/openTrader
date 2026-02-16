@@ -6,16 +6,23 @@ def test_mock_realtime_workflow_script_exists_and_covers_expected_flow() -> None
     assert script.exists()
     content = script.read_text(encoding="utf-8")
     assert "market.canonical.orderbook_delta" in content
-    assert "execution.intent.mock" in content
-    assert "oms.order." in content
-    assert "notify." in content
-    assert "news_items" in content
+    assert "LLMGateway" in content
     assert "LiteLLMHTTPProviderClient" in content
-    assert "BinanceHTTPOrderBookClient" in content
-    assert "BitgetHTTPOrderBookClient" in content
-    assert "_fetch_real_news_context" in content
+    assert "orderbook_snapshots" in content
+    assert "klines" in content
+    assert "news_summaries" in content
+    assert "llm_calls" in content
+    assert "decision_traces" in content
+    assert "agent_runs" in content
+    assert "agent_messages" in content
+    assert "runtime_oms_orders" in content
+    assert "runtime_oms_portfolio_snapshots" in content
+    assert "decision_news_links" in content
+    assert "--seed" in content
+    assert "--symbol" in content
+    assert "--interval" in content
+    assert "--lookback-minutes" in content
     assert "--market-exchanges" in content
-    assert "market_data_source" in content
 
 
 def test_makefile_exposes_mock_workflow_target() -> None:
