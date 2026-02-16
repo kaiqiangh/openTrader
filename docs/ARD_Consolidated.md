@@ -3,8 +3,8 @@
 ## LLM-Based Multi-Exchange Crypto Trading System
 
 - Version: 1.1 (Revised)
-- Date: 2026-02-15
-- Status: Implementation-ready architecture baseline with Phase 10 runtime integration completion
+- Date: 2026-02-16
+- Status: Runtime-aligned architecture baseline (core-default compose profile + full-profile extras)
 - Related PRD: `./docs/PRD_Consolidated.md`
 
 ## 1. Scope and Architectural Objectives
@@ -19,7 +19,7 @@ Architecture objectives:
 - End-to-end traceability of agent prompts, responses, and trade decisions
 - Production-grade observability, integrity checks, and operational controls
 
-### 1.1 Current Implementation Reality (2026-02-15)
+### 1.1 Current Implementation Reality (2026-02-16)
 
 The codebase now has concrete runtime coverage for the critical trading path in compose. This section remains explicit to prevent future contract/runtime drift.
 
@@ -30,7 +30,7 @@ The codebase now has concrete runtime coverage for the critical trading path in 
 | Persistence         | PostgreSQL + TimescaleDB as system of record                                 | Runtime-critical persistence is Postgres/Timescale-first with fail-fast DB policy (`RUNTIME_REQUIRE_DATABASE=true`); SQLite is explicit test-only opt-in                                      |
 | Real execution (Go) | Queue consumer + concrete bridge adapters + exchange/persistence integration | Concrete queue consumer, bridge contracts, idempotent dispatch, and OMS lifecycle publication are implemented and compose-validated                                                              |
 | Integrity service   | Dedicated service boundary                                                   | `services/integrity_service/` is now an explicit compatibility boundary exposing gap detection, k-line validation, and order-book sync modules                                                  |
-| Docker runtime      | Full stack boot with one compose command                                     | `docker compose up -d` boots full runtime + observability stack; `migrator` is intentionally one-shot (`Exited (0)`), runtime services remain long-running                                     |
+| Docker runtime      | Profiled compose boot (core default, full optional)                          | `docker compose up -d` boots core runtime services only; `docker compose --profile full up -d` adds observability + Go real-execution extras. `migrator` remains one-shot (`Exited (0)`).      |
 
 ### 1.2 Architecture Hard Decisions (Locked)
 
@@ -39,7 +39,9 @@ The codebase now has concrete runtime coverage for the critical trading path in 
   - Do not persist full raw websocket depth streams end-to-end.
 - Market ingestion transport mode:
   - Runtime supports configurable delta transport mode (`rest` polling or `websocket` streaming) behind the same canonical adapter contract.
-  - Default local/dev runtime profile uses REST polling with configurable cadence (default 300 seconds) for deterministic validation and lower operational noise.
+  - Default local/dev runtime profile uses REST polling with configurable cadence for deterministic validation and lower operational noise.
+  - Orderbook snapshot cadence contract: `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` -> fallback `MARKET_DATA_REST_POLL_SECONDS` -> default `180`.
+  - K-line polling contract: `KLINE_INTERVALS` + `KLINE_POLL_INTERVAL_SECONDS` (default `60`) + `KLINE_FETCH_LIMIT`.
 - Agent triggering:
   - Hybrid model is mandatory.
   - Primary event trigger on canonical market events (especially candle-close / context-ready).
@@ -48,7 +50,8 @@ The codebase now has concrete runtime coverage for the critical trading path in 
   - RabbitMQ remains mandatory for inter-service asynchronous communication.
   - Direct cross-service calls are allowed only for local process composition and control-plane reads, not for critical trading dataflow.
 - Deployment:
-  - `docker compose up -d` must boot all critical services without profiles for release readiness.
+  - `docker compose up -d` must boot all critical services required for real-data + mock-trade runtime.
+  - Optional observability and Go real-execution services are started with `docker compose --profile full up -d`.
 - UI access:
   - UI is read-only by default (`API_READ_ONLY_MODE=true`).
   - Mutating operations are backend-governed authenticated API actions; UI has no direct DB write path.
@@ -621,12 +624,15 @@ sequenceDiagram
   - `news_id`, `symbol`, `topic`, `relevance_score`, `sentiment_score`
 - `news_summaries`
   - `summary_id`, `symbol_scope`, `window_start`, `window_end`, `summary_text`, `token_count`, `generated_at`
+- `news_summary_sources`
+  - `summary_id`, `news_id` (summary-to-source lineage mapping)
 - `decision_news_links`
   - `decision_id`, `summary_id`, `news_id`
 
 ### 11.5 Mode and Replay Support Fields
 
 - `orders.mode` and `fills.mode` must be enum(`MOCK`,`REAL`).
+- `positions.mode` must be enum(`MOCK`,`REAL`) to preserve strict mode separation for position snapshots.
 - Replay support uses immutable payload snapshots in `llm_calls` and `agent_messages`.
 
 ### 11.6 Notification Tables
@@ -785,8 +791,8 @@ Phase 10 remediation objectives are now implemented and validated:
 2. Runtime-critical persistence paths are Postgres/Timescale-backed with fail-fast startup DB checks.
 3. Dedicated long-running workers are active for ingestion, orchestrator, simulation execution, OMS, and news workflows.
 4. Go real-execution runtime uses concrete queue consumer + bridge + lifecycle publication path.
-5. Compose topology boots all core runtime services without profile gating.
-6. Runtime validation gates are operational via `make runtime-gate` and deterministic workflow validation via `make mock-workflow`.
+5. Compose topology boots core runtime services by default; full profile (`--profile full`) adds observability + Go real-execution extras.
+6. Runtime validation gates are operational via `make runtime-gate`, `make runtime-gate-full`, and deterministic workflow validation via `make mock-workflow`.
 
 Residual architecture follow-up:
 

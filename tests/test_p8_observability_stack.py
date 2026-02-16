@@ -6,7 +6,8 @@ def test_compose_includes_observability_stack_services() -> None:
     content = Path("docker-compose.yml").read_text(encoding="utf-8")
     for service_name in ("prometheus", "grafana", "loki", "tempo", "alertmanager"):
         assert f"{service_name}:" in content
-    assert "profiles:" not in content
+        assert re.search(rf"{service_name}:\n\s+profiles:\s*\[\"full\"\]", content)
+    assert re.search(r"real_execution_go:\n\s+profiles:\s*\[\"full\"\]", content)
 
 
 def test_observability_config_files_exist_and_are_wired() -> None:

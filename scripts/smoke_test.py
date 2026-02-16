@@ -12,7 +12,7 @@ import sys
 import time
 
 
-REQUIRED_SERVICES = (
+CORE_REQUIRED_SERVICES = (
     "postgres_timescaledb",
     "redis",
     "rabbitmq",
@@ -23,6 +23,9 @@ REQUIRED_SERVICES = (
     "runtime_worker_simulation",
     "runtime_worker_oms",
     "runtime_worker_news",
+)
+
+FULL_PROFILE_SERVICES = (
     "real_execution_go",
     "prometheus",
     "alertmanager",
@@ -38,11 +41,18 @@ SMOKE_REAL_PROBE_ROUTING_KEY = "oms.order.*"
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
+    compose_up_cmd = ["docker", "compose"]
+    if args.with_full_profile:
+        compose_up_cmd.extend(["--profile", "full"])
+    compose_up_cmd.extend(["up", "-d"])
+
     _run(["make", "env-validate"], cwd=repo_root)
-    _run(["docker", "compose", "up", "-d"], cwd=repo_root)
+    _run(compose_up_cmd, cwd=repo_root)
     time.sleep(args.wait_seconds)
+    required_services = CORE_REQUIRED_SERVICES + FULL_PROFILE_SERVICES if args.with_full_profile else CORE_REQUIRED_SERVICES
     _assert_services_running(
         repo_root,
+        required_services=required_services,
         timeout_seconds=args.service_wait_timeout,
         stability_seconds=args.service_stability_seconds,
     )
@@ -80,7 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     if "/metrics ready" not in api_probe.stdout:
         raise RuntimeError("API smoke probe failed: '/metrics ready' not found in output")
     _run(["uv", "run", "python", "-m", "uvicorn", "--version"], cwd=repo_root)
-    _assert_real_execution_rabbitmq_bridge_flow()
+    if args.with_full_profile:
+        _assert_real_execution_rabbitmq_bridge_flow()
 
     if args.with_migrations:
         _run(["make", "migrate-up"], cwd=repo_root)
@@ -92,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
 def _assert_services_running(
     repo_root: Path,
     *,
+    required_services: tuple[str, ...],
     timeout_seconds: float,
     stability_seconds: float,
 ) -> None:
@@ -101,7 +113,7 @@ def _assert_services_running(
     missing: list[str] = []
     while time.time() < deadline:
         running = _list_running_services(repo_root)
-        missing = sorted(set(REQUIRED_SERVICES) - running)
+        missing = sorted(set(required_services) - running)
         if not missing:
             if stable_since is None:
                 stable_since = time.time()
@@ -422,6 +434,11 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         type=float,
         default=3.0,
         help="minimum continuous running time required for required services",
+    )
+    parser.add_argument(
+        "--with-full-profile",
+        action="store_true",
+        help="include optional full-profile services (observability + real_execution_go)",
     )
     return parser.parse_args(argv)
 

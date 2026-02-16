@@ -61,3 +61,32 @@ async def test_binance_http_adapter_rejects_invalid_payload(monkeypatch) -> None
     client = BinanceHTTPOrderBookClient()
     with pytest.raises(BinanceHTTPAdapterError):
         await client.watch_order_book("BTC/USDT", limit=5)
+
+
+@pytest.mark.asyncio
+async def test_binance_http_adapter_fetches_klines(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return _FakeResponse(
+            [
+                [1739535600000, "42000.0", "42010.0", "41990.0", "42005.0", "12.5", 1739535659999, "525000.0", 120],
+                [1739535660000, "42005.0", "42015.0", "42000.0", "42012.0", "11.0", 1739535719999, "462000.0", 110],
+            ]
+        )
+
+    monkeypatch.setattr("services.market_ingestion.binance_http_adapter.urlopen", _fake_urlopen)
+
+    client = BinanceHTTPOrderBookClient(base_url="https://api.binance.com", timeout_seconds=3.0)
+    bars = await client.fetch_klines("BTC/USDT", interval="1m", limit=2)
+
+    assert "symbol=BTCUSDT" in captured["url"]
+    assert "interval=1m" in captured["url"]
+    assert "limit=2" in captured["url"]
+    assert captured["timeout"] == 3.0
+    assert len(bars) == 2
+    assert bars[0]["open_time_ms"] == 1739535600000
+    assert bars[0]["open"] == 42000.0
+    assert bars[1]["close"] == 42012.0

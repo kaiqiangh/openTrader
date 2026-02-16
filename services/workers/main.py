@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
+from urllib import request
+from urllib.parse import urlparse
 import asyncio
 import os
 import time
+import uuid
+import xml.etree.ElementTree as ET
 
 from sqlalchemy.engine import Engine
 
@@ -18,6 +22,7 @@ from services.agent_orchestrator.sqlalchemy_memory_store import (
     SQLAlchemyLongTermMemoryStore,
     SQLAlchemyShortTermMemoryStore,
 )
+from services.agent_orchestrator.sqlalchemy_trace_store import SQLAlchemyTraceStore, TraceAgentRun
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
 from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
 from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
@@ -47,6 +52,7 @@ from services.workers.runtime_persistence import (
     SQLAlchemyRuntimeOMSStateStore,
 )
 from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker, MarketIngestionRuntimeWorker
+from services.workers.runtime_pipeline import MultiExchangeMarketIngestionRuntimeWorker, MarketRuntimeWorker
 
 _WORKER_SERVICE_NAME = "runtime_worker"
 _WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news")
@@ -92,6 +98,28 @@ class _SyntheticRestOrderBookClient:
             timestamp_ms=_utc_now_ms(),
         )
 
+    async def fetch_klines(
+        self,
+        symbol: str,
+        *,
+        interval: str,
+        limit: int = 200,
+    ) -> tuple[dict[str, Any], ...]:
+        _ = symbol, interval, limit
+        now_ms = _utc_now_ms()
+        return (
+            {
+                "open_time_ms": now_ms - 60_000,
+                "open": self.base_price - 3.0,
+                "high": self.base_price + 8.0,
+                "low": self.base_price - 10.0,
+                "close": self.base_price + 2.0,
+                "volume": 25.0,
+                "quote_volume": 25.0 * self.base_price,
+                "trades": 80,
+            },
+        )
+
 
 class _SyntheticWsOrderBookClient:
     def __init__(self, *, base_price: float) -> None:
@@ -113,7 +141,7 @@ class MarketWorkerRunner:
     def __init__(
         self,
         *,
-        worker: MarketIngestionRuntimeWorker,
+        worker: MarketRuntimeWorker,
         min_cycle_interval_seconds: float = 0.0,
     ) -> None:
         self.worker = worker
@@ -137,16 +165,42 @@ class MarketWorkerRunner:
 
 
 class OrchestratorWorkerRunner:
-    def __init__(self, *, worker: AgentOrchestratorRuntimeWorker, strategy: StrategyConfig) -> None:
+    def __init__(
+        self,
+        *,
+        worker: AgentOrchestratorRuntimeWorker,
+        strategy: StrategyConfig,
+        trace_store: SQLAlchemyTraceStore | None = None,
+    ) -> None:
         self.worker = worker
         self.strategy = strategy
+        self.trace_store = trace_store
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         result = await self.worker.run_once(
             strategy=self.strategy,
             timeout_seconds=timeout_seconds,
         )
-        return result is not None
+        if result is None:
+            return False
+        if self.trace_store is not None:
+            await self.trace_store.persist_cycle(
+                trace_id=result.trace_id,
+                decision_id=result.decision_id,
+                strategy_id=self.strategy.strategy_id,
+                mode=result.mode,
+                status=result.status,
+                started_at=_decision_started_at(result.lifecycle),
+                completed_at=_decision_completed_at(result.lifecycle),
+                runs=_build_trace_runs(
+                    result=result,
+                    strategy=self.strategy,
+                    last_market_envelope=self.worker.last_envelope,
+                    recent_spans=_decision_spans(self.worker, decision_id=result.decision_id),
+                ),
+                decision_news_links=_decision_news_links(self.worker.last_envelope),
+            )
+        return True
 
 
 class SimulationWorkerRunner:
@@ -295,19 +349,41 @@ class NewsWorkerRunner:
         item_store: Any | None = None,
         tag_store: Any | None = None,
         summary_store: Any | None = None,
+        source_mode: str = "mock",
+        rss_feeds: tuple[str, ...] = (),
+        fetch_timeout_seconds: float = 8.0,
     ) -> None:
         self.item_store = item_store or InMemoryNewsItemStore()
         self.tag_store = tag_store or InMemoryNewsTagStore()
         self.summary_store = summary_store or InMemoryNewsSummaryStore()
+        self.source_mode = source_mode.strip().lower() or "mock"
+        self.rss_feeds = tuple(feed.strip() for feed in rss_feeds if feed.strip())
+        self.fetch_timeout_seconds = max(1.0, float(fetch_timeout_seconds))
 
         registry = SourceConnectorRegistry()
-        registry.register(
-            CallableSourceConnector(
-                connector_id="mock.crypto",
-                connector_kind="custom",
-                fetcher=self._fetch_mock_records,
+        if self.source_mode == "real":
+            feeds = self.rss_feeds or _default_news_rss_feeds()
+            for idx, feed_url in enumerate(feeds):
+                connector_id = f"rss.{_infer_source_name(feed_url)}.{idx + 1}"
+                registry.register(
+                    CallableSourceConnector(
+                        connector_id=connector_id,
+                        connector_kind="rss",
+                        fetcher=lambda since, limit, _feed_url=feed_url: self._fetch_rss_records(
+                            feed_url=_feed_url,
+                            since=since,
+                            limit=limit,
+                        ),
+                    )
+                )
+        else:
+            registry.register(
+                CallableSourceConnector(
+                    connector_id="mock.crypto",
+                    connector_kind="custom",
+                    fetcher=self._fetch_mock_records,
+                )
             )
-        )
         self.framework = NewsSourceConnectorFramework(registry=registry)
         self.ingestion = NewsIngestionService(store=self.item_store)
         self.tagging = NewsTaggingRelevancePipeline(store=self.tag_store)
@@ -355,6 +431,13 @@ class NewsWorkerRunner:
                 "metadata": {"language": "en"},
             }
         ]
+
+    def _fetch_rss_records(self, *, feed_url: str, since: str | None, limit: int) -> list[dict[str, Any]]:
+        _ = since
+        if limit <= 0:
+            return []
+        rss_xml = _http_get_text(feed_url, timeout_seconds=self.fetch_timeout_seconds)
+        return _parse_rss_items(feed_url=feed_url, rss_xml=rss_xml, limit=limit)
 
 
 def load_runtime_worker_settings(args: Namespace | None = None) -> RuntimeWorkerSettings:
@@ -413,12 +496,14 @@ def build_runtime_worker(
         )
     if settings.worker == "orchestrator":
         memory_layer: AgentMemoryLayer | None = None
+        trace_store: SQLAlchemyTraceStore | None = None
         if runtime_engine is not None:
             memory_layer = AgentMemoryLayer(
                 short_term_store=SQLAlchemyShortTermMemoryStore(connection=runtime_engine),
                 long_term_store=SQLAlchemyLongTermMemoryStore(connection=runtime_engine),
                 decision_ttl_seconds=max(60, int(os.getenv("AGENT_DECISION_TTL_SECONDS", "900"))),
             )
+            trace_store = SQLAlchemyTraceStore(connection=runtime_engine)
         orchestrator_worker = AgentOrchestratorRuntimeWorker(
             broker_consumer=runtime_broker,
             orchestrator=AgentOrchestrator(
@@ -428,7 +513,11 @@ def build_runtime_worker(
         )
         strategy = _strategy_from_settings(settings=settings)
         return RuntimeWorkerBuildResult(
-            worker=OrchestratorWorkerRunner(worker=orchestrator_worker, strategy=strategy),
+            worker=OrchestratorWorkerRunner(
+                worker=orchestrator_worker,
+                strategy=strategy,
+                trace_store=trace_store,
+            ),
             broker=runtime_broker,
         )
     if settings.worker == "simulation":
@@ -452,13 +541,23 @@ def build_runtime_worker(
             broker=runtime_broker,
         )
     if settings.worker == "news":
+        source_mode = _resolve_news_source_mode(require_database=settings.require_database)
+        rss_feeds = _parse_csv_tokens(os.getenv("NEWS_RSS_FEEDS")) or _default_news_rss_feeds()
+        fetch_timeout_seconds = max(1.0, float(os.getenv("NEWS_FETCH_TIMEOUT_SECONDS", "8.0")))
         if runtime_engine is None:
-            news_worker = NewsWorkerRunner()
+            news_worker = NewsWorkerRunner(
+                source_mode=source_mode,
+                rss_feeds=rss_feeds,
+                fetch_timeout_seconds=fetch_timeout_seconds,
+            )
         else:
             news_worker = NewsWorkerRunner(
                 item_store=SQLAlchemyNewsItemStore(connection=runtime_engine),
                 tag_store=SQLAlchemyNewsTagStore(connection=runtime_engine),
                 summary_store=SQLAlchemyNewsSummaryStore(connection=runtime_engine),
+                source_mode=source_mode,
+                rss_feeds=rss_feeds,
+                fetch_timeout_seconds=fetch_timeout_seconds,
             )
         return RuntimeWorkerBuildResult(worker=news_worker, broker=runtime_broker)
     raise ValueError(f"unsupported runtime worker: {settings.worker}")
@@ -561,46 +660,65 @@ def _build_market_worker(
     settings: RuntimeWorkerSettings,
     broker: Any,
     runtime_engine: Engine | None,
-) -> MarketIngestionRuntimeWorker:
+) -> MarketRuntimeWorker:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
-    exchange = os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower()
     http_timeout_seconds = max(0.1, float(os.getenv("MARKET_DATA_HTTP_TIMEOUT_SECONDS", "10.0")))
+    kline_intervals = _parse_csv_tokens(os.getenv("KLINE_INTERVALS", "1m")) or ("1m",)
+    kline_poll_interval_seconds = max(1.0, float(os.getenv("KLINE_POLL_INTERVAL_SECONDS", "60")))
+    kline_fetch_limit = max(1, int(os.getenv("KLINE_FETCH_LIMIT", "200")))
+    exchanges = _resolve_market_exchanges()
+    symbols = _resolve_market_symbols(default_symbol=settings.symbol)
 
-    if settings.require_database:
-        if exchange == "binance":
-            real_client = BinanceHTTPOrderBookClient(
-                base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
-                timeout_seconds=http_timeout_seconds,
-            )
-        elif exchange == "bitget":
-            real_client = BitgetHTTPOrderBookClient(
-                base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
-                timeout_seconds=http_timeout_seconds,
-            )
-        else:
-            raise ValueError("EXCHANGE_DEFAULT must be 'binance' or 'bitget' when RUNTIME_REQUIRE_DATABASE=true")
-        rest_client = real_client
-        ws_client = real_client
-    else:
-        rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
-        ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
-
-    adapter = CCXTIngestionAdapter(
-        exchange=exchange,
-        rest_client=rest_client,
-        ws_client=ws_client,
-        delta_source=fetch_mode,
-    )
     state_store = SQLAlchemyRuntimeMarketStore(connection=runtime_engine) if runtime_engine is not None else None
-    return MarketIngestionRuntimeWorker(
-        adapter=adapter,
-        pipeline=CanonicalNormalizationPipeline(publisher=broker),
-        symbol=settings.symbol,
-        mode=settings.mode,
-        depth=20,
-        state_store=state_store,
-    )
+    workers: list[MarketIngestionRuntimeWorker] = []
+    for exchange in exchanges:
+        if settings.require_database:
+            if exchange == "binance":
+                real_client = BinanceHTTPOrderBookClient(
+                    base_url=os.getenv("BINANCE_BASE_URL", "https://api.binance.com"),
+                    timeout_seconds=http_timeout_seconds,
+                )
+            elif exchange == "bitget":
+                real_client = BitgetHTTPOrderBookClient(
+                    base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com"),
+                    timeout_seconds=http_timeout_seconds,
+                )
+            else:
+                raise ValueError("MARKET_EXCHANGES entries must be 'binance' or 'bitget'")
+            rest_client = real_client
+            ws_client = real_client
+            kline_client = real_client
+        else:
+            rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
+            ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
+            kline_client = rest_client
+
+        for symbol in symbols:
+            adapter = CCXTIngestionAdapter(
+                exchange=exchange,
+                rest_client=rest_client,
+                ws_client=ws_client,
+                delta_source=fetch_mode,
+            )
+            workers.append(
+                MarketIngestionRuntimeWorker(
+                    adapter=adapter,
+                    pipeline=CanonicalNormalizationPipeline(publisher=broker),
+                    symbol=symbol,
+                    mode=settings.mode,
+                    depth=20,
+                    state_store=state_store,
+                    kline_client=kline_client,
+                    kline_intervals=kline_intervals,
+                    kline_poll_interval_seconds=kline_poll_interval_seconds,
+                    kline_fetch_limit=kline_fetch_limit,
+                )
+            )
+
+    if len(workers) == 1:
+        return workers[0]
+    return MultiExchangeMarketIngestionRuntimeWorker(workers=tuple(workers))
 
 
 def _strategy_from_settings(*, settings: RuntimeWorkerSettings) -> StrategyConfig:
@@ -669,6 +787,221 @@ def _position_fill_to_reconciliation_fill(*, fill: PositionFill):
         fee=float(fill.fee),
         source="runtime_worker",
     )
+
+
+def _decision_spans(worker: AgentOrchestratorRuntimeWorker, *, decision_id: str) -> tuple[Mapping[str, Any], ...]:
+    snapshot = worker.orchestrator.metrics.snapshot()
+    spans = snapshot.get("recent_spans")
+    if not isinstance(spans, list):
+        return ()
+    matched: list[Mapping[str, Any]] = []
+    for span in spans:
+        if not isinstance(span, Mapping):
+            continue
+        if str(span.get("decision_id", "")) != decision_id:
+            continue
+        matched.append(span)
+    return tuple(matched)
+
+
+def _build_trace_runs(
+    *,
+    result: Any,
+    strategy: StrategyConfig,
+    last_market_envelope: Mapping[str, Any] | None,
+    recent_spans: tuple[Mapping[str, Any], ...],
+) -> tuple[TraceAgentRun, ...]:
+    span_by_stage = {str(item.get("stage", "")): item for item in recent_spans if isinstance(item, Mapping)}
+    ordered_stages = (
+        ("market_context_agent", "context", _context_stage_input(last_market_envelope), _context_stage_output(result)),
+        ("planner_agent", "planner", _planner_stage_input(result), _planner_stage_output(result)),
+        ("risk_agent", "risk", _risk_stage_input(result, strategy), _risk_stage_output(result)),
+        (
+            "execution_decision_agent",
+            "execution",
+            _execution_stage_input(result),
+            _execution_stage_output(result),
+        ),
+        ("guardrail_validation", "guardrail", _guardrail_stage_input(result), _guardrail_stage_output(result)),
+    )
+    runs: list[TraceAgentRun] = []
+    for stage_key, agent_name, input_payload, output_payload in ordered_stages:
+        span = span_by_stage.get(stage_key)
+        if span is None:
+            status = "succeeded"
+            latency_ms = None
+            started_at = _decision_started_at(result.lifecycle)
+            completed_at = _decision_completed_at(result.lifecycle)
+        else:
+            status = str(span.get("status", "succeeded"))
+            latency_raw = span.get("latency_ms")
+            latency_ms = float(latency_raw) if latency_raw is not None else None
+            started_at = str(span.get("started_at", _utc_now_iso()))
+            completed_at_raw = span.get("completed_at")
+            completed_at = str(completed_at_raw) if completed_at_raw else None
+        runs.append(
+            TraceAgentRun(
+                agent_name=agent_name,
+                status=status,
+                latency_ms=latency_ms,
+                started_at=started_at,
+                completed_at=completed_at,
+                input_payload=input_payload,
+                output_payload=output_payload,
+            )
+        )
+    return tuple(runs)
+
+
+def _context_stage_input(last_market_envelope: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(last_market_envelope, Mapping):
+        return {}
+    payload = last_market_envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return {}
+    return {
+        "exchange": payload.get("exchange"),
+        "symbol": payload.get("symbol"),
+        "timestamp_ms": payload.get("timestamp_ms"),
+        "bids": _safe_list(payload.get("bids")),
+        "asks": _safe_list(payload.get("asks")),
+        "news": _safe_mapping(payload.get("news")),
+    }
+
+
+def _context_stage_output(result: Any) -> dict[str, Any]:
+    output = {
+        "context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+        "microstructure": _to_payload_mapping(getattr(result.market_context, "microstructure", {})),
+        "news": _to_payload_mapping(getattr(result.market_context, "news", {})),
+        "quality": _to_payload_mapping(getattr(result.market_context, "quality", {})),
+        "notes": list(getattr(result.market_context, "notes", ()) or ()),
+    }
+    return output
+
+
+def _planner_stage_input(result: Any) -> dict[str, Any]:
+    return {"market_context": _to_payload_mapping(getattr(result.market_context, "context", {}))}
+
+
+def _planner_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "plan", {}))
+
+
+def _risk_stage_input(result: Any, strategy: StrategyConfig) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+        "strategy": _to_payload_mapping(strategy),
+    }
+
+
+def _risk_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "risk", {}))
+
+
+def _execution_stage_input(result: Any) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "risk": _to_payload_mapping(getattr(result, "risk", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+    }
+
+
+def _execution_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "execution_decision", {}))
+
+
+def _guardrail_stage_input(result: Any) -> dict[str, Any]:
+    return {
+        "plan": _to_payload_mapping(getattr(result, "plan", {})),
+        "risk": _to_payload_mapping(getattr(result, "risk", {})),
+        "execution_decision": _to_payload_mapping(getattr(result, "execution_decision", {})),
+        "market_context": _to_payload_mapping(getattr(result.market_context, "context", {})),
+    }
+
+
+def _guardrail_stage_output(result: Any) -> dict[str, Any]:
+    return _to_payload_mapping(getattr(result, "guardrail", {}))
+
+
+def _decision_started_at(lifecycle: tuple[Mapping[str, Any], ...]) -> str:
+    if lifecycle:
+        first = lifecycle[0]
+        emitted_at = first.get("emitted_at")
+        if isinstance(emitted_at, str) and emitted_at.strip():
+            return emitted_at
+    return _utc_now_iso()
+
+
+def _decision_completed_at(lifecycle: tuple[Mapping[str, Any], ...]) -> str:
+    if lifecycle:
+        last = lifecycle[-1]
+        emitted_at = last.get("emitted_at")
+        if isinstance(emitted_at, str) and emitted_at.strip():
+            return emitted_at
+    return _utc_now_iso()
+
+
+def _decision_news_links(last_market_envelope: Mapping[str, Any] | None) -> tuple[tuple[str, str], ...]:
+    if not isinstance(last_market_envelope, Mapping):
+        return ()
+    payload = last_market_envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return ()
+    news = payload.get("news")
+    if not isinstance(news, Mapping):
+        return ()
+    summary_id = _maybe_uuid(news.get("summary_id"))
+    if summary_id is None:
+        return ()
+    news_ids: list[str] = []
+    candidate_ids = news.get("news_ids")
+    if isinstance(candidate_ids, list):
+        for raw in candidate_ids:
+            parsed = _maybe_uuid(raw)
+            if parsed is not None:
+                news_ids.append(parsed)
+    items = news.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            parsed = _maybe_uuid(item.get("news_id"))
+            if parsed is not None:
+                news_ids.append(parsed)
+    deduped_news_ids = tuple(dict.fromkeys(news_ids))
+    return tuple((summary_id, news_id) for news_id in deduped_news_ids)
+
+
+def _to_payload_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if is_dataclass(value):
+        return asdict(value)
+    return {}
+
+
+def _safe_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return dict(value)
+
+
+def _safe_list(value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        return []
+    return list(value)
+
+
+def _maybe_uuid(value: Any) -> str | None:
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(raw))
+    except ValueError:
+        return None
 
 
 def _utc_now_ms() -> int:
@@ -766,10 +1099,137 @@ def _normalize_market_fetch_mode(value: str) -> str:
     raise ValueError("MARKET_DATA_FETCH_MODE must be 'rest' or 'websocket'")
 
 
+def _parse_csv_tokens(raw: str | None) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    return tuple(token.strip() for token in raw.split(",") if token.strip())
+
+
+def _resolve_market_exchanges() -> tuple[str, ...]:
+    configured = _parse_csv_tokens(os.getenv("MARKET_EXCHANGES"))
+    if not configured:
+        fallback = os.getenv("EXCHANGE_DEFAULT", "binance").strip().lower()
+        configured = (fallback,) if fallback else ("binance",)
+    normalized = tuple(value.lower() for value in configured)
+    invalid = tuple(value for value in normalized if value not in {"binance", "bitget"})
+    if invalid:
+        raise ValueError("MARKET_EXCHANGES entries must be binance or bitget")
+    return normalized
+
+
+def _resolve_market_symbols(*, default_symbol: str) -> tuple[str, ...]:
+    configured = _parse_csv_tokens(os.getenv("MARKET_SYMBOLS"))
+    if not configured:
+        fallback = default_symbol.strip().upper()
+        return (fallback,) if fallback else ("BTC/USDT",)
+    return tuple(value.upper() for value in configured)
+
+
+def _resolve_news_source_mode(*, require_database: bool) -> str:
+    configured = os.getenv("NEWS_SOURCE_MODE", "").strip().lower()
+    if configured and configured not in {"real", "mock"}:
+        raise ValueError("NEWS_SOURCE_MODE must be 'real' or 'mock'")
+    if require_database:
+        return "real"
+    return configured or "mock"
+
+
+def _default_news_rss_feeds() -> tuple[str, ...]:
+    return (
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://cointelegraph.com/rss",
+    )
+
+
+def _orderbook_snapshot_interval_seconds() -> float:
+    explicit = os.getenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS")
+    if explicit is not None and explicit.strip():
+        return max(0.0, float(explicit))
+    if os.getenv("MARKET_DATA_REST_POLL_SECONDS", "").strip():
+        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+    return 180.0
+
+
+def _http_get_text(url: str, *, timeout_seconds: float) -> str:
+    req = request.Request(url=url, method="GET")
+    with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310 - explicit URL target
+        return response.read().decode("utf-8", errors="ignore")
+
+
+def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[str, Any]]:
+    root = ET.fromstring(rss_xml)
+    items: list[dict[str, Any]] = []
+    source = _infer_source_name(feed_url)
+
+    for item in root.findall(".//item"):
+        title = _first_child_text(item, ("title",))
+        link = _first_child_text(item, ("link",))
+        published_at = _first_child_text(item, ("pubDate", "published")) or _utc_now_iso()
+        description = _first_child_text(item, ("description", "summary"))
+        if not title or not link:
+            continue
+        items.append(
+            {
+                "source": source,
+                "source_item_id": f"{source}:{link}",
+                "title": title,
+                "url": link,
+                "published_at": published_at,
+                "content": description,
+                "metadata": {"language": "en"},
+            }
+        )
+        if len(items) >= limit:
+            return items
+
+    for entry in root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+        if len(items) >= limit:
+            break
+        title = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}title",))
+        updated = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}updated",))
+        content = _first_child_text(entry, ("{http://www.w3.org/2005/Atom}summary",))
+        link = ""
+        for link_node in entry.findall("{http://www.w3.org/2005/Atom}link"):
+            href = str(link_node.attrib.get("href", "")).strip()
+            if href:
+                link = href
+                break
+        if not title or not link:
+            continue
+        items.append(
+            {
+                "source": source,
+                "source_item_id": f"{source}:{link}",
+                "title": title,
+                "url": link,
+                "published_at": updated or _utc_now_iso(),
+                "content": content,
+                "metadata": {"language": "en"},
+            }
+        )
+    return items
+
+
+def _first_child_text(element: ET.Element, tags: tuple[str, ...]) -> str:
+    for tag in tags:
+        child = element.find(tag)
+        if child is not None and child.text is not None and child.text.strip():
+            return child.text.strip()
+    return ""
+
+
+def _infer_source_name(feed_url: str) -> str:
+    parsed = urlparse(feed_url)
+    hostname = (parsed.hostname or "unknown").lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    return hostname or "unknown"
+
+
 def _market_worker_cycle_interval_seconds() -> float:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
     if fetch_mode == "rest":
-        return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
+        return _orderbook_snapshot_interval_seconds()
     return 0.0
 
 

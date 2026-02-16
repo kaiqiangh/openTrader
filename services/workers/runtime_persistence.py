@@ -56,9 +56,47 @@ class SQLAlchemyRuntimeMarketStore:
             }
         )
 
+    async def persist_kline_rows(
+        self,
+        *,
+        exchange: str,
+        symbol: str,
+        interval: str,
+        bars: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+    ) -> None:
+        normalized_exchange = exchange.strip()
+        normalized_symbol = symbol.strip()
+        normalized_interval = interval.strip() or "1m"
+        if not normalized_exchange or not normalized_symbol:
+            raise ValueError("persist_kline_rows requires non-empty exchange and symbol")
+
+        for bar in bars:
+            open_time_ms = _to_int(bar.get("open_time_ms"))
+            if open_time_ms is None:
+                open_time_ms = _to_int(bar.get("open_time"))
+            if open_time_ms is None:
+                continue
+            await self._timeseries.upsert_kline(
+                {
+                    "exchange": normalized_exchange,
+                    "symbol": normalized_symbol,
+                    "interval": normalized_interval,
+                    "open_time_ms": open_time_ms,
+                    "open": _to_float(bar.get("open"), default=0.0),
+                    "high": _to_float(bar.get("high"), default=0.0),
+                    "low": _to_float(bar.get("low"), default=0.0),
+                    "close": _to_float(bar.get("close"), default=0.0),
+                    "volume": _to_float(bar.get("volume"), default=0.0),
+                    "quote_volume": _to_float(bar.get("quote_volume"), default=0.0),
+                    "trades": int(_to_float(bar.get("trades"), default=0.0)),
+                }
+            )
+
 
 class SQLAlchemyRuntimeOMSStateStore:
-    """Runtime OMS state store backed by sqlite or SQLAlchemy."""
+    """Runtime OMS store backed by core trading tables plus lightweight operational tables."""
+
+    _RUNTIME_EXCHANGE_NAME = "runtime_mock"
 
     def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
         self._db = _StoreConnection(connection=connection)
@@ -68,11 +106,19 @@ class SQLAlchemyRuntimeOMSStateStore:
     def get_order(self, *, order_id: str) -> ReconciliationOrder | None:
         row = self._db.fetchone(
             """
-            SELECT order_id, symbol, mode, requested_quantity, status, filled_quantity, average_price
-            FROM runtime_oms_orders
-            WHERE order_id = :order_id
+            SELECT
+                o.id AS order_id,
+                s.symbol AS symbol,
+                o.mode AS mode,
+                o.quantity AS requested_quantity,
+                o.status AS status,
+                o.filled_quantity AS filled_quantity,
+                o.average_price AS average_price
+            FROM orders o
+            JOIN symbols s ON s.id = o.symbol_id
+            WHERE o.id = :order_id
             """,
-            {"order_id": order_id},
+            {"order_id": _coerce_uuid(order_id)},
         )
         if row is None:
             return None
@@ -88,36 +134,64 @@ class SQLAlchemyRuntimeOMSStateStore:
         )
 
     def upsert_order(self, order: ReconciliationOrder) -> None:
+        exchange_id, symbol_id = self._ensure_symbol_refs(order.symbol)
+        now_iso = _utc_now_iso()
+        existing = self._db.fetchone(
+            """
+            SELECT side, type, created_at
+            FROM orders
+            WHERE id = :order_id
+            """,
+            {"order_id": _coerce_uuid(order.order_id)},
+        )
+        side = str(existing["side"]) if existing is not None else "BUY"
+        order_type = str(existing["type"]) if existing is not None else "MARKET"
+        created_at = str(existing["created_at"]) if existing is not None else now_iso
+
         self._db.execute(
             """
-            INSERT INTO runtime_oms_orders
-                (order_id, symbol, mode, requested_quantity, status, filled_quantity, average_price, updated_at)
+            INSERT INTO orders
+                (id, exchange_id, symbol_id, signal_id, exchange_order_id, client_order_id, side, type, status, mode, price, quantity, filled_quantity, average_price, created_at, updated_at)
             VALUES
-                (:order_id, :symbol, :mode, :requested_quantity, :status, :filled_quantity, :average_price, :updated_at)
-            ON CONFLICT (order_id)
+                (:id, :exchange_id, :symbol_id, :signal_id, :exchange_order_id, :client_order_id, :side, :type, :status, :mode, :price, :quantity, :filled_quantity, :average_price, :created_at, :updated_at)
+            ON CONFLICT (id)
             DO UPDATE SET
-                symbol = excluded.symbol,
-                mode = excluded.mode,
-                requested_quantity = excluded.requested_quantity,
+                exchange_id = excluded.exchange_id,
+                symbol_id = excluded.symbol_id,
+                exchange_order_id = excluded.exchange_order_id,
+                side = excluded.side,
+                type = excluded.type,
                 status = excluded.status,
+                mode = excluded.mode,
+                price = excluded.price,
+                quantity = excluded.quantity,
                 filled_quantity = excluded.filled_quantity,
                 average_price = excluded.average_price,
                 updated_at = excluded.updated_at
             """,
             {
-                "order_id": order.order_id,
-                "symbol": order.symbol,
-                "mode": order.mode,
-                "requested_quantity": float(order.requested_quantity),
+                "id": _coerce_uuid(order.order_id),
+                "exchange_id": exchange_id,
+                "symbol_id": symbol_id,
+                "signal_id": None,
+                "exchange_order_id": order.order_id,
+                "client_order_id": order.order_id,
+                "side": side,
+                "type": order_type,
                 "status": order.status,
+                "mode": order.mode,
+                "price": float(order.average_price) if order.average_price is not None else None,
+                "quantity": float(order.requested_quantity),
                 "filled_quantity": float(order.filled_quantity),
                 "average_price": float(order.average_price) if order.average_price is not None else None,
-                "updated_at": _utc_now_iso(),
+                "created_at": created_at,
+                "updated_at": now_iso,
             },
         )
 
     def append_lifecycle_event(self, *, order_id: str, event: LifecycleEvent) -> None:
         fill = event.fill
+        now_iso = _utc_now_iso()
         self._db.execute(
             """
             INSERT INTO runtime_oms_lifecycle_events
@@ -127,7 +201,7 @@ class SQLAlchemyRuntimeOMSStateStore:
             """,
             {
                 "event_id": str(uuid.uuid4()),
-                "order_id": order_id,
+                "order_id": _coerce_uuid(order_id),
                 "event_type": event.event_type,
                 "status": event.status,
                 "fill_id": fill.fill_id if fill is not None else None,
@@ -135,7 +209,51 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "fill_price": float(fill.price) if fill is not None else None,
                 "fill_fee": float(fill.fee) if fill is not None else None,
                 "fill_source": fill.source if fill is not None else None,
-                "created_at": _utc_now_iso(),
+                "created_at": now_iso,
+            },
+        )
+
+        if fill is None:
+            return
+
+        order_row = self._db.fetchone(
+            """
+            SELECT side, mode
+            FROM orders
+            WHERE id = :order_id
+            """,
+            {"order_id": _coerce_uuid(order_id)},
+        )
+        side = str(order_row["side"]) if order_row is not None else "BUY"
+        mode = str(order_row["mode"]) if order_row is not None else "MOCK"
+        self._db.execute(
+            """
+            INSERT INTO fills
+                (id, order_id, exchange_fill_id, side, mode, quantity, price, fee, fee_currency, filled_at)
+            VALUES
+                (:id, :order_id, :exchange_fill_id, :side, :mode, :quantity, :price, :fee, :fee_currency, :filled_at)
+            ON CONFLICT (id)
+            DO UPDATE SET
+                exchange_fill_id = excluded.exchange_fill_id,
+                side = excluded.side,
+                mode = excluded.mode,
+                quantity = excluded.quantity,
+                price = excluded.price,
+                fee = excluded.fee,
+                fee_currency = excluded.fee_currency,
+                filled_at = excluded.filled_at
+            """,
+            {
+                "id": _coerce_uuid(fill.fill_id),
+                "order_id": _coerce_uuid(order_id),
+                "exchange_fill_id": fill.fill_id,
+                "side": side,
+                "mode": mode,
+                "quantity": float(fill.quantity),
+                "price": float(fill.price),
+                "fee": float(fill.fee),
+                "fee_currency": "USD",
+                "filled_at": now_iso,
             },
         )
 
@@ -147,7 +265,7 @@ class SQLAlchemyRuntimeOMSStateStore:
             WHERE order_id = :order_id
             ORDER BY created_at ASC, event_id ASC
             """,
-            {"order_id": order_id},
+            {"order_id": _coerce_uuid(order_id)},
         )
         events: list[LifecycleEvent] = []
         for row in rows:
@@ -156,7 +274,7 @@ class SQLAlchemyRuntimeOMSStateStore:
             if fill_id is not None:
                 fill = ReconciliationFill(
                     fill_id=str(fill_id),
-                    order_id=order_id,
+                    order_id=_coerce_uuid(order_id),
                     quantity=float(row.get("fill_quantity", 0.0) or 0.0),
                     price=float(row.get("fill_price", 0.0) or 0.0),
                     fee=float(row.get("fill_fee", 0.0) or 0.0),
@@ -176,9 +294,20 @@ class SQLAlchemyRuntimeOMSStateStore:
     def get_position(self, *, mode: str, symbol: str) -> PositionState | None:
         row = self._db.fetchone(
             """
-            SELECT mode, symbol, quantity, average_entry_price, realized_pnl, status, updated_at
-            FROM runtime_oms_positions
-            WHERE mode = :mode AND symbol = :symbol
+            SELECT
+                p.mode AS mode,
+                s.symbol AS symbol,
+                p.quantity AS quantity,
+                p.entry_price AS average_entry_price,
+                p.realized_pnl AS realized_pnl,
+                p.status AS status,
+                COALESCE(p.closed_at, p.opened_at) AS updated_at
+            FROM positions p
+            JOIN symbols s ON s.id = p.symbol_id
+            WHERE p.mode = :mode
+              AND s.symbol = :symbol
+            ORDER BY p.opened_at DESC
+            LIMIT 1
             """,
             {"mode": mode, "symbol": symbol},
         )
@@ -195,53 +324,109 @@ class SQLAlchemyRuntimeOMSStateStore:
         )
 
     def upsert_position(self, position: PositionState) -> None:
+        exchange_id, symbol_id = self._ensure_symbol_refs(position.symbol)
+        existing = self._db.fetchone(
+            """
+            SELECT id, opened_at
+            FROM positions
+            WHERE mode = :mode
+              AND symbol_id = :symbol_id
+            ORDER BY opened_at DESC
+            LIMIT 1
+            """,
+            {"mode": position.mode, "symbol_id": symbol_id},
+        )
+        side = "LONG" if float(position.quantity) > 0 else "SHORT" if float(position.quantity) < 0 else "FLAT"
+        closed_at = position.updated_at if position.status.upper() == "CLOSED" else None
+        if existing is None:
+            self._db.execute(
+                """
+                INSERT INTO positions
+                    (id, exchange_id, symbol_id, mode, side, quantity, entry_price, unrealized_pnl, realized_pnl, status, opened_at, closed_at)
+                VALUES
+                    (:id, :exchange_id, :symbol_id, :mode, :side, :quantity, :entry_price, :unrealized_pnl, :realized_pnl, :status, :opened_at, :closed_at)
+                """,
+                {
+                    "id": str(uuid.uuid4()),
+                    "exchange_id": exchange_id,
+                    "symbol_id": symbol_id,
+                    "mode": position.mode,
+                    "side": side,
+                    "quantity": float(position.quantity),
+                    "entry_price": float(position.average_entry_price),
+                    "unrealized_pnl": 0.0,
+                    "realized_pnl": float(position.realized_pnl),
+                    "status": position.status,
+                    "opened_at": position.updated_at,
+                    "closed_at": closed_at,
+                },
+            )
+            return
         self._db.execute(
             """
-            INSERT INTO runtime_oms_positions
-                (mode, symbol, quantity, average_entry_price, realized_pnl, status, updated_at)
-            VALUES
-                (:mode, :symbol, :quantity, :average_entry_price, :realized_pnl, :status, :updated_at)
-            ON CONFLICT (mode, symbol)
-            DO UPDATE SET
-                quantity = excluded.quantity,
-                average_entry_price = excluded.average_entry_price,
-                realized_pnl = excluded.realized_pnl,
-                status = excluded.status,
-                updated_at = excluded.updated_at
+            UPDATE positions
+            SET
+                exchange_id = :exchange_id,
+                symbol_id = :symbol_id,
+                mode = :mode,
+                side = :side,
+                quantity = :quantity,
+                entry_price = :entry_price,
+                unrealized_pnl = :unrealized_pnl,
+                realized_pnl = :realized_pnl,
+                status = :status,
+                closed_at = :closed_at
+            WHERE id = :id
             """,
             {
+                "id": str(existing["id"]),
+                "exchange_id": exchange_id,
+                "symbol_id": symbol_id,
                 "mode": position.mode,
-                "symbol": position.symbol,
+                "side": side,
                 "quantity": float(position.quantity),
-                "average_entry_price": float(position.average_entry_price),
+                "entry_price": float(position.average_entry_price),
+                "unrealized_pnl": 0.0,
                 "realized_pnl": float(position.realized_pnl),
                 "status": position.status,
-                "updated_at": position.updated_at,
+                "closed_at": closed_at,
             },
         )
 
     def list_positions(self, *, mode: str) -> tuple[PositionState, ...]:
         rows = self._db.fetchall(
             """
-            SELECT mode, symbol, quantity, average_entry_price, realized_pnl, status, updated_at
-            FROM runtime_oms_positions
-            WHERE mode = :mode
-            ORDER BY symbol ASC
+            SELECT
+                p.mode AS mode,
+                s.symbol AS symbol,
+                p.quantity AS quantity,
+                p.entry_price AS average_entry_price,
+                p.realized_pnl AS realized_pnl,
+                p.status AS status,
+                COALESCE(p.closed_at, p.opened_at) AS updated_at,
+                p.opened_at AS opened_at
+            FROM positions p
+            JOIN symbols s ON s.id = p.symbol_id
+            WHERE p.mode = :mode
+            ORDER BY s.symbol ASC, p.opened_at DESC
             """,
             {"mode": mode},
         )
-        return tuple(
-            PositionState(
+        deduped: dict[str, PositionState] = {}
+        for row in rows:
+            symbol = str(row["symbol"])
+            if symbol in deduped:
+                continue
+            deduped[symbol] = PositionState(
                 mode=str(row["mode"]),
-                symbol=str(row["symbol"]),
+                symbol=symbol,
                 quantity=float(row["quantity"]),
                 average_entry_price=float(row["average_entry_price"]),
                 realized_pnl=float(row["realized_pnl"]),
                 status=str(row["status"]),
                 updated_at=str(row["updated_at"]),
             )
-            for row in rows
-        )
+        return tuple(deduped[key] for key in sorted(deduped))
 
     def upsert_mark_price(self, *, mode: str, symbol: str, mark_price: float) -> None:
         self._db.execute(
@@ -275,16 +460,14 @@ class SQLAlchemyRuntimeOMSStateStore:
         return {str(row["symbol"]): float(row["mark_price"]) for row in rows}
 
     def insert_portfolio_snapshot(self, snapshot: PortfolioSnapshot) -> None:
-        next_snapshot_id = self._next_portfolio_snapshot_id()
         self._db.execute(
             """
-            INSERT INTO runtime_oms_portfolio_snapshots
-                (id, snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today, created_at)
+            INSERT INTO portfolio_snapshots
+                (snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today, created_at)
             VALUES
-                (:id, :snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_today, :created_at)
+                (:snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_today, :created_at)
             """,
             {
-                "id": next_snapshot_id,
                 "snapshot_time": snapshot.snapshot_time,
                 "mode": snapshot.mode,
                 "total_balance_usd": float(snapshot.total_balance_usd),
@@ -296,29 +479,165 @@ class SQLAlchemyRuntimeOMSStateStore:
             },
         )
 
-    def _next_portfolio_snapshot_id(self) -> int:
-        row = self._db.fetchone(
+    def _runtime_exchange_id(self) -> str:
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, self._RUNTIME_EXCHANGE_NAME))
+
+    def _ensure_symbol_refs(self, symbol: str) -> tuple[str, str]:
+        normalized_symbol = symbol.strip().upper()
+        exchange_id = self._runtime_exchange_id()
+        now_iso = _utc_now_iso()
+        self._db.execute(
             """
-            SELECT COALESCE(MAX(id), 0) AS max_id
-            FROM runtime_oms_portfolio_snapshots
+            INSERT INTO exchanges
+                (id, name, api_key_encrypted, api_secret_encrypted, is_active, created_at)
+            VALUES
+                (:id, :name, :api_key_encrypted, :api_secret_encrypted, :is_active, :created_at)
+            ON CONFLICT (name)
+            DO NOTHING
             """,
-            {},
+            {
+                "id": exchange_id,
+                "name": self._RUNTIME_EXCHANGE_NAME,
+                "api_key_encrypted": None,
+                "api_secret_encrypted": None,
+                "is_active": True,
+                "created_at": now_iso,
+            },
         )
-        current = int(row["max_id"]) if row is not None and row.get("max_id") is not None else 0
-        return current + 1
+        existing_symbol = self._db.fetchone(
+            """
+            SELECT id
+            FROM symbols
+            WHERE exchange_id = :exchange_id
+              AND symbol = :symbol
+            """,
+            {"exchange_id": exchange_id, "symbol": normalized_symbol},
+        )
+        if existing_symbol is not None:
+            return exchange_id, str(existing_symbol["id"])
+        base_asset, quote_asset = _split_symbol(normalized_symbol)
+        symbol_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{exchange_id}:{normalized_symbol}"))
+        self._db.execute(
+            """
+            INSERT INTO symbols
+                (id, exchange_id, symbol, base_asset, quote_asset, is_active, created_at)
+            VALUES
+                (:id, :exchange_id, :symbol, :base_asset, :quote_asset, :is_active, :created_at)
+            ON CONFLICT (exchange_id, symbol)
+            DO NOTHING
+            """,
+            {
+                "id": symbol_id,
+                "exchange_id": exchange_id,
+                "symbol": normalized_symbol,
+                "base_asset": base_asset,
+                "quote_asset": quote_asset,
+                "is_active": True,
+                "created_at": now_iso,
+            },
+        )
+        return exchange_id, symbol_id
 
     def _ensure_schema(self) -> None:
         self._db.execute(
             """
-            CREATE TABLE IF NOT EXISTS runtime_oms_orders (
-                order_id TEXT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS exchanges (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                api_key_encrypted TEXT NULL,
+                api_secret_encrypted TEXT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+            """,
+            {},
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS symbols (
+                id TEXT PRIMARY KEY,
+                exchange_id TEXT NOT NULL,
                 symbol TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                requested_quantity REAL NOT NULL,
+                base_asset TEXT NOT NULL,
+                quote_asset TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                UNIQUE(exchange_id, symbol)
+            )
+            """,
+            {},
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id TEXT PRIMARY KEY,
+                exchange_id TEXT NOT NULL,
+                symbol_id TEXT NOT NULL,
+                signal_id TEXT NULL,
+                exchange_order_id TEXT NULL,
+                client_order_id TEXT NOT NULL,
+                side TEXT NOT NULL,
+                type TEXT NOT NULL,
                 status TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                price REAL NULL,
+                quantity REAL NOT NULL,
                 filled_quantity REAL NOT NULL,
                 average_price REAL NULL,
+                created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+            """,
+            {},
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fills (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL,
+                exchange_fill_id TEXT NOT NULL,
+                side TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                price REAL NOT NULL,
+                fee REAL NOT NULL,
+                fee_currency TEXT NULL,
+                filled_at TEXT NOT NULL
+            )
+            """,
+            {},
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS positions (
+                id TEXT PRIMARY KEY,
+                exchange_id TEXT NOT NULL,
+                symbol_id TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                side TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                entry_price REAL NOT NULL,
+                unrealized_pnl REAL NOT NULL,
+                realized_pnl REAL NOT NULL,
+                status TEXT NOT NULL,
+                opened_at TEXT NOT NULL,
+                closed_at TEXT NULL
+            )
+            """,
+            {},
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                id INTEGER PRIMARY KEY,
+                snapshot_time TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                total_balance_usd REAL NOT NULL,
+                available_balance_usd REAL NOT NULL,
+                locked_balance_usd REAL NOT NULL,
+                unrealized_pnl REAL NOT NULL,
+                realized_pnl_today REAL NOT NULL,
+                created_at TEXT NOT NULL
             )
             """,
             {},
@@ -342,43 +661,12 @@ class SQLAlchemyRuntimeOMSStateStore:
         )
         self._db.execute(
             """
-            CREATE TABLE IF NOT EXISTS runtime_oms_positions (
-                mode TEXT NOT NULL,
-                symbol TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                average_entry_price REAL NOT NULL,
-                realized_pnl REAL NOT NULL,
-                status TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (mode, symbol)
-            )
-            """,
-            {},
-        )
-        self._db.execute(
-            """
             CREATE TABLE IF NOT EXISTS runtime_oms_mark_prices (
                 mode TEXT NOT NULL,
                 symbol TEXT NOT NULL,
                 mark_price REAL NOT NULL,
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (mode, symbol)
-            )
-            """,
-            {},
-        )
-        self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS runtime_oms_portfolio_snapshots (
-                id INTEGER PRIMARY KEY,
-                snapshot_time TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                total_balance_usd REAL NOT NULL,
-                available_balance_usd REAL NOT NULL,
-                locked_balance_usd REAL NOT NULL,
-                unrealized_pnl REAL NOT NULL,
-                realized_pnl_today REAL NOT NULL,
-                created_at TEXT NOT NULL
             )
             """,
             {},
@@ -558,7 +846,7 @@ class SQLAlchemyNewsSummaryStore:
         for news_id in summary.source_news_ids:
             self._db.execute(
                 """
-                INSERT INTO runtime_news_summary_sources
+                INSERT INTO news_summary_sources
                     (summary_id, news_id, created_at)
                 VALUES
                     (:summary_id, :news_id, :created_at)
@@ -596,7 +884,7 @@ class SQLAlchemyNewsSummaryStore:
         )
         self._db.execute(
             """
-            CREATE TABLE IF NOT EXISTS runtime_news_summary_sources (
+            CREATE TABLE IF NOT EXISTS news_summary_sources (
                 summary_id TEXT NOT NULL,
                 news_id TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -658,6 +946,26 @@ class _StoreConnection:
             return [dict(row) for row in rows]
 
 
+def _coerce_uuid(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return str(uuid.uuid4())
+    try:
+        return str(uuid.UUID(normalized))
+    except ValueError:
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, normalized))
+
+
+def _split_symbol(symbol: str) -> tuple[str, str]:
+    normalized = symbol.strip().upper()
+    if "/" not in normalized:
+        return normalized or "UNKNOWN", "USD"
+    base, quote = normalized.split("/", 1)
+    base_asset = base.strip() or "UNKNOWN"
+    quote_asset = quote.strip() or "USD"
+    return base_asset, quote_asset
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -703,3 +1011,12 @@ def _to_float(value: Any, *, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _to_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
