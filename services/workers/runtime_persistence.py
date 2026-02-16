@@ -500,7 +500,7 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "name": self._RUNTIME_EXCHANGE_NAME,
                 "api_key_encrypted": None,
                 "api_secret_encrypted": None,
-                "is_active": 1,
+                "is_active": True,
                 "created_at": now_iso,
             },
         )
@@ -532,7 +532,7 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "symbol": normalized_symbol,
                 "base_asset": base_asset,
                 "quote_asset": quote_asset,
-                "is_active": 1,
+                "is_active": True,
                 "created_at": now_iso,
             },
         )
