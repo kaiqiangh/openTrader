@@ -129,7 +129,6 @@ def test_p9_security_acceptance_encrypted_secret_round_trip_and_at_rest_protecti
 def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     internal_only_services = (
-        "postgres_timescaledb",
         "redis",
         "notification_worker",
         "prometheus",
@@ -147,6 +146,10 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     rabbitmq_block = _service_block(compose, "rabbitmq")
     assert "ports:" in rabbitmq_block
     assert "127.0.0.1:15672:15672" in rabbitmq_block
+
+    postgres_block = _service_block(compose, "postgres_timescaledb")
+    assert "ports:" in postgres_block
+    assert "127.0.0.1:5432:5432" in postgres_block
 
 
 def test_p9_security_acceptance_secret_placeholder_rejection() -> None:

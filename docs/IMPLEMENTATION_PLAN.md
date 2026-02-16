@@ -2,7 +2,7 @@
 
 ## LLM-Based Multi-Exchange Crypto Trading System (Based on ARD v1.1)
 
-- Last Updated: 2026-02-15
+- Last Updated: 2026-02-16
 - Source of truth: `./docs/ARD_Consolidated.md`
 - Planning horizon: End-to-end implementation to production-ready deployment on Docker Compose
 
@@ -84,7 +84,7 @@ Use this exact format in each update:
 | 41   | 2026-02-14 | P8-007,P8-008,P8-009                             | -                         | -           | Hardened compose network isolation with public/internal split, expanded Phase 8 security validation suite coverage, and added incident runbooks for exchange outage/quota breach/risk events; Python/Go suites green | 100%      |
 | 42   | 2026-02-14 | P9-001,P9-002,P9-003                             | -                         | -           | Phase 9 validation setup completed; replay determinism and chaos/performance gates queued next                                                                                                                       | 100%      |
 | 43   | 2026-02-14 | -                                                | P9-004 readiness hotfixes | -           | Runtime unblockers delivered for notification worker `.env` loading, queue bootstrap behavior, and API bootstrap parity                                                                                              | 100%      |
-| 44   | 2026-02-14 | P9 runtime ops unblockers                        | -                         | -           | Fixed `make env-validate` import path, made `docker compose up -d` start full stack by default, and added `make smoke` comprehensive runtime smoke checks                                                            | 100%      |
+| 44   | 2026-02-14 | P9 runtime ops unblockers                        | -                         | -           | Fixed `make env-validate` import path and added `make smoke` comprehensive runtime checks (startup topology later superseded by core/full profile split in Turn 58)                                                 | 100%      |
 | 45   | 2026-02-15 | P9-004,P9-005,P9-006                             | -                         | -           | Added replay determinism suite, performance benchmarks, and chaos/resilience drills with runtime evidence docs; Python suite and lint green                                                                          | 100%      |
 | 46   | 2026-02-15 | P9-007,P9-008,P9-009                             | -                         | -           | Added data-integrity/security acceptance suites and release checklist/cutover package; Phase 9 closure validation complete                                                                                           | 100%      |
 | 47   | 2026-02-15 | Post-Phase-9 handoff pack                        | -                         | -           | Added go-live owner matrix, hypercare checklist, and backlog triage pack linked from release docs/README                                                                                                             | 100%      |
@@ -98,6 +98,7 @@ Use this exact format in each update:
 | 55   | 2026-02-15 | Post-P10 connector hardening (market fetch mode + real-data mock workflow) | - | - | Added REST/WebSocket market fetch-mode contract (REST default @ 5-minute cadence), wired runtime market worker to concrete Binance/Bitget HTTP adapters for production path, upgraded mock realtime workflow to fetch live exchange/news data with strict LiteLLM/DeepSeek checks, and refreshed README/frontend run guidance | 100%      |
 | 56   | 2026-02-15 | Runtime market worker resilience hotfix + workflow gate stability | - | - | Hardened runtime worker loop to survive transient exchange DNS/network failures without container crash/restart loops, preserved `--once` failure semantics, switched mock workflow to real-first with explicit strict flags, and revalidated `make smoke`, `make runtime-gate`, and `make mock-workflow` | 100%      |
 | 57   | 2026-02-15 | Compose egress network fix + market verification diagnostics | - | - | Root-caused market fetch failures to Docker `internal: true` egress isolation, attached market/orchestrator/news/real-execution services to `public` network for external exchange/LLM/news access, enhanced mock workflow exchange-source reporting (`live_rest` vs fallback), and revalidated smoke/runtime-gate/mock-workflow with live Binance+Bitget fetch evidence | 100%      |
+| 58   | 2026-02-16 | Repo alignment remediation + real-data mock workflow closure | - | - | Delivered multi-exchange runtime persistence (kline+orderbook), real RSS news mode wiring, orchestrator trace persistence, strict DB-context workflow validation with real LLM call, runtime OMS consolidation into core tables (`positions.mode` added), compose core/full profile split, and docs alignment with verification scripts | 100%      |
 
 ### Turn Update 2026-02-14 10:55
 
@@ -491,7 +492,7 @@ Use this exact format in each update:
 - Completed Task IDs: [P9 runtime ops unblockers]
 - In Progress Task IDs: [-]
 - Blocked Task IDs: [-]
-- New Risks/Blockers: `make env-validate` import-path issue resolved; `docker compose up -d` now starts full service stack by default; comprehensive smoke runner (`make smoke`) added and passing. Remaining non-code operational caveat is optional Postgres volume credential drift during migration fallback on reused local volumes.
+- New Risks/Blockers: `make env-validate` import-path issue resolved; comprehensive smoke runner (`make smoke`) added and passing. (Historical note: at this turn, compose targeted full default startup; superseded by core/full profile split in Turn 58.) Remaining non-code operational caveat is optional Postgres volume credential drift during migration fallback on reused local volumes.
 - Next Task IDs: [P9-004, P9-005, P9-006]
 - Overall Progress: 100%
 
@@ -971,9 +972,9 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 
 ### Exit Criteria
 
-- Full market->decision->execution->OMS->notification flow runs on RabbitMQ + PostgreSQL/TimescaleDB + Redis in Docker Compose.
+- Full market->decision->mock execution->OMS->notification flow runs on RabbitMQ + PostgreSQL/TimescaleDB + Redis in core Docker Compose profile.
 - In-memory broker/persistence shims are no longer used on runtime-critical production paths.
-- Go real execution service consumes real intent queue with concrete bridge adapter and lifecycle publication.
+- Go real execution service consumes real intent queue with concrete bridge adapter and lifecycle publication when `--profile full` is enabled.
 - Smoke and integration suites include real infrastructure validation gates.
 
 ### Tasks
@@ -984,7 +985,7 @@ Close remaining contract/runtime gaps so architecture completion reflects concre
 | P10-002 | P0  | RabbitMQ adapter replacement           | Replace in-memory broker usage on production runtime path with RabbitMQ producer/consumer adapters and ack/nack behavior             | P10-001,P1-008         | Infra-backed event path           | DONE |
 | P10-003 | P0  | Postgres/Timescale adapter replacement | Replace SQLite/in-memory runtime stores for market/LLM/memory/news/notification/ops with PostgreSQL/Timescale-backed adapters        | P10-001,P1-002         | Infra-backed persistence path     | DONE |
 | P10-004 | P0  | Go real execution concrete integration | Replace noop consumer/bridge in `main.go` with concrete queue client + execution bridge + OMS event publishing contract              | P10-002,P10-003,P4-006 | Real execution runtime path       | DONE |
-| P10-005 | P1  | Full compose service topology          | Add all core runtime services to compose default startup and health checks (no profile gating)                                       | P10-001..P10-004       | One-command local stack boot      | DONE |
+| P10-005 | P1  | Compose core/full service topology     | Keep core runtime services in default startup + health checks; move observability and Go real execution to `full` profile            | P10-001..P10-004       | One-command core stack boot + optional full profile | DONE |
 | P10-006 | P1  | Runtime E2E test gate                  | Add integration suite that validates full runtime flow against real infra dependencies                                               | P10-002..P10-005       | Production-like validation report | DONE |
 | P10-007 | P1  | Documentation and runbook alignment    | Update ARD/PRD/README/runbooks to match concrete runtime topology and operations                                                     | P10-001..P10-006       | Aligned architecture and ops docs | DONE |
 

@@ -151,8 +151,48 @@ async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is
     with engine.connect() as connection:
         summary_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_memory")).scalar_one()
         slot_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_slots")).scalar_one()
+        trace_count = connection.execute(text("SELECT COUNT(*) FROM decision_traces")).scalar_one()
+        run_count = connection.execute(text("SELECT COUNT(*) FROM agent_runs")).scalar_one()
+        message_count = connection.execute(text("SELECT COUNT(*) FROM agent_messages")).scalar_one()
     assert summary_count >= 1
     assert slot_count >= 1
+    assert trace_count == 1
+    assert run_count >= 5
+    assert message_count >= 10
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_worker_runner_persists_decision_news_links_when_news_ids_are_present(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-orchestrator-news.db'}")
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(
+        settings=_settings(worker="orchestrator"),
+        broker=broker,
+        runtime_engine=engine,
+    )
+
+    summary_id = str(uuid.uuid4())
+    news_id = str(uuid.uuid4())
+    market_event = _market_envelope()
+    payload = dict(market_event["payload"])
+    payload["news"] = {
+        "summary": "Macro neutral",
+        "sentiment": 0.1,
+        "source_count": 1,
+        "summary_id": summary_id,
+        "news_ids": [news_id],
+    }
+    market_event["payload"] = payload
+    await broker.publish(routing_key="market.canonical", message=market_event)
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+    with engine.connect() as connection:
+        link_count = connection.execute(text("SELECT COUNT(*) FROM decision_news_links")).scalar_one()
+    assert link_count == 1
 
 
 @pytest.mark.asyncio
@@ -172,6 +212,26 @@ async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_eng
                     best_ask REAL NOT NULL,
                     spread_bps REAL NOT NULL,
                     PRIMARY KEY (snapshot_time, exchange, symbol)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE klines (
+                    time TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    "interval" TEXT NOT NULL,
+                    open REAL NOT NULL,
+                    high REAL NOT NULL,
+                    low REAL NOT NULL,
+                    close REAL NOT NULL,
+                    volume REAL NOT NULL,
+                    quote_volume REAL NOT NULL,
+                    trades INTEGER NOT NULL,
+                    PRIMARY KEY (time, exchange, symbol, "interval")
                 )
                 """
             )
@@ -218,6 +278,55 @@ async def test_news_worker_runner_generates_summary_artifact() -> None:
 
 
 @pytest.mark.asyncio
+async def test_news_worker_runner_uses_real_rss_mode_when_database_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rss_xml = """
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Market update</title>
+          <link>https://news.example.com/market-update</link>
+          <pubDate>Mon, 16 Feb 2026 00:00:00 GMT</pubDate>
+          <description>BTC momentum stabilizes.</description>
+        </item>
+      </channel>
+    </rss>
+    """
+    monkeypatch.setenv("NEWS_SOURCE_MODE", "mock")
+    monkeypatch.setenv("NEWS_RSS_FEEDS", "https://news.example.com/rss")
+    monkeypatch.setattr(runtime_main, "_http_get_text", lambda url, timeout_seconds: rss_xml)
+
+    settings = RuntimeWorkerSettings(
+        worker="news",
+        broker_backend="inmemory",
+        topology_path="config/rabbitmq/topology.json",
+        mode="MOCK",
+        symbol="BTC/USDT",
+        strategy_id="default-strategy",
+        once=True,
+        validate_only=False,
+        max_idle_cycles=0,
+        poll_timeout_seconds=0.0,
+        idle_sleep_seconds=0.0,
+        bootstrap_topology=False,
+        portfolio_base_balance_usd=100000.0,
+        require_database=True,
+    )
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=settings, broker=broker)
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+    assert build.worker.source_mode == "real"
+    cycle = build.worker.framework.fetch_cycle(limit_per_source=1)
+    assert cycle.sources_total == 1
+    assert cycle.results[0].source.startswith("rss.")
+    assert cycle.results[0].source != "mock.crypto"
+
+
+@pytest.mark.asyncio
 async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-oms.db'}")
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
@@ -250,16 +359,17 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
 
     assert worked_first is True
     assert worked_second is True
+    persisted_order_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "order-persist-1"))
     with engine.connect() as connection:
         order_status = connection.execute(
             text(
                 """
                 SELECT status
-                FROM runtime_oms_orders
-                WHERE order_id = :order_id
+                FROM orders
+                WHERE id = :order_id
                 """
             ),
-            {"order_id": "order-persist-1"},
+            {"order_id": persisted_order_id},
         ).scalar_one()
         lifecycle_count = connection.execute(
             text(
@@ -269,15 +379,26 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
                 WHERE order_id = :order_id
                 """
             ),
-            {"order_id": "order-persist-1"},
+            {"order_id": persisted_order_id},
         ).scalar_one()
-        position_count = connection.execute(text("SELECT COUNT(*) FROM runtime_oms_positions")).scalar_one()
+        fill_count = connection.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM fills
+                WHERE order_id = :order_id
+                """
+            ),
+            {"order_id": persisted_order_id},
+        ).scalar_one()
+        position_count = connection.execute(text("SELECT COUNT(*) FROM positions WHERE mode = 'MOCK'")).scalar_one()
         snapshot_count = connection.execute(
-            text("SELECT COUNT(*) FROM runtime_oms_portfolio_snapshots")
+            text("SELECT COUNT(*) FROM portfolio_snapshots")
         ).scalar_one()
 
     assert order_status == "FILLED"
     assert lifecycle_count == 2
+    assert fill_count == 2
     assert position_count == 1
     assert snapshot_count >= 1
 
@@ -328,12 +449,39 @@ def test_market_worker_defaults_to_rest_fetch_mode_and_five_minute_cadence(
 ) -> None:
     monkeypatch.delenv("MARKET_DATA_FETCH_MODE", raising=False)
     monkeypatch.delenv("MARKET_DATA_REST_POLL_SECONDS", raising=False)
+    monkeypatch.delenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS", raising=False)
 
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
 
     assert build.worker.worker.adapter.delta_source == "rest"
-    assert build.worker.min_cycle_interval_seconds == 300.0
+    assert build.worker.min_cycle_interval_seconds == 180.0
+
+
+def test_market_worker_orderbook_interval_overrides_rest_poll_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARKET_DATA_FETCH_MODE", "rest")
+    monkeypatch.setenv("MARKET_DATA_REST_POLL_SECONDS", "300")
+    monkeypatch.setenv("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS", "45")
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert build.worker.min_cycle_interval_seconds == 45.0
+
+
+def test_market_worker_supports_multi_exchange_single_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARKET_EXCHANGES", "binance,bitget")
+    monkeypatch.setenv("MARKET_SYMBOLS", "BTC/USDT")
+
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="market"), broker=broker)
+
+    assert hasattr(build.worker.worker, "workers")
+    assert len(build.worker.worker.workers) == 2
 
 
 def test_market_worker_websocket_mode_disables_rest_poll_cadence(
