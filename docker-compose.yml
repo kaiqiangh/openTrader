@@ -371,6 +371,7 @@ services:
       - public
 
   real_execution_go:
+    profiles: ["full"]
     image: golang:1.21-alpine
     working_dir: /app/services/real_execution_go
     command:
@@ -398,6 +399,7 @@ services:
       - public
 
   prometheus:
+    profiles: ["full"]
     image: prom/prometheus:v2.55.1
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -415,6 +417,7 @@ services:
       - internal
 
   alertmanager:
+    profiles: ["full"]
     image: prom/alertmanager:v0.27.0
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
@@ -427,6 +430,7 @@ services:
       - internal
 
   loki:
+    profiles: ["full"]
     image: grafana/loki:3.1.1
     command:
       - -config.file=/etc/loki/config.yml
@@ -438,6 +442,7 @@ services:
       - internal
 
   tempo:
+    profiles: ["full"]
     image: grafana/tempo:2.6.1
     command:
       - -config.file=/etc/tempo/tempo.yml
@@ -449,6 +454,7 @@ services:
       - internal
 
   grafana:
+    profiles: ["full"]
     image: grafana/grafana:11.2.0
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}

@@ -13,10 +13,13 @@ import time
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
+    smoke_cmd = ["make", "smoke"]
+    if args.with_full_profile:
+        smoke_cmd = ["uv", "run", "python", "scripts/smoke_test.py", "--with-full-profile"]
     checks = [
         _run_check(
             name="smoke",
-            cmd=["make", "smoke"],
+            cmd=smoke_cmd,
             cwd=repo_root,
         ),
         _run_check(
@@ -29,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tests/test_runtime_persistence_adapters.py",
                 "tests/test_p10_api_execution_bridge.py",
                 "tests/test_smoke_script.py",
+                "tests/test_p8_observability_stack.py",
                 "-q",
             ],
             cwd=repo_root,
@@ -101,6 +105,11 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         "--report-path",
         default="artifacts/runtime_integration_gate/latest.json",
         help="path to write JSON gate report",
+    )
+    parser.add_argument(
+        "--with-full-profile",
+        action="store_true",
+        help="run smoke checks with docker compose full profile",
     )
     return parser.parse_args(argv)
 
