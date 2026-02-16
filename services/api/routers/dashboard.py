@@ -2,17 +2,14 @@ from __future__ import annotations
 
 from html import escape
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-
-from services.api.auth import require_viewer
-from services.api.models import AuthPrincipal
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("", response_class=HTMLResponse)
-def dashboard_home(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_home() -> HTMLResponse:
     return _render_shell(
         title="Operations Dashboard",
         heading="Operations Dashboard",
@@ -22,7 +19,7 @@ def dashboard_home(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
 
 
 @router.get("/status", response_class=HTMLResponse)
-def dashboard_status(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_status() -> HTMLResponse:
     return _render_shell(
         title="Live Status",
         heading="Live Status",
@@ -32,7 +29,7 @@ def dashboard_status(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse
 
 
 @router.get("/governance", response_class=HTMLResponse)
-def dashboard_governance(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_governance() -> HTMLResponse:
     return _render_shell(
         title="LLM Governance",
         heading="LLM Governance",
@@ -42,7 +39,7 @@ def dashboard_governance(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResp
 
 
 @router.get("/replay", response_class=HTMLResponse)
-def dashboard_replay(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_replay() -> HTMLResponse:
     return _render_shell(
         title="Replay",
         heading="Replay",
@@ -52,7 +49,7 @@ def dashboard_replay(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse
 
 
 @router.get("/mode", response_class=HTMLResponse)
-def dashboard_mode(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_mode() -> HTMLResponse:
     return _render_shell(
         title="Trading Mode Panel",
         heading="Trading Mode Panel",
@@ -62,7 +59,7 @@ def dashboard_mode(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
 
 
 @router.get("/news", response_class=HTMLResponse)
-def dashboard_news(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_news() -> HTMLResponse:
     return _render_shell(
         title="News Intelligence Panel",
         heading="News Intelligence Panel",
@@ -72,7 +69,7 @@ def dashboard_news(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
 
 
 @router.get("/notifications", response_class=HTMLResponse)
-def dashboard_notifications(_: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
+def dashboard_notifications() -> HTMLResponse:
     return _render_shell(
         title="Notification Observability",
         heading="Notification Observability",
