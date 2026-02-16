@@ -75,7 +75,7 @@ Required env:
 
 - `LITELLM_BASE_URL`
 - `LITELLM_API_KEY`
-- `LITELLM_MODEL` (example: `deepseek/deepseek-chat`)
+- `LITELLM_MODEL` (example: `deepseek/deepseek-chat` via LiteLLM proxy, or `deepseek-chat` for direct `api.deepseek.com`)
 
 ## 7) Troubleshooting
 
