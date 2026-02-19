@@ -50,3 +50,71 @@ groups:
         annotations:
           summary: "Data integrity resync events detected"
           description: "Integrity resync requests increased in the last 5 minutes."
+
+  - name: open_trader_slo_alerts
+    rules:
+      - alert: MarketIngestionLagP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(open_trader_market_ingestion_lag_ms_bucket[10m]))) > 1500
+        for: 10m
+        labels:
+          severity: warning
+          service: market_ingestion
+          slo: ingestion_p95_lag
+        annotations:
+          summary: "Market ingestion lag p95 above target"
+          description: "Order-book ingestion lag p95 exceeded 1500ms over the last 10 minutes."
+
+      - alert: WebsocketStreamStale
+        expr: increase(open_trader_market_stream_stale_cutovers_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: market_ingestion
+          slo: stream_health
+        annotations:
+          summary: "Websocket streams are stale and cutover is active"
+          description: "At least one websocket stream stale-cutover event occurred in the last 10 minutes."
+
+      - alert: LLMRequestLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(open_trader_llm_request_latency_seconds_bucket[10m]))) > 8
+        for: 10m
+        labels:
+          severity: warning
+          service: llm_gateway
+          slo: llm_latency_p95
+        annotations:
+          summary: "LLM request latency p95 above target"
+          description: "LLM request latency p95 exceeded 8s over the last 10 minutes."
+
+      - alert: LLMCostHourlySpike
+        expr: increase(open_trader_llm_cost_usd_total[1h]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: llm_gateway
+          slo: llm_cost_guardrail
+        annotations:
+          summary: "LLM hourly cost spike detected"
+          description: "LLM cost increased by more than $50 in the last hour."
+
+      - alert: ExecutionLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(open_trader_execution_dispatch_latency_seconds_bucket[10m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: execution
+          slo: execution_latency_p95
+        annotations:
+          summary: "Execution dispatch latency p95 above target"
+          description: "Execution dispatch latency p95 exceeded 2s over the last 10 minutes."
+
+      - alert: RiskBlocksElevated
+        expr: increase(open_trader_risk_blocks_total[15m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: oms
+          slo: risk_block_rate
+        annotations:
+          summary: "Risk blocks elevated"
+          description: "Risk block events exceeded threshold in the last 15 minutes."

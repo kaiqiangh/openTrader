@@ -360,6 +360,8 @@ Phase 2 market ingestion foundation:
 - `services/market_ingestion/canonical_pipeline.py` (canonical normalization + envelope-validated publisher)
 - `services/market_ingestion/persistence_writers.py` (timeseries persistence row writers)
 - `services/market_ingestion/pipeline_metrics.py` (ingestion lag/rate/reconnect metrics)
+- `services/market_ingestion/order_book_sync.py` (ordered delta apply engine used by websocket integrity path)
+- `services/market_ingestion/gap_detection.py` (sequence-gap detection and resync decision contract)
 - `services/market_ingestion/integration_harness.py` (fixture replay and deterministic digest verification)
 - `docs/market_ingestion_foundation.md` (module architecture and contracts)
 - `docs/learning/2026-02-14-p2-ingestion-instincts.md` (continuous-learning-v2 notes)
@@ -422,11 +424,13 @@ Market ingestion mode notes:
 
 - `MARKET_DATA_FETCH_MODE` selects runtime delta fetch mode:
   - `rest` (default, recommended for deterministic testing)
-  - `websocket` (continuous feed mode)
+  - `websocket` (continuous feed mode with snapshot bootstrap + ordered-delta integrity checks)
 - `MARKET_USE_CCXT_PRO` enables CCXT Pro adapter path while retaining direct-adapter fallback for resilience.
 - `MARKET_CCXT_PRO_TIMEOUT_MS` configures CCXT Pro timeout budget.
 - `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` controls snapshot cadence (default `180` seconds).
 - `MARKET_DATA_REST_POLL_SECONDS` is a deprecated fallback for snapshot cadence.
+- `MARKET_WS_STALE_AFTER_SECONDS` controls stale websocket detection threshold before REST cutover.
+- `MARKET_WS_PROBE_INTERVAL_SECONDS` controls websocket reprobe cadence while REST cutover is active.
 - `KLINE_INTERVALS`, `KLINE_POLL_INTERVAL_SECONDS`, and `KLINE_FETCH_LIMIT` control kline ingestion scope/cadence.
 - `MARKET_DATA_HTTP_TIMEOUT_SECONDS` controls exchange HTTP timeout for REST polling.
 
@@ -684,6 +688,13 @@ To add a new strategy/runtime behavior:
 - Logs: structured JSON fields (`trace_id`, `decision_id`, `strategy_id`, `mode`, `service`)
 - Traces: trace context propagation across API/worker/Go runtime helpers
 - Dashboards/alerts: Grafana + Alertmanager configs in `config/observability/`
+- SLO alert catalog includes ingestion p95 lag, websocket stream staleness, LLM latency/cost, execution latency, and risk block rate.
+
+## Nightly Runtime Probe
+
+- Script: `scripts/live_runtime_probe.py`
+- Workflow: `.github/workflows/nightly-live-probe.yml`
+- Artifact: `artifacts/live_runtime_probe/latest.json`
 
 ## Contribution Guide
 

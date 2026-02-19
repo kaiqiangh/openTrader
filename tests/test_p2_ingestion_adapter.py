@@ -104,6 +104,23 @@ async def test_poll_delta_uses_rest_source_when_configured() -> None:
 
 
 @pytest.mark.asyncio
+async def test_poll_delta_source_override_uses_rest_even_if_websocket_default() -> None:
+    rest = _RestOnlyClient()
+    adapter = CCXTIngestionAdapter(
+        exchange="binance",
+        rest_client=rest,
+        ws_client=_FailingWsClient(),
+        delta_source="websocket",
+    )
+
+    delta = await adapter.poll_delta("BTC/USDT", limit=5, source_override="rest")
+
+    assert rest.fetch_calls == 1
+    assert delta.sequence_start == 205
+    assert delta.sequence_end == 205
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_snapshot_rejects_invalid_payload() -> None:
     class _BadRestClient:
         async def fetch_order_book(self, symbol: str, limit: int | None = None) -> dict:
