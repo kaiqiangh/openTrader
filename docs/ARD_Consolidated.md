@@ -40,6 +40,7 @@ The codebase now has concrete runtime coverage for the critical trading path in 
 - Market ingestion transport mode:
   - Runtime supports configurable delta transport mode (`rest` polling or `websocket` streaming) behind the same canonical adapter contract.
   - Default local/dev runtime profile uses REST polling with configurable cadence for deterministic validation and lower operational noise.
+  - Websocket mode is guarded by ordered-delta sync, gap-detection resync, and stale-stream cutover to REST snapshots.
   - Orderbook snapshot cadence contract: `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` -> fallback `MARKET_DATA_REST_POLL_SECONDS` -> default `180`.
   - K-line polling contract: `KLINE_INTERVALS` + `KLINE_POLL_INTERVAL_SECONDS` (default `60`) + `KLINE_FETCH_LIMIT`.
 - Agent triggering:
@@ -793,7 +794,7 @@ Phase 10 remediation objectives are now implemented and validated:
 3. Dedicated long-running workers are active for ingestion, orchestrator, simulation execution, OMS, and news workflows.
 4. Go real-execution runtime uses concrete queue consumer + bridge + lifecycle publication path.
 5. Compose topology boots core runtime services by default; full profile (`--profile full`) adds observability + Go real-execution extras.
-6. Runtime validation gates are operational via `make runtime-gate`, `make runtime-gate-full`, and deterministic workflow validation via `make mock-workflow`.
+6. Runtime validation gates are operational via `make runtime-gate`, `make runtime-gate-full`, deterministic workflow validation via `make mock-workflow`, and scheduled live-runtime probing via `scripts/live_runtime_probe.py`.
 
 Residual architecture follow-up:
 

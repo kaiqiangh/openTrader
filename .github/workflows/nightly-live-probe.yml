@@ -1,0 +1,59 @@
+name: Nightly Live Probe
+
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-live-probe
+  cancel-in-progress: false
+
+jobs:
+  live-runtime-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
+      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+      ENCRYPTION_KEY_BASE64: ${{ secrets.ENCRYPTION_KEY_BASE64 }}
+      RUNTIME_BROKER_BACKEND: rabbitmq_http
+      RUNTIME_REQUIRE_DATABASE: "true"
+      MARKET_DATA_FETCH_MODE: websocket
+      MARKET_USE_CCXT_PRO: "true"
+      NEWS_SOURCE_MODE: real
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in LITELLM_BASE_URL LITELLM_API_KEY JWT_SECRET_KEY ENCRYPTION_KEY_BASE64; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret/env: ${key}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Run live runtime probe
+        run: uv run python scripts/live_runtime_probe.py
+
+      - name: Upload probe artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-runtime-probe
+          path: artifacts/live_runtime_probe/latest.json

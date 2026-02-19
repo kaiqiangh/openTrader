@@ -1,4 +1,4 @@
-.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke smoke-full runtime-gate runtime-gate-full mock-workflow
+.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke smoke-full runtime-gate runtime-gate-full mock-workflow live-probe
 
 test:
 	uv run pytest -v
@@ -49,3 +49,6 @@ runtime-gate-full:
 
 mock-workflow:
 	uv run python scripts/mock_realtime_workflow_test.py
+
+live-probe:
+	uv run python scripts/live_runtime_probe.py

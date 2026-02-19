@@ -24,6 +24,14 @@ class OrderBookSyncEngine:
         self._asks: dict[float, float] = {}
         self._initialized = False
 
+    @property
+    def current_sequence(self) -> int | None:
+        return self._sequence
+
+    @property
+    def initialized(self) -> bool:
+        return self._initialized
+
     def load_snapshot(self, snapshot: OrderBookSnapshot) -> None:
         self._validate_scope(snapshot.exchange, snapshot.symbol)
         self._bids = {level.price: level.amount for level in snapshot.bids if level.amount > 0}

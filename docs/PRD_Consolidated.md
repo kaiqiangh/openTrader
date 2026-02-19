@@ -165,6 +165,8 @@ The following decisions are mandatory and final:
 - FR-041: UI surfaces must be read-only by default for runtime data access; no direct DB write path is allowed from UI components.
 - FR-042: Control-plane mode, strategy runtime state, and notification preferences must persist in DB and survive API restarts.
 - FR-043: Dashboard polling APIs must expose market klines, latest orderbook snapshot, portfolio history, and latest signals for 2-second UI refresh workflows.
+- FR-044: Websocket ingestion mode must enforce ordered-delta integrity with gap-detection-driven resync and automatic REST cutover on stale stream conditions.
+- FR-045: Runtime lifecycle validation must include a scheduled nightly live probe that exercises exchange connectivity, LLM call path, and end-to-end persistence.
 
 ## 7. Non-Functional Requirements
 
@@ -204,6 +206,7 @@ The following decisions are mandatory and final:
 - NFR-017: A single `docker compose up -d` must boot the full core local topology required for real-data + mock-trade runtime (data, ingestion, orchestration, simulation, OMS, news, notification, API). `docker compose --profile full up -d` adds observability and Go real-execution extras.
 - NFR-018: Production-mode runtime paths must avoid in-memory persistence and in-process broker shims; these are allowed only for tests/dev harnesses.
 - NFR-019: End-to-end runtime validation must include real infrastructure dependencies (RabbitMQ + PostgreSQL/TimescaleDB + Redis) and not rely exclusively on contract-only tests.
+- NFR-020: Nightly live probe failures must be operator-visible and isolated from deterministic PR validation gates.
 
 ## 8. Product Data Requirements
 

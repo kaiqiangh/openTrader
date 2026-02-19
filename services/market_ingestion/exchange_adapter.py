@@ -33,8 +33,15 @@ class CCXTIngestionAdapter:
         raw = await self.rest_client.fetch_order_book(symbol, limit=limit)
         return self._normalize_snapshot(symbol=symbol, raw=raw)
 
-    async def poll_delta(self, symbol: str, limit: int = 200) -> OrderBookDelta:
-        source = _normalize_delta_source(self.delta_source)
+    async def poll_delta(
+        self,
+        symbol: str,
+        limit: int = 200,
+        *,
+        source_override: str | None = None,
+    ) -> OrderBookDelta:
+        selected_source = source_override if source_override is not None else self.delta_source
+        source = _normalize_delta_source(selected_source)
         if source == "rest":
             raw = await self.rest_client.fetch_order_book(symbol, limit=limit)
         else:

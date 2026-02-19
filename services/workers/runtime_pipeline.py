@@ -9,7 +9,12 @@ import uuid
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
+from services.market_ingestion.connection_resilience import BackoffConfig, ConnectionResilienceManager
+from services.market_ingestion.contracts import OrderBookDelta, OrderBookSnapshot
 from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
+from services.market_ingestion.gap_detection import GapDetectionModule
+from services.market_ingestion.order_book_sync import OrderBookSequenceGapError, OrderBookSyncEngine
+from services.market_ingestion.pipeline_metrics import MarketPipelineMetrics
 from services.notification_service.publishers import NotificationEventBridge
 
 
@@ -63,6 +68,8 @@ class MarketIngestionRuntimeWorker:
         kline_intervals: tuple[str, ...] = (),
         kline_poll_interval_seconds: float = 60.0,
         kline_fetch_limit: int = 200,
+        ws_stale_after_seconds: float = 15.0,
+        ws_probe_interval_seconds: float = 5.0,
     ) -> None:
         self.adapter = adapter
         self.pipeline = pipeline
@@ -77,16 +84,40 @@ class MarketIngestionRuntimeWorker:
         )
         self.kline_poll_interval_seconds = max(1.0, float(kline_poll_interval_seconds))
         self.kline_fetch_limit = max(1, int(kline_fetch_limit))
+        self.ws_stale_after_seconds = max(0.0, float(ws_stale_after_seconds))
+        self.ws_probe_interval_seconds = max(0.1, float(ws_probe_interval_seconds))
         self._bootstrapped = False
         self._last_kline_poll_monotonic: float | None = None
+        self._next_ws_probe_monotonic = 0.0
+
+        self._websocket_integrity_enabled = _source_is_websocket(self.adapter.delta_source)
+        self._sync_engine: OrderBookSyncEngine | None = None
+        self._gap_detector: GapDetectionModule | None = None
+        self._resilience: ConnectionResilienceManager | None = None
+        self._metrics: MarketPipelineMetrics | None = None
+        if self._websocket_integrity_enabled:
+            self._sync_engine = OrderBookSyncEngine(exchange=self.adapter.exchange, symbol=self.symbol)
+            self._gap_detector = GapDetectionModule()
+            self._resilience = ConnectionResilienceManager(
+                config=BackoffConfig(stale_after_seconds=max(0.1, self.ws_stale_after_seconds))
+            )
+            self._metrics = MarketPipelineMetrics()
 
     async def run_once(self) -> dict[str, Any]:
         try:
             if not self._bootstrapped:
-                await self.adapter.bootstrap_snapshot(self.symbol, limit=self.depth)
+                snapshot = await self.adapter.bootstrap_snapshot(self.symbol, limit=self.depth)
+                if self._sync_engine is not None:
+                    self._sync_engine.load_snapshot(snapshot)
+                    if self._resilience is not None:
+                        self._resilience.mark_heartbeat(now_seconds=time.monotonic())
                 self._bootstrapped = True
 
-            delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
+            if self._websocket_integrity_enabled:
+                delta = await self._poll_websocket_delta_with_integrity()
+            else:
+                delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
+            self._record_processed_delta_metrics(delta)
             envelope = await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
             if self.state_store is not None:
                 await self.state_store.persist_orderbook_envelope(envelope)
@@ -103,6 +134,91 @@ class MarketIngestionRuntimeWorker:
                     details={"symbol": self.symbol, "error": str(exc)},
                 )
             raise
+
+    async def _poll_websocket_delta_with_integrity(self) -> OrderBookDelta:
+        now_monotonic = time.monotonic()
+        source = "websocket"
+        if self._resilience is not None and self._resilience.is_stale(now_seconds=now_monotonic):
+            if now_monotonic < self._next_ws_probe_monotonic:
+                source = "rest"
+
+        if source == "rest":
+            return await self._fetch_rest_snapshot_delta(reason="stream_stale_cutover")
+
+        try:
+            delta = await self.adapter.poll_delta(
+                self.symbol,
+                limit=self.depth,
+                source_override="websocket",
+            )
+        except Exception:  # noqa: BLE001 - websocket errors are expected and trigger fallback.
+            if self._resilience is not None:
+                backoff = self._resilience.record_disconnect(now_seconds=time.monotonic())
+                self._next_ws_probe_monotonic = time.monotonic() + max(self.ws_probe_interval_seconds, backoff)
+            if self._metrics is not None:
+                self._metrics.record_reconnect(now_seconds=time.time())
+            return await self._fetch_rest_snapshot_delta(reason="websocket_error_fallback")
+
+        return await self._apply_integrity_to_websocket_delta(delta)
+
+    async def _apply_integrity_to_websocket_delta(self, delta: OrderBookDelta) -> OrderBookDelta:
+        if self._sync_engine is None or self._gap_detector is None:
+            return delta
+        current_sequence = self._sync_engine.current_sequence
+        gap = self._gap_detector.evaluate(
+            current_sequence=current_sequence,
+            incoming_start=delta.sequence_start,
+            incoming_end=delta.sequence_end,
+        )
+        if gap.action == "ignore_stale":
+            return await self._fetch_rest_snapshot_delta(reason="websocket_stale_delta")
+        if gap.action == "resync":
+            return await self._fetch_rest_snapshot_delta(reason="sequence_gap_resync")
+
+        try:
+            accepted = self._sync_engine.apply_delta(delta)
+        except OrderBookSequenceGapError:
+            return await self._fetch_rest_snapshot_delta(reason="sequence_gap_exception")
+        if not accepted:
+            return await self._fetch_rest_snapshot_delta(reason="delta_rejected_as_stale")
+
+        if self._resilience is not None:
+            self._resilience.record_reconnect_success(now_seconds=time.monotonic())
+        return delta
+
+    async def _fetch_rest_snapshot_delta(self, *, reason: str) -> OrderBookDelta:
+        snapshot = await self.adapter.bootstrap_snapshot(self.symbol, limit=self.depth)
+        if self._sync_engine is not None:
+            self._sync_engine.load_snapshot(snapshot)
+        if self._metrics is not None:
+            self._metrics.record_resync_request(now_seconds=time.time())
+        self._next_ws_probe_monotonic = time.monotonic() + self.ws_probe_interval_seconds
+        return _snapshot_to_delta(snapshot)
+
+    def _record_processed_delta_metrics(self, delta: OrderBookDelta) -> None:
+        if self._metrics is None:
+            return
+        timestamp_ms = delta.timestamp_ms
+        if timestamp_ms is None:
+            lag_ms = 0.0
+        else:
+            now_ms = int(time.time() * 1000)
+            lag_ms = float(max(0, now_ms - int(timestamp_ms)))
+        self._metrics.record_delta_processed(
+            lag_ms=lag_ms,
+            now_seconds=time.time(),
+        )
+
+    def integrity_snapshot(self) -> dict[str, Any]:
+        if self._metrics is None:
+            return {"enabled": False}
+        return {
+            "enabled": True,
+            "exchange": self.adapter.exchange,
+            "symbol": self.symbol,
+            "pipeline_metrics": self._metrics.snapshot(now_seconds=time.time()),
+            "current_sequence": self._sync_engine.current_sequence if self._sync_engine is not None else None,
+        }
 
     async def _poll_klines_if_due(self) -> None:
         if self.kline_client is None or not self.kline_intervals:
@@ -203,3 +319,19 @@ class RuntimeIntegrationGate:
             timeout_seconds=0.0,
         )
         return RuntimeCycleResult(market_envelope=market_envelope, orchestration=orchestration)
+
+
+def _source_is_websocket(value: str) -> bool:
+    return value.strip().lower() in {"websocket", "ws"}
+
+
+def _snapshot_to_delta(snapshot: OrderBookSnapshot) -> OrderBookDelta:
+    return OrderBookDelta(
+        exchange=snapshot.exchange,
+        symbol=snapshot.symbol,
+        sequence_start=snapshot.sequence,
+        sequence_end=snapshot.sequence,
+        timestamp_ms=snapshot.timestamp_ms,
+        bids=snapshot.bids,
+        asks=snapshot.asks,
+    )

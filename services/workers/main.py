@@ -734,6 +734,8 @@ def _build_market_worker(
     kline_intervals = _parse_csv_tokens(os.getenv("KLINE_INTERVALS", "1m")) or ("1m",)
     kline_poll_interval_seconds = max(1.0, float(os.getenv("KLINE_POLL_INTERVAL_SECONDS", "60")))
     kline_fetch_limit = max(1, int(os.getenv("KLINE_FETCH_LIMIT", "200")))
+    ws_stale_after_seconds = max(0.0, float(os.getenv("MARKET_WS_STALE_AFTER_SECONDS", "15.0")))
+    ws_probe_interval_seconds = max(0.1, float(os.getenv("MARKET_WS_PROBE_INTERVAL_SECONDS", "5.0")))
     exchanges = _resolve_market_exchanges()
     symbols = _resolve_market_symbols(default_symbol=settings.symbol)
 
@@ -791,6 +793,8 @@ def _build_market_worker(
                     kline_intervals=kline_intervals,
                     kline_poll_interval_seconds=kline_poll_interval_seconds,
                     kline_fetch_limit=kline_fetch_limit,
+                    ws_stale_after_seconds=ws_stale_after_seconds,
+                    ws_probe_interval_seconds=ws_probe_interval_seconds,
                 )
             )
 
