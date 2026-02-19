@@ -171,22 +171,30 @@ flowchart TB
    ```bash
    git clone https://github.com/kaiqiangh/openTrader.git
    cd openTrader
-   make env-validate  # Checks .env template
    ```
 
 2. **Configure Environment**
 
    ```bash
    cp .env.example .env
-   # Edit .env with your keys (or leave defaults for mock mode)
+   # Then set required keys in .env:
+   # - ENCRYPTION_KEY_BASE64
+   # - JWT_SECRET_KEY
+   # Optional for local bootstrap: set NOTIFY_ENABLED=false if Telegram is not configured.
    ```
 
-3. **Launch Stack**
+3. **Validate Environment**
+
+   ```bash
+   make env-validate
+   ```
+
+4. **Launch Stack**
    ```bash
    docker compose up -d
    ```
 
-4. **Open Frontend Dashboard (read-only UI shell served by API)**
+5. **Open Frontend Dashboard (read-only UI shell served by API)**
    - URL: `http://localhost:8000/dashboard`
    - The dashboard is a React UI served from `services/api/static/` and mounted by FastAPI.
    - Dashboard API calls require a JWT bearer token; paste a viewer/operator/admin token into the "Session Token" field shown in the UI.
@@ -261,71 +269,121 @@ The runtime settings loaders now auto-read `.env` from the current working direc
 - ensure dev dependencies are installed: `uv sync --all-groups`
 - verify plugin availability: `uv run python -c "import pytest_asyncio; print(pytest_asyncio.__version__)"`
 
-## Infrastructure Foundation
+## Service and Script Runbook
 
-The Phase 1 baseline is configured with Docker Compose:
+### Start all services (core vs full)
 
-- PostgreSQL + TimescaleDB (`postgres_timescaledb`)
-- Redis (`redis`)
-- RabbitMQ (`rabbitmq`)
+Run from repo root:
 
-Useful commands:
+```bash
+docker compose up -d
+```
 
-1. `docker compose up -d` (starts core runtime stack)
-2. `docker compose --profile full up -d` (adds observability + Go real-execution extras)
-3. `docker compose ps`
-4. `make migrate-up` (tries local first, then falls back to Docker-internal migration run if local DB is unreachable)
-5. `make migrate-revision MSG='create_initial_tables'`
-6. `make runtime-gate` (core compose + smoke + targeted runtime validation gate)
-7. `make runtime-gate-full` (core + full-profile validation gate)
-8. `make mock-workflow` (strict real-data + mock-trade workflow check)
+This starts the core runtime:
 
-Compose startup note:
+- `postgres_timescaledb`
+- `redis`
+- `rabbitmq`
+- `migrator` (one-shot; expected `Exited (0)` after success)
+- `api`
+- `notification_worker`
+- `runtime_worker_market`
+- `runtime_worker_orchestrator`
+- `runtime_worker_simulation`
+- `runtime_worker_oms`
+- `runtime_worker_news`
 
-- `migrator` is a one-shot bootstrap service and should appear as `Exited (0)` after migrations complete.
-- Long-running core services (`api`, runtime workers, `notification_worker`) should remain `Up`.
-- `real_execution_go` is expected only when `--profile full` is enabled.
+To include Go real execution and observability stack, use full profile:
 
-Notification worker runtime (`P7-018`) commands:
+```bash
+docker compose --profile full up -d
+```
 
-1. Startup validation only:
-   - `uv run python -m services.notification_service.worker --validate-only`
-2. Run one polling cycle locally:
-   - `NOTIFY_CONSUMER_BACKEND=inmemory RUNTIME_REQUIRE_DATABASE=false uv run python -m services.notification_service.worker --once`
-3. Run with Docker Compose service targets:
-   - `docker compose up -d notification_worker rabbitmq`
-4. Deployment/secrets reference:
-   - `docs/notification_worker_deployment.md`
+Full profile adds:
 
-Smoke test command:
+- `real_execution_go`
+- `prometheus`
+- `alertmanager`
+- `loki`
+- `tempo`
+- `grafana`
 
-- `make smoke`
+### Check status and health
+
+```bash
+docker compose ps
+curl -s http://127.0.0.1:8000/health/liveness
+curl -s http://127.0.0.1:8000/health/readiness
+```
+
+Useful service URLs:
+
+- API + dashboard: `http://127.0.0.1:8000/dashboard`
+- RabbitMQ management: `http://127.0.0.1:15672`
+- Grafana (full profile): `http://127.0.0.1:3000`
+
+### Start services individually (local process mode)
+
+Use this only if you intentionally run services outside Docker.
+
+```bash
+# API
+uv run python -m uvicorn services.api.app:create_app --factory --host 0.0.0.0 --port 8000
+
+# Notification worker
+uv run python -m services.notification_service.worker
+
+# Runtime workers
+uv run python -m services.workers.main --worker market --bootstrap-topology
+uv run python -m services.workers.main --worker orchestrator --bootstrap-topology
+uv run python -m services.workers.main --worker simulation
+uv run python -m services.workers.main --worker oms
+uv run python -m services.workers.main --worker news
+uv run python -m services.workers.main --worker execution_lifecycle
+```
+
+Go real execution service (if needed locally):
+
+```bash
+cd services/real_execution_go
+GOCACHE=/tmp/go-build go run .
+```
+
+### Script and gate commands
+
+| Target / command | What it does | Notes / output |
+| --- | --- | --- |
+| `make env-validate` | Validates required env contract in `.env`. | Fails fast on missing/invalid keys. |
+| `make migrate-up` | Applies latest Alembic migrations. | Falls back to Docker-internal migration run if local DB path fails. |
+| `make migrate-down` | Rolls back one migration. | Use only for local/dev rollback. |
+| `make smoke` | Core runtime smoke check. | Starts core compose services and validates liveness/bridge basics. |
+| `make smoke-full` | Full-profile smoke check. | Includes full profile validation (`real_execution_go`, observability). |
+| `make runtime-gate` | Runtime integration gate (core). | Writes `artifacts/runtime_integration_gate/latest.json`. |
+| `make runtime-gate-full` | Runtime integration gate (full profile). | Same report path, with full profile checks. |
+| `make mock-workflow` | Strict real-data + mock-trade workflow probe. | Requires recent DB market/news data and reachable LiteLLM endpoint. |
+| `make live-probe` | Nightly/live probe wrapper around mock workflow. | Writes `artifacts/live_runtime_probe/latest.json`. |
+| `uv run python scripts/verify_orderbook_snapshots.py --symbol BTC/USDT` | Validates orderbook snapshot persistence freshness. | Useful for websocket/REST ingestion integrity checks. |
+| `uv run python scripts/verify_klines_persistence.py --symbol BTC/USDT --interval 1m` | Validates kline persistence freshness. | Checks kline ingestion continuity per exchange. |
+
+### Stop and reset
+
+```bash
+# Stop services, keep volumes/data
+docker compose down
+
+# Stop full-profile stack, keep volumes/data
+docker compose --profile full down
+
+# Full reset (destructive: removes DB, RabbitMQ, Redis, Grafana data)
+docker compose down -v
+```
+
+References:
+
 - Runtime bootstrap/gate runbook: `docs/runbooks/runtime-bootstrap-and-gate.md`
-
-Phase 8 observability baseline (`P8-001`/`P8-002`/`P8-003`) commands:
-
-1. Validate API metrics endpoint:
-   - `uv run python -c "from services.api.app import create_app; print('/metrics ready' if create_app() else 'failed')"`
-2. Run API and scrape metrics:
-   - `uv run python -m uvicorn services.api.app:create_app --factory --host 0.0.0.0 --port 8000`
-   - `curl -s http://127.0.0.1:8000/metrics | head`
-3. Notification worker startup logs now emit structured JSON:
-   - `uv run python -m services.notification_service.worker --validate-only`
-
-Phase 8 observability stack + security (`P8-004`/`P8-005`/`P8-006`) commands:
-
-1. Start observability stack:
-   - `docker compose --profile full up -d prometheus grafana loki tempo alertmanager`
-2. Validate stack endpoints:
-   - `docker compose exec prometheus wget -qO- http://localhost:9090/-/ready || true`
-   - `curl -s http://127.0.0.1:3000/api/health`
-3. Deployment references:
-   - `docs/observability_stack_deployment.md`
-   - `docs/notification_worker_deployment.md`
-4. Security incident runbooks:
-   - `docs/runbooks/exchange-outage.md`
-   - `docs/runbooks/llm-quota-breach.md`
-   - `docs/runbooks/risk-incident.md`
+- Observability deployment: `docs/observability_stack_deployment.md`
+- Notification worker deployment: `docs/notification_worker_deployment.md`
+- Incident runbooks: `docs/runbooks/exchange-outage.md`, `docs/runbooks/llm-quota-breach.md`, `docs/runbooks/risk-incident.md`
 
 Initial migration files:
 
