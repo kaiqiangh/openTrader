@@ -227,7 +227,7 @@ flowchart LR
 - OMS (Python): order lifecycle state machine, fill reconciliation, position updates.
 - News Ingestion + Summarization Services (Python): external news collection, normalization, summarization, agent context enrichment.
 - Notification Service (Python): severity-aware event routing, preference filtering, gateway dispatch, retry and DLQ handling.
-- API Service (Python/FastAPI): UI/API surface, RBAC, control plane, dashboards, and read-only UI enforcement for public/operator panels.
+- API Service (Python/FastAPI): UI/API surface, RBAC, DB-backed control-plane repository, internal exchange-dispatch adapters, polling endpoints, and read-only UI enforcement for public/operator panels.
 
 ## 4. Deployment Topology (Docker Compose)
 
@@ -390,6 +390,7 @@ Mandatory validations before execution intent:
 - Output schema validation
 - Risk policy validation
 - Allowed symbol/exchange validation
+- Execution order-type field validation (`MARKET`, `LIMIT`, `STOP_MARKET`, `TAKE_PROFIT_MARKET`) including `time_in_force`, `limit_price`, and `trigger_price` constraints
 - Leverage and exposure validation
 - Confidence threshold validation
 - Mode-specific execution constraints

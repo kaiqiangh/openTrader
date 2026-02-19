@@ -21,6 +21,7 @@ def test_rabbitmq_topology_has_required_exchanges_and_queues() -> None:
     assert "strategy.events.lifecycle" in queue_names
     assert "execution.intent.mock" in queue_names
     assert "execution.intent.real" in queue_names
+    assert "execution.intent.real.lifecycle" in queue_names
     assert "oms.events.order_updates" in queue_names
     assert "dlq.execution.intent.real" in queue_names
 

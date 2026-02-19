@@ -76,8 +76,13 @@ def test_api_read_only_mode_keeps_internal_bridge_mutation_routes_available() ->
             "command_id": "cmd-1",
             "operation": "CREATE_ORDER",
             "action": "BUY",
+            "exchange": "binance",
             "symbol": "BTC/USDT",
             "quantity": 0.01,
+            "order_type": "MARKET",
+            "time_in_force": None,
+            "limit_price": None,
+            "trigger_price": None,
             "reduce_only": False,
             "idempotency_key": "idem-1",
             "client_order_id": "client-1",
@@ -89,4 +94,3 @@ def test_api_read_only_mode_keeps_internal_bridge_mutation_routes_available() ->
 
     assert response.status_code == 200
     assert response.json()["status"] == "submitted"
-

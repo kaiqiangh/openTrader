@@ -109,6 +109,90 @@ function JsonBlock({ value }) {
   return h("pre", { className: "json-block" }, formatted);
 }
 
+function linePath(points, width, height) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return "";
+  }
+  const numeric = points.map((value) => Number(value) || 0);
+  const min = Math.min(...numeric);
+  const max = Math.max(...numeric);
+  const span = max - min || 1;
+  return numeric
+    .map((value, index) => {
+      const x = numeric.length === 1 ? width / 2 : (index / (numeric.length - 1)) * width;
+      const y = height - ((value - min) / span) * height;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function EquityLineChart({ points }) {
+  const width = 520;
+  const height = 140;
+  const path = useMemo(() => linePath(points, width, height), [points]);
+  return h(
+    "div",
+    { className: "chart-shell" },
+    h(
+      "svg",
+      { viewBox: `0 0 ${width} ${height}`, className: "chart-svg", role: "img", "aria-label": "Portfolio equity curve" },
+      h("path", { d: path, className: "line-chart-path" })
+    )
+  );
+}
+
+function CandleChart({ bars }) {
+  const width = 520;
+  const height = 160;
+  const items = Array.isArray(bars) ? bars : [];
+  const prices = items.flatMap((bar) => [Number(bar.low) || 0, Number(bar.high) || 0]);
+  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+  const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
+  const span = maxPrice - minPrice || 1;
+  const slot = items.length > 0 ? width / items.length : width;
+  const candleWidth = Math.max(3, Math.min(8, slot * 0.55));
+
+  const toY = (value) => {
+    const numeric = Number(value) || 0;
+    return height - ((numeric - minPrice) / span) * height;
+  };
+
+  return h(
+    "div",
+    { className: "chart-shell" },
+    h(
+      "svg",
+      { viewBox: `0 0 ${width} ${height}`, className: "chart-svg", role: "img", "aria-label": "Candlestick chart" },
+      items.map((bar, index) => {
+        const open = Number(bar.open) || 0;
+        const close = Number(bar.close) || 0;
+        const high = Number(bar.high) || 0;
+        const low = Number(bar.low) || 0;
+        const x = index * slot + slot * 0.5;
+        const yOpen = toY(open);
+        const yClose = toY(close);
+        const yHigh = toY(high);
+        const yLow = toY(low);
+        const top = Math.min(yOpen, yClose);
+        const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
+        const bullish = close >= open;
+        return h(
+          "g",
+          { key: `${bar.time || index}` },
+          h("line", { x1: x, x2: x, y1: yHigh, y2: yLow, className: "candle-wick" }),
+          h("rect", {
+            x: x - candleWidth / 2,
+            y: top,
+            width: candleWidth,
+            height: bodyHeight,
+            className: bullish ? "candle-body up" : "candle-body down",
+          })
+        );
+      })
+    )
+  );
+}
+
 function HomeView() {
   return h(
     "div",
@@ -137,6 +221,9 @@ function StatusView({ token }) {
   const [error, setError] = useState("");
   const [readiness, setReadiness] = useState(null);
   const [riskStatus, setRiskStatus] = useState(null);
+  const [klineItems, setKlineItems] = useState([]);
+  const [equityHistory, setEquityHistory] = useState([]);
+  const [latestSignal, setLatestSignal] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -145,10 +232,18 @@ function StatusView({ token }) {
       const tasks = [apiFetchJson("/health/readiness")];
       if (token) {
         tasks.push(apiFetchJson("/ops/risk/status", { token }));
+        tasks.push(
+          apiFetchJson("/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=50", { token }),
+          apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
+          apiFetchJson("/ops/signals/latest?limit=1", { token })
+        );
       }
-      const [ready, risk] = await Promise.all(tasks);
+      const [ready, risk, klines, portfolio, signals] = await Promise.all(tasks);
       setReadiness(ready);
       setRiskStatus(risk || null);
+      setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
+      setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
+      setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
     } catch (exc) {
       setError(String(exc.message || exc));
     } finally {
@@ -158,7 +253,16 @@ function StatusView({ token }) {
 
   useEffect(() => {
     void reload();
+    const poll = window.setInterval(() => {
+      void reload();
+    }, 2000);
+    return () => window.clearInterval(poll);
   }, [reload]);
+
+  const equityPoints = useMemo(
+    () => equityHistory.map((item) => Number(item.total_balance_usd) || 0),
+    [equityHistory]
+  );
 
   return h(
     "div",
@@ -184,6 +288,31 @@ function StatusView({ token }) {
           ),
       h("div", { className: "button-row" }, h("button", { type: "button", onClick: () => void reload() }, "Refresh")),
       error ? h("p", { className: "error" }, error) : null
+    ),
+    h(
+      SectionCard,
+      { title: "BTC/USDT Candles", subtitle: "Auto-refresh every 2 seconds from /ops/market/klines." },
+      klineItems.length === 0 ? h("p", { className: "muted" }, "No kline data available.") : h(CandleChart, { bars: klineItems }),
+      h(
+        "div",
+        { className: "button-row link-row" },
+        h("a", { href: "/dashboard/governance" }, "LLM Governance"),
+        h("a", { href: "/dashboard/replay" }, "Replay Inspector")
+      )
+    ),
+    h(
+      SectionCard,
+      { title: "Portfolio Equity", subtitle: "Mode=MOCK equity curve from /ops/portfolio/history." },
+      equityPoints.length === 0 ? h("p", { className: "muted" }, "No portfolio history available.") : h(EquityLineChart, { points: equityPoints }),
+      latestSignal
+        ? h(
+            "div",
+            { className: "signal-pill" },
+            h("strong", null, `Latest Signal: ${latestSignal.action}`),
+            h("span", null, `confidence=${Number(latestSignal.confidence || 0).toFixed(2)}`),
+            h("span", null, `strategy=${latestSignal.strategy_id}`)
+          )
+        : h("p", { className: "muted" }, "No latest signal available.")
     )
   );
 }

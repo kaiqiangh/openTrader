@@ -17,18 +17,26 @@ import xml.etree.ElementTree as ET
 from sqlalchemy.engine import Engine
 
 from services.agent_orchestrator.contracts import StrategyConfig
+from services.agent_orchestrator.llm_runtime import LLMDecisionRuntime
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer
+from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 from services.agent_orchestrator.sqlalchemy_memory_store import (
     SQLAlchemyLongTermMemoryStore,
     SQLAlchemyShortTermMemoryStore,
 )
 from services.agent_orchestrator.sqlalchemy_trace_store import SQLAlchemyTraceStore, TraceAgentRun
+from services.llm_gateway.contracts import GatewaySettings, ProviderSettings
+from services.llm_gateway.gateway import LLMGateway
+from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPProviderClient
+from services.llm_gateway.sqlalchemy_stores import SQLAlchemyLLMCallStore, SQLAlchemyLLMQuotaStore
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
 from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
 from services.market_ingestion.bitget_http_adapter import BitgetHTTPOrderBookClient
+from services.market_ingestion.ccxt_pro_adapter import CCXTProOrderBookClient
 from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
 from services.news_ingestion.ingestion_service import InMemoryNewsItemStore, NewsIngestionService
+from services.news_ingestion.x_provider_connector import XProviderConnector
 from services.news_ingestion.source_connectors import (
     CallableSourceConnector,
     NewsSourceConnectorFramework,
@@ -45,6 +53,12 @@ from services.shared.runtime.env_loader import load_dotenv_file
 from services.shared.runtime.rabbitmq_http_broker import RabbitMQHTTPTopicBroker
 from services.shared.runtime.structured_logging import StructuredLogger
 from services.simulation_execution.worker import SimulationExecutionWorker
+from services.workers.execution_lifecycle import (
+    CCXTProPrivateOrderStreamConnector,
+    ExecutionLifecycleWorker,
+    NoopPrivateOrderStreamConnector,
+    SignedRESTOrderStatusPoller,
+)
 from services.workers.runtime_persistence import (
     SQLAlchemyRuntimeMarketStore,
     SQLAlchemyNewsItemStore,
@@ -56,7 +70,7 @@ from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker, Ma
 from services.workers.runtime_pipeline import MultiExchangeMarketIngestionRuntimeWorker, MarketRuntimeWorker
 
 _WORKER_SERVICE_NAME = "runtime_worker"
-_WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news")
+_WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news", "execution_lifecycle")
 _NEWS_SOURCE_ITEM_ID_MAX_LEN = 128
 
 
@@ -354,6 +368,10 @@ class NewsWorkerRunner:
         source_mode: str = "mock",
         rss_feeds: tuple[str, ...] = (),
         fetch_timeout_seconds: float = 8.0,
+        x_enabled: bool = False,
+        x_api_base_url: str = "https://api.x.com/2/tweets/search/recent",
+        x_bearer_token: str | None = None,
+        x_query: str = "bitcoin OR ethereum OR solana",
     ) -> None:
         self.item_store = item_store or InMemoryNewsItemStore()
         self.tag_store = tag_store or InMemoryNewsTagStore()
@@ -361,6 +379,10 @@ class NewsWorkerRunner:
         self.source_mode = source_mode.strip().lower() or "mock"
         self.rss_feeds = tuple(feed.strip() for feed in rss_feeds if feed.strip())
         self.fetch_timeout_seconds = max(1.0, float(fetch_timeout_seconds))
+        self.x_enabled = bool(x_enabled)
+        self.x_api_base_url = x_api_base_url.strip()
+        self.x_bearer_token = (x_bearer_token or "").strip()
+        self.x_query = x_query.strip() or "bitcoin OR ethereum OR solana"
 
         registry = SourceConnectorRegistry()
         if self.source_mode == "real":
@@ -376,6 +398,21 @@ class NewsWorkerRunner:
                             since=since,
                             limit=limit,
                         ),
+                    )
+                )
+            if self.x_enabled and self.x_bearer_token:
+                x_connector = XProviderConnector(
+                    connector_id="social.x",
+                    api_base_url=self.x_api_base_url,
+                    bearer_token=self.x_bearer_token,
+                    query=self.x_query,
+                    timeout_seconds=self.fetch_timeout_seconds,
+                )
+                registry.register(
+                    CallableSourceConnector(
+                        connector_id="social.x",
+                        connector_kind="social",
+                        fetcher=lambda since, limit: x_connector.fetch_records(since=since, limit=limit),
                     )
                 )
         else:
@@ -499,6 +536,8 @@ def build_runtime_worker(
     if settings.worker == "orchestrator":
         memory_layer: AgentMemoryLayer | None = None
         trace_store: SQLAlchemyTraceStore | None = None
+        metrics = AgentRuntimeMetrics()
+        llm_runtime: LLMDecisionRuntime | None = None
         if runtime_engine is not None:
             memory_layer = AgentMemoryLayer(
                 short_term_store=SQLAlchemyShortTermMemoryStore(connection=runtime_engine),
@@ -506,11 +545,17 @@ def build_runtime_worker(
                 decision_ttl_seconds=max(60, int(os.getenv("AGENT_DECISION_TTL_SECONDS", "900"))),
             )
             trace_store = SQLAlchemyTraceStore(connection=runtime_engine)
+            llm_runtime = _build_llm_runtime(
+                runtime_engine=runtime_engine,
+                metrics=metrics,
+            )
         orchestrator_worker = AgentOrchestratorRuntimeWorker(
             broker_consumer=runtime_broker,
             orchestrator=AgentOrchestrator(
                 publisher=runtime_broker,
                 memory_layer=memory_layer,
+                metrics=metrics,
+                llm_runtime=llm_runtime,
             ),
         )
         strategy = _strategy_from_settings(settings=settings)
@@ -542,15 +587,29 @@ def build_runtime_worker(
             ),
             broker=runtime_broker,
         )
+    if settings.worker == "execution_lifecycle":
+        execution_lifecycle_worker = _build_execution_lifecycle_worker(
+            broker=runtime_broker,
+            timeout_seconds=settings.poll_timeout_seconds,
+        )
+        return RuntimeWorkerBuildResult(worker=execution_lifecycle_worker, broker=runtime_broker)
     if settings.worker == "news":
         source_mode = _resolve_news_source_mode(require_database=settings.require_database)
         rss_feeds = _parse_csv_tokens(os.getenv("NEWS_RSS_FEEDS")) or _default_news_rss_feeds()
         fetch_timeout_seconds = max(1.0, float(os.getenv("NEWS_FETCH_TIMEOUT_SECONDS", "8.0")))
+        x_enabled = _to_bool(os.getenv("NEWS_ENABLE_X_PROVIDER", "false"))
+        x_api_base_url = os.getenv("NEWS_X_API_BASE_URL", "https://api.x.com/2/tweets/search/recent")
+        x_bearer_token = os.getenv("NEWS_X_BEARER_TOKEN")
+        x_query = os.getenv("NEWS_X_QUERY", "bitcoin OR ethereum OR solana")
         if runtime_engine is None:
             news_worker = NewsWorkerRunner(
                 source_mode=source_mode,
                 rss_feeds=rss_feeds,
                 fetch_timeout_seconds=fetch_timeout_seconds,
+                x_enabled=x_enabled,
+                x_api_base_url=x_api_base_url,
+                x_bearer_token=x_bearer_token,
+                x_query=x_query,
             )
         else:
             news_worker = NewsWorkerRunner(
@@ -560,6 +619,10 @@ def build_runtime_worker(
                 source_mode=source_mode,
                 rss_feeds=rss_feeds,
                 fetch_timeout_seconds=fetch_timeout_seconds,
+                x_enabled=x_enabled,
+                x_api_base_url=x_api_base_url,
+                x_bearer_token=x_bearer_token,
+                x_query=x_query,
             )
         return RuntimeWorkerBuildResult(worker=news_worker, broker=runtime_broker)
     raise ValueError(f"unsupported runtime worker: {settings.worker}")
@@ -664,6 +727,8 @@ def _build_market_worker(
     runtime_engine: Engine | None,
 ) -> MarketRuntimeWorker:
     fetch_mode = _normalize_market_fetch_mode(os.getenv("MARKET_DATA_FETCH_MODE", "rest"))
+    use_ccxt_pro = _to_bool(os.getenv("MARKET_USE_CCXT_PRO", "false"))
+    ccxt_pro_timeout_ms = max(1000, int(os.getenv("MARKET_CCXT_PRO_TIMEOUT_MS", "10000")))
     base_price = float(os.getenv("RUNTIME_MARKET_BASE_PRICE", "42000"))
     http_timeout_seconds = max(0.1, float(os.getenv("MARKET_DATA_HTTP_TIMEOUT_SECONDS", "10.0")))
     kline_intervals = _parse_csv_tokens(os.getenv("KLINE_INTERVALS", "1m")) or ("1m",)
@@ -688,9 +753,20 @@ def _build_market_worker(
                 )
             else:
                 raise ValueError("MARKET_EXCHANGES entries must be 'binance' or 'bitget'")
-            rest_client = real_client
-            ws_client = real_client
-            kline_client = real_client
+            if use_ccxt_pro:
+                ccxt_client = CCXTProOrderBookClient(
+                    exchange=exchange,
+                    fallback_rest_client=real_client,
+                    fallback_ws_client=real_client,
+                    timeout_ms=ccxt_pro_timeout_ms,
+                )
+                rest_client = ccxt_client
+                ws_client = ccxt_client
+                kline_client = ccxt_client
+            else:
+                rest_client = real_client
+                ws_client = real_client
+                kline_client = real_client
         else:
             rest_client = _SyntheticRestOrderBookClient(base_price=base_price)
             ws_client = _SyntheticWsOrderBookClient(base_price=base_price)
@@ -723,6 +799,50 @@ def _build_market_worker(
     return MultiExchangeMarketIngestionRuntimeWorker(workers=tuple(workers))
 
 
+def _build_execution_lifecycle_worker(*, broker: Any, timeout_seconds: float) -> ExecutionLifecycleWorker:
+    private_stream_enabled = _to_bool(os.getenv("EXECUTION_PRIVATE_STREAM_ENABLED", "true"))
+    private_stream_exchanges = _parse_csv_tokens(os.getenv("EXECUTION_PRIVATE_STREAM_EXCHANGES"))
+    if not private_stream_exchanges:
+        private_stream_exchanges = _resolve_market_exchanges()
+    private_watch_timeout = max(
+        0.1,
+        float(os.getenv("EXECUTION_PRIVATE_STREAM_WATCH_TIMEOUT_SECONDS", str(max(0.1, timeout_seconds or 0.6)))),
+    )
+    if private_stream_enabled:
+        private_stream_connector = CCXTProPrivateOrderStreamConnector(
+            exchanges=tuple(exchange.lower() for exchange in private_stream_exchanges),
+            watch_timeout_seconds=private_watch_timeout,
+        )
+    else:
+        private_stream_connector = NoopPrivateOrderStreamConnector()
+
+    lifecycle_queue_name = os.getenv("EXECUTION_LIFECYCLE_INTENT_QUEUE", "execution.intent.real.lifecycle").strip()
+    if not lifecycle_queue_name:
+        lifecycle_queue_name = "execution.intent.real.lifecycle"
+    return ExecutionLifecycleWorker(
+        broker=broker,
+        private_stream_connector=private_stream_connector,
+        status_poller=SignedRESTOrderStatusPoller(enable_real_dispatch=True),
+        intent_queue_name=lifecycle_queue_name,
+        stream_stale_after_seconds=max(
+            0.0,
+            float(os.getenv("EXECUTION_LIFECYCLE_STREAM_STALE_SECONDS", "15.0")),
+        ),
+        fallback_poll_interval_seconds=max(
+            0.0,
+            float(os.getenv("EXECUTION_LIFECYCLE_REST_POLL_INTERVAL_SECONDS", "5.0")),
+        ),
+        terminal_retention_seconds=max(
+            0.0,
+            float(os.getenv("EXECUTION_LIFECYCLE_TERMINAL_RETENTION_SECONDS", "600.0")),
+        ),
+        max_tracked_orders=max(
+            10,
+            int(os.getenv("EXECUTION_LIFECYCLE_MAX_TRACKED_ORDERS", "10000")),
+        ),
+    )
+
+
 def _strategy_from_settings(*, settings: RuntimeWorkerSettings) -> StrategyConfig:
     return StrategyConfig(
         strategy_id=settings.strategy_id,
@@ -735,6 +855,81 @@ def _strategy_from_settings(*, settings: RuntimeWorkerSettings) -> StrategyConfi
         risk_max_position_size=float(os.getenv("STRATEGY_RISK_MAX_POSITION_SIZE", "1.0")),
         risk_max_drawdown_pct=float(os.getenv("STRATEGY_RISK_MAX_DRAWDOWN_PCT", "0.3")),
         risk_min_confidence=float(os.getenv("STRATEGY_RISK_MIN_CONFIDENCE", "0.2")),
+    )
+
+
+def _build_llm_runtime(
+    *,
+    runtime_engine: Engine,
+    metrics: AgentRuntimeMetrics,
+) -> LLMDecisionRuntime | None:
+    if not _to_bool(os.getenv("LLM_RUNTIME_ENABLED", "false")):
+        return None
+
+    base_url = os.getenv("LITELLM_BASE_URL", "").strip()
+    if not base_url:
+        return None
+
+    timeout_seconds = max(0.1, float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0")))
+    timeout_ms = max(1, int(timeout_seconds * 1000))
+    retries = max(0, int(os.getenv("LLM_PROVIDER_MAX_RETRIES", "1")))
+
+    openai_model = os.getenv("LLM_OPENAI_MODEL", "openai/gpt-4o-mini").strip() or "openai/gpt-4o-mini"
+    anthropic_model = (
+        os.getenv("LLM_ANTHROPIC_MODEL", "anthropic/claude-3-5-sonnet-20241022").strip()
+        or "anthropic/claude-3-5-sonnet-20241022"
+    )
+    quick_order = tuple(_parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "openai,anthropic")))
+    deep_order = tuple(_parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "anthropic,openai")))
+    default_order = quick_order or ("openai", "anthropic")
+
+    gateway_settings = GatewaySettings(
+        providers={
+            "openai": ProviderSettings(
+                alias="openai",
+                model=openai_model,
+                timeout_ms=timeout_ms,
+                max_retries=retries,
+                enabled=True,
+                prompt_cost_per_1k_tokens=float(os.getenv("LLM_OPENAI_PROMPT_COST_PER_1K", "0.0")),
+                completion_cost_per_1k_tokens=float(os.getenv("LLM_OPENAI_COMPLETION_COST_PER_1K", "0.0")),
+            ),
+            "anthropic": ProviderSettings(
+                alias="anthropic",
+                model=anthropic_model,
+                timeout_ms=timeout_ms,
+                max_retries=retries,
+                enabled=True,
+                prompt_cost_per_1k_tokens=float(os.getenv("LLM_ANTHROPIC_PROMPT_COST_PER_1K", "0.0")),
+                completion_cost_per_1k_tokens=float(os.getenv("LLM_ANTHROPIC_COMPLETION_COST_PER_1K", "0.0")),
+            ),
+        },
+        default_provider_order=default_order,
+        retry_base_ms=max(1, int(os.getenv("LLM_GATEWAY_RETRY_BASE_MS", "100"))),
+        retry_max_ms=max(10, int(os.getenv("LLM_GATEWAY_RETRY_MAX_MS", "2000"))),
+    )
+
+    provider_client = LiteLLMHTTPProviderClient(
+        base_url=base_url,
+        api_key=os.getenv("LITELLM_API_KEY"),
+        timeout_seconds=timeout_seconds,
+    )
+    gateway = LLMGateway(
+        settings=gateway_settings,
+        provider_clients={
+            "openai": provider_client,
+            "anthropic": provider_client,
+        },
+        call_store=SQLAlchemyLLMCallStore(connection=runtime_engine),
+        quota_store=SQLAlchemyLLMQuotaStore(connection=runtime_engine),
+        metrics=metrics,
+    )
+    return LLMDecisionRuntime(
+        gateway=gateway,
+        quick_provider_order=quick_order or ("openai", "anthropic"),
+        deep_provider_order=deep_order or ("anthropic", "openai"),
+        quick_temperature=float(os.getenv("LLM_QUICK_TEMPERATURE", "0.1")),
+        deep_temperature=float(os.getenv("LLM_DEEP_TEMPERATURE", "0.2")),
     )
 
 

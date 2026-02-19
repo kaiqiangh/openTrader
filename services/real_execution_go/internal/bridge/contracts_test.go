@@ -7,11 +7,17 @@ func TestNewCreateOrderCommandBuildsValidatedContract(t *testing.T) {
 		"cmd-1",
 		"idem-1",
 		ActionBuy,
+		"binance",
 		"BTC/USDT",
 		0.2,
 		"trace-1",
 		"decision-1",
 		"client-1",
+		OrderTypeMarket,
+		"",
+		nil,
+		nil,
+		false,
 	)
 
 	if command.Operation != OperationCreateOrder {
@@ -26,6 +32,7 @@ func TestCancelCommandRequiresOrderIdentifier(t *testing.T) {
 	command := NewCancelOrderCommand(
 		"cmd-2",
 		"idem-2",
+		"binance",
 		"BTC/USDT",
 		"",
 		"",

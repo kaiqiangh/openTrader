@@ -8,6 +8,7 @@ from typing import Any, Mapping, Protocol
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
+from services.agent_orchestrator.llm_runtime import LLMDecisionRuntime
 from services.agent_orchestrator.market_context_agent import MarketContextAgent
 from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.agent_orchestrator.memory_layer import AgentMemoryLayer
@@ -34,6 +35,7 @@ class AgentOrchestrator:
         guardrail_validation_layer: GuardrailValidationLayer | None = None,
         memory_layer: AgentMemoryLayer | None = None,
         metrics: AgentRuntimeMetrics | None = None,
+        llm_runtime: LLMDecisionRuntime | None = None,
         notification_bridge: NotificationEventBridge | None = None,
         service_name: str = "agent_orchestrator",
         monotonic_clock: Callable[[], float] = time.monotonic,
@@ -46,6 +48,7 @@ class AgentOrchestrator:
         self.guardrail_validation_layer = guardrail_validation_layer or GuardrailValidationLayer()
         self.memory_layer = memory_layer or AgentMemoryLayer()
         self.metrics = metrics or AgentRuntimeMetrics()
+        self.llm_runtime = llm_runtime
         self.notification_bridge = notification_bridge
         self.service_name = service_name
         self._monotonic_clock = monotonic_clock
@@ -109,6 +112,20 @@ class AgentOrchestrator:
                 strategy=strategy,
             ),
         )
+        if self.llm_runtime is not None:
+            plan = await self._run_async_stage(
+                stage="planner_llm",
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                operation=lambda: self._apply_planner_llm_suggestion(
+                    trace_id=trace_id,
+                    decision_id=decision_id,
+                    strategy=strategy,
+                    market_context=market_context,
+                    plan=plan,
+                ),
+            )
         await self.memory_layer.write_decision_slot(
             mode=mode,
             strategy_id=strategy.strategy_id,
@@ -133,6 +150,21 @@ class AgentOrchestrator:
                 strategy=strategy,
             ),
         )
+        if self.llm_runtime is not None:
+            risk = await self._run_async_stage(
+                stage="risk_llm",
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                operation=lambda: self._apply_risk_llm_suggestion(
+                    trace_id=trace_id,
+                    decision_id=decision_id,
+                    strategy=strategy,
+                    market_context=market_context,
+                    plan=plan,
+                    risk=risk,
+                ),
+            )
         await self.memory_layer.write_decision_slot(
             mode=mode,
             strategy_id=strategy.strategy_id,
@@ -167,6 +199,22 @@ class AgentOrchestrator:
                 strategy=strategy,
             ),
         )
+        if self.llm_runtime is not None:
+            execution_decision = await self._run_async_stage(
+                stage="execution_decision_llm",
+                trace_id=trace_id,
+                decision_id=decision_id,
+                mode=mode,
+                operation=lambda: self._apply_execution_llm_suggestion(
+                    trace_id=trace_id,
+                    decision_id=decision_id,
+                    strategy=strategy,
+                    market_context=market_context,
+                    plan=plan,
+                    risk=risk,
+                    execution_decision=execution_decision,
+                ),
+            )
         await self.memory_layer.write_decision_slot(
             mode=mode,
             strategy_id=strategy.strategy_id,
@@ -347,6 +395,17 @@ class AgentOrchestrator:
             and execution_decision.quantity != 0.0
         )
         if should_publish_intent:
+            exchange = str(market_context.get("exchange", "binance")).strip().lower() or "binance"
+            order_type = str(execution_decision.constraints.get("order_type", "MARKET")).strip().upper() or "MARKET"
+            time_in_force = execution_decision.constraints.get("time_in_force")
+            limit_price = execution_decision.constraints.get("limit_price")
+            trigger_price = execution_decision.constraints.get("trigger_price")
+            if not isinstance(time_in_force, str) or not time_in_force.strip():
+                time_in_force = "GTC" if order_type == "LIMIT" else None
+            reduce_only = bool(execution_decision.action == "CLOSE")
+            client_order_id = str(
+                execution_decision.constraints.get("client_order_id", f"{strategy.strategy_id}-{decision_id[:12]}")
+            )
             execution_intent = self._build_envelope(
                 trace_id=trace_id,
                 decision_id=decision_id,
@@ -359,6 +418,13 @@ class AgentOrchestrator:
                     "action": execution_decision.action,
                     "quantity": execution_decision.quantity,
                     "confidence": execution_decision.confidence,
+                    "exchange": exchange,
+                    "order_type": order_type,
+                    "time_in_force": time_in_force,
+                    "limit_price": limit_price,
+                    "trigger_price": trigger_price,
+                    "reduce_only": reduce_only,
+                    "client_order_id": client_order_id,
                     "rationale": list(execution_decision.rationale),
                     "constraints": execution_decision.constraints,
                     "market_context": {
@@ -488,6 +554,137 @@ class AgentOrchestrator:
         }
         validate_envelope(envelope)
         return envelope
+
+    async def _apply_planner_llm_suggestion(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        strategy: StrategyConfig,
+        market_context: Mapping[str, Any],
+        plan: Any,
+    ) -> Any:
+        if self.llm_runtime is None:
+            return plan
+        suggestion = await self.llm_runtime.suggest_plan(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            market_context=market_context,
+            strategy=strategy,
+            heuristic_plan=plan,
+        )
+        action = suggestion.action if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"} else plan.action
+        confidence = plan.confidence if suggestion.confidence is None else max(0.0, min(1.0, suggestion.confidence))
+        target_quantity = (
+            plan.target_quantity
+            if suggestion.target_quantity is None
+            else float(suggestion.target_quantity)
+        )
+        rationale = list(plan.rationale)
+        rationale.extend(list(suggestion.rationale))
+        provider = str(suggestion.metadata.get("provider", "")).strip()
+        model = str(suggestion.metadata.get("model", "")).strip()
+        if provider and model:
+            rationale.append(f"llm_provider={provider}/{model}")
+        return type(plan)(
+            action=action,
+            confidence=confidence,
+            target_quantity=target_quantity,
+            rationale=tuple(rationale),
+            metrics=dict(plan.metrics),
+        )
+
+    async def _apply_risk_llm_suggestion(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        strategy: StrategyConfig,
+        market_context: Mapping[str, Any],
+        plan: Any,
+        risk: Any,
+    ) -> Any:
+        if self.llm_runtime is None:
+            return risk
+        suggestion = await self.llm_runtime.suggest_risk(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            market_context=market_context,
+            strategy=strategy,
+            heuristic_risk=risk,
+            heuristic_plan=plan,
+        )
+        approved = risk.approved if suggestion.approved is None else bool(suggestion.approved)
+        approved_quantity = (
+            risk.approved_quantity
+            if suggestion.approved_quantity is None
+            else float(suggestion.approved_quantity)
+        )
+        risk_score = risk.risk_score if suggestion.risk_score is None else max(0.0, min(1.0, suggestion.risk_score))
+        blocked_by = risk.blocked_by if not suggestion.blocked_by else tuple(suggestion.blocked_by)
+        rationale = list(risk.rationale)
+        rationale.extend(list(suggestion.rationale))
+        provider = str(suggestion.metadata.get("provider", "")).strip()
+        model = str(suggestion.metadata.get("model", "")).strip()
+        if provider and model:
+            rationale.append(f"llm_provider={provider}/{model}")
+        return type(risk)(
+            approved=approved,
+            approved_quantity=approved_quantity,
+            signals=risk.signals,
+            blocked_by=blocked_by,
+            risk_score=risk_score,
+            rationale=tuple(rationale),
+        )
+
+    async def _apply_execution_llm_suggestion(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        strategy: StrategyConfig,
+        market_context: Mapping[str, Any],
+        plan: Any,
+        risk: Any,
+        execution_decision: Any,
+    ) -> Any:
+        if self.llm_runtime is None:
+            return execution_decision
+        suggestion = await self.llm_runtime.suggest_execution(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            market_context=market_context,
+            strategy=strategy,
+            heuristic_execution=execution_decision,
+            heuristic_plan=plan,
+            heuristic_risk=risk,
+        )
+        action = (
+            suggestion.action
+            if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"}
+            else execution_decision.action
+        )
+        quantity = execution_decision.quantity if suggestion.quantity is None else float(suggestion.quantity)
+        confidence = (
+            execution_decision.confidence
+            if suggestion.confidence is None
+            else max(0.0, min(1.0, suggestion.confidence))
+        )
+        constraints = dict(execution_decision.constraints)
+        constraints.update(dict(suggestion.constraints))
+        rationale = list(execution_decision.rationale)
+        rationale.extend(list(suggestion.rationale))
+        provider = str(suggestion.metadata.get("provider", "")).strip()
+        model = str(suggestion.metadata.get("model", "")).strip()
+        if provider and model:
+            rationale.append(f"llm_provider={provider}/{model}")
+        return type(execution_decision)(
+            action=action,
+            quantity=quantity,
+            confidence=confidence,
+            rationale=tuple(rationale),
+            constraints=constraints,
+        )
 
     def _run_sync_stage(
         self,

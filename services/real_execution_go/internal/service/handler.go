@@ -71,6 +71,12 @@ func (h *Handler) Handle(ctx context.Context, body []byte) error {
 func (h *Handler) toBridgeCommand(envelope Envelope) (bridge.Command, string, error) {
 	action := strings.ToUpper(strings.TrimSpace(envelope.Payload.Action))
 	commandID := fmt.Sprintf("cmd-%s", envelope.DecisionID)
+	orderType := bridge.OrderType(strings.ToUpper(strings.TrimSpace(envelope.Payload.OrderType)))
+	if orderType == "" {
+		orderType = bridge.OrderTypeMarket
+	}
+	timeInForce := strings.ToUpper(strings.TrimSpace(envelope.Payload.TimeInForce))
+	reduceOnly := envelope.Payload.ReduceOnly
 
 	switch action {
 	case string(bridge.ActionBuy), string(bridge.ActionSell), string(bridge.ActionClose):
@@ -78,15 +84,24 @@ func (h *Handler) toBridgeCommand(envelope Envelope) (bridge.Command, string, er
 		if quantity <= 0 {
 			quantity = -quantity
 		}
+		if action == string(bridge.ActionClose) {
+			reduceOnly = true
+		}
 		cmd := bridge.NewCreateOrderCommand(
 			commandID,
 			envelope.IdempotencyKey,
 			bridge.Action(action),
+			envelope.Payload.Exchange,
 			envelope.Payload.Symbol,
 			quantity,
 			envelope.TraceID,
 			envelope.DecisionID,
 			envelope.Payload.ClientOrderID,
+			orderType,
+			timeInForce,
+			envelope.Payload.LimitPrice,
+			envelope.Payload.TriggerPrice,
+			reduceOnly,
 		)
 		if err := cmd.Validate(); err != nil {
 			return bridge.Command{}, "", err
@@ -97,6 +112,7 @@ func (h *Handler) toBridgeCommand(envelope Envelope) (bridge.Command, string, er
 		cmd := bridge.NewCancelOrderCommand(
 			commandID,
 			envelope.IdempotencyKey,
+			envelope.Payload.Exchange,
 			envelope.Payload.Symbol,
 			envelope.Payload.ExchangeOrderID,
 			envelope.Payload.ClientOrderID,
@@ -159,9 +175,15 @@ func (h *Handler) publishLifecycleEvent(
 		"order_id":          orderID,
 		"exchange_order_id": firstNonEmpty(strings.TrimSpace(result.OrderID), strings.TrimSpace(command.ExchangeOrderID)),
 		"client_order_id":   command.ClientOrderID,
+		"exchange":          command.Exchange,
 		"symbol":            command.Symbol,
 		"mode":              "REAL",
 		"action":            string(command.Action),
+		"order_type":        string(command.OrderType),
+		"time_in_force":     command.TimeInForce,
+		"limit_price":       command.LimitPrice,
+		"trigger_price":     command.TriggerPrice,
+		"reduce_only":       command.ReduceOnly,
 		"quantity":          quantity,
 		"status":            status,
 	}

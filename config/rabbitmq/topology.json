@@ -42,6 +42,14 @@
       }
     },
     {
+      "name": "execution.intent.real.lifecycle",
+      "durable": true,
+      "arguments": {
+        "x-dead-letter-exchange": "dead.letter",
+        "x-dead-letter-routing-key": "dlq.execution.intent.real.lifecycle"
+      }
+    },
+    {
       "name": "oms.events.order_updates",
       "durable": true,
       "arguments": {
@@ -58,6 +66,7 @@
       }
     },
     {"name": "dlq.execution.intent.real", "durable": true},
+    {"name": "dlq.execution.intent.real.lifecycle", "durable": true},
     {"name": "dlq.execution.intent.mock", "durable": true},
     {"name": "dlq.strategy.events.lifecycle", "durable": true},
     {"name": "dlq.market.canonical", "durable": true},
@@ -86,6 +95,11 @@
       "routing_key": "execution.intent.real"
     },
     {
+      "exchange": "execution.events",
+      "queue": "execution.intent.real.lifecycle",
+      "routing_key": "execution.intent.real"
+    },
+    {
       "exchange": "oms.events",
       "queue": "oms.events.order_updates",
       "routing_key": "oms.order.*"
@@ -99,6 +113,11 @@
       "exchange": "dead.letter",
       "queue": "dlq.execution.intent.real",
       "routing_key": "dlq.execution.intent.real"
+    },
+    {
+      "exchange": "dead.letter",
+      "queue": "dlq.execution.intent.real.lifecycle",
+      "routing_key": "dlq.execution.intent.real.lifecycle"
     },
     {
       "exchange": "dead.letter",
