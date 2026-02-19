@@ -170,6 +170,74 @@ class PortfolioSnapshotResponse(BaseModel):
     realized_pnl_today: float
 
 
+class PortfolioHistoryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[PortfolioSnapshotResponse]
+
+
+class MarketKlineRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    time: str
+    exchange: str
+    symbol: str
+    interval: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    quote_volume: float
+    trades: int
+
+
+class MarketKlineListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[MarketKlineRecordResponse]
+
+
+class OrderBookLevelResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    price: float
+    amount: float
+
+
+class OrderBookSnapshotResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_time: str
+    exchange: str
+    symbol: str
+    best_bid: float
+    best_ask: float
+    spread_bps: float
+    bids: list[OrderBookLevelResponse]
+    asks: list[OrderBookLevelResponse]
+
+
+class SignalRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    trace_id: str
+    strategy_id: str
+    mode: str
+    status: str
+    action: str
+    quantity: float
+    confidence: float
+    created_at: str
+
+
+class SignalListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SignalRecordResponse]
+
+
 class RiskControlEventResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

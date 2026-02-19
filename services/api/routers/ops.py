@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from services.api.auth import require_admin, require_operator, require_viewer
-from services.api.dependencies import get_control_plane_state
+from services.api.dependencies import get_control_plane_repository, get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
+    MarketKlineListResponse,
+    MarketKlineRecordResponse,
     NotificationDeliveryListResponse,
     NotificationDeliveryRecordResponse,
     NotificationMetricsResponse,
@@ -22,8 +26,11 @@ from services.api.models import (
     NewsItemResponse,
     NewsSummaryListResponse,
     NewsSummaryResponse,
+    OrderBookLevelResponse,
+    OrderBookSnapshotResponse,
     OrderListResponse,
     OrderRecordResponse,
+    PortfolioHistoryResponse,
     PortfolioSnapshotResponse,
     PositionListResponse,
     PositionRecordResponse,
@@ -31,6 +38,8 @@ from services.api.models import (
     RiskControlCommandRequest,
     RiskControlEventResponse,
     RiskStatusResponse,
+    SignalListResponse,
+    SignalRecordResponse,
 )
 from services.api.state import (
     ControlPlaneState,
@@ -68,6 +77,41 @@ def list_positions(
     return PositionListResponse(items=[_position_model(item) for item in items])
 
 
+@router.get("/market/klines", response_model=MarketKlineListResponse)
+def get_market_klines(
+    _: AuthPrincipal = Depends(require_viewer),
+    repository: Any | None = Depends(get_control_plane_repository),
+    symbol: str = Query(min_length=1),
+    interval: str = Query(default="1m", min_length=1),
+    exchange: str | None = Query(default=None),
+    limit: int = Query(default=120, ge=1, le=1000),
+) -> MarketKlineListResponse:
+    if repository is None:
+        return MarketKlineListResponse(items=[])
+    rows = repository.list_market_klines(
+        symbol=symbol,
+        interval=interval,
+        exchange=exchange,
+        limit=limit,
+    )
+    return MarketKlineListResponse(items=[_kline_model(item) for item in rows])
+
+
+@router.get("/market/orderbook/latest", response_model=OrderBookSnapshotResponse)
+def get_latest_orderbook_snapshot(
+    _: AuthPrincipal = Depends(require_viewer),
+    repository: Any | None = Depends(get_control_plane_repository),
+    symbol: str = Query(min_length=1),
+    exchange: str | None = Query(default=None),
+) -> OrderBookSnapshotResponse:
+    if repository is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
+    payload = repository.latest_orderbook_snapshot(symbol=symbol, exchange=exchange)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
+    return _orderbook_snapshot_model(payload)
+
+
 @router.get("/portfolio/latest", response_model=PortfolioSnapshotResponse)
 def get_latest_portfolio_snapshot(
     _: AuthPrincipal = Depends(require_viewer),
@@ -78,6 +122,64 @@ def get_latest_portfolio_snapshot(
     if snapshot is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No portfolio snapshot found")
     return _snapshot_model(snapshot)
+
+
+@router.get("/portfolio/history", response_model=PortfolioHistoryResponse)
+def get_portfolio_history(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
+    mode: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> PortfolioHistoryResponse:
+    if repository is not None:
+        items = repository.list_portfolio_history(mode=mode, limit=limit)
+        return PortfolioHistoryResponse(items=[_snapshot_model(item) for item in items])
+
+    mode_filter = mode.strip().upper() if mode else None
+    snapshots = state.portfolio_snapshots
+    if mode_filter is not None:
+        snapshots = [item for item in snapshots if item.mode.strip().upper() == mode_filter]
+    snapshots = sorted(snapshots, key=lambda item: item.snapshot_time)
+    return PortfolioHistoryResponse(items=[_snapshot_model(item) for item in snapshots[:limit]])
+
+
+@router.get("/signals/latest", response_model=SignalListResponse)
+def get_latest_signals(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> SignalListResponse:
+    if repository is not None:
+        payload = repository.list_latest_signals(limit=limit)
+        return SignalListResponse(items=[_signal_model(item) for item in payload])
+
+    summaries = sorted(state.replay_summaries.values(), key=lambda item: item.persisted_at, reverse=True)[:limit]
+    items: list[SignalRecordResponse] = []
+    for summary in summaries:
+        execution_decision = summary.summary.get("execution_decision", {})
+        action = "HOLD"
+        quantity = 0.0
+        confidence = 0.0
+        if isinstance(execution_decision, dict):
+            action = str(execution_decision.get("action", "HOLD"))
+            quantity = float(execution_decision.get("quantity", 0.0) or 0.0)
+            confidence = float(execution_decision.get("confidence", 0.0) or 0.0)
+        items.append(
+            SignalRecordResponse(
+                decision_id=summary.decision_id,
+                trace_id=summary.trace_id,
+                strategy_id=summary.strategy_id,
+                mode=summary.mode,
+                status=summary.status,
+                action=action,
+                quantity=quantity,
+                confidence=confidence,
+                created_at=summary.persisted_at,
+            )
+        )
+    return SignalListResponse(items=items)
 
 
 @router.get("/risk/status", response_model=RiskStatusResponse)
@@ -191,6 +293,7 @@ def upsert_notification_preference(
     body: NotificationPreferenceUpsertRequest,
     principal: AuthPrincipal = Depends(require_admin),
     state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
 ) -> NotificationPreferenceResponse:
     try:
         updated = state.upsert_notification_preference(
@@ -203,6 +306,11 @@ def upsert_notification_preference(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if repository is not None:
+        try:
+            repository.upsert_notification_preference(updated)
+        except Exception:
+            pass
     return _notification_preference_model(updated)
 
 
@@ -211,6 +319,7 @@ def delete_notification_preference(
     user_id: str,
     _: AuthPrincipal = Depends(require_admin),
     state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
 ) -> Response:
     try:
         deleted = state.delete_notification_preference(user_id=user_id)
@@ -218,6 +327,11 @@ def delete_notification_preference(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification preference not found")
+    if repository is not None:
+        try:
+            repository.delete_notification_preference(user_id=user_id)
+        except Exception:
+            pass
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -310,6 +424,65 @@ def _snapshot_model(item: PortfolioSnapshot) -> PortfolioSnapshotResponse:
         locked_balance_usd=item.locked_balance_usd,
         unrealized_pnl=item.unrealized_pnl,
         realized_pnl_today=item.realized_pnl_today,
+    )
+
+
+def _kline_model(item: dict[str, Any]) -> MarketKlineRecordResponse:
+    return MarketKlineRecordResponse(
+        time=str(item.get("time", "")),
+        exchange=str(item.get("exchange", "")),
+        symbol=str(item.get("symbol", "")),
+        interval=str(item.get("interval", "")),
+        open=float(item.get("open", 0.0) or 0.0),
+        high=float(item.get("high", 0.0) or 0.0),
+        low=float(item.get("low", 0.0) or 0.0),
+        close=float(item.get("close", 0.0) or 0.0),
+        volume=float(item.get("volume", 0.0) or 0.0),
+        quote_volume=float(item.get("quote_volume", 0.0) or 0.0),
+        trades=int(item.get("trades", 0) or 0),
+    )
+
+
+def _orderbook_snapshot_model(item: dict[str, Any]) -> OrderBookSnapshotResponse:
+    return OrderBookSnapshotResponse(
+        snapshot_time=str(item.get("snapshot_time", "")),
+        exchange=str(item.get("exchange", "")),
+        symbol=str(item.get("symbol", "")),
+        best_bid=float(item.get("best_bid", 0.0) or 0.0),
+        best_ask=float(item.get("best_ask", 0.0) or 0.0),
+        spread_bps=float(item.get("spread_bps", 0.0) or 0.0),
+        bids=_orderbook_level_models(item.get("bids")),
+        asks=_orderbook_level_models(item.get("asks")),
+    )
+
+
+def _orderbook_level_models(levels: Any) -> list[OrderBookLevelResponse]:
+    if not isinstance(levels, list):
+        return []
+    output: list[OrderBookLevelResponse] = []
+    for level in levels:
+        if not isinstance(level, dict):
+            continue
+        output.append(
+            OrderBookLevelResponse(
+                price=float(level.get("price", 0.0) or 0.0),
+                amount=float(level.get("amount", 0.0) or 0.0),
+            )
+        )
+    return output
+
+
+def _signal_model(item: dict[str, Any]) -> SignalRecordResponse:
+    return SignalRecordResponse(
+        decision_id=str(item.get("decision_id", "")),
+        trace_id=str(item.get("trace_id", "")),
+        strategy_id=str(item.get("strategy_id", "")),
+        mode=str(item.get("mode", "")),
+        status=str(item.get("status", "")),
+        action=str(item.get("action", "HOLD")),
+        quantity=float(item.get("quantity", 0.0) or 0.0),
+        confidence=float(item.get("confidence", 0.0) or 0.0),
+        created_at=str(item.get("created_at", "")),
     )
 
 

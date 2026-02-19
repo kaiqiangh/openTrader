@@ -334,6 +334,8 @@ Initial migration files:
 - `migrations/versions/20260214_0003_agent_trace_schema.py`
 - `migrations/versions/20260214_0004_llm_governance_schema.py`
 - `migrations/versions/20260214_0005_news_schema.py`
+- `migrations/versions/20260216_0006_runtime_persistence_consolidation.py`
+- `migrations/versions/20260219_0007_control_plane_notification_state.py`
 
 RabbitMQ topology declaration:
 
@@ -349,6 +351,7 @@ Redis keyspace strategy:
 Phase 2 market ingestion foundation:
 
 - `services/market_ingestion/exchange_adapter.py` (CCXT-style adapter + snapshot bootstrap)
+- `services/market_ingestion/ccxt_pro_adapter.py` (CCXT Pro bridge wrapper with direct-adapter fallback path)
 - `services/market_ingestion/connection_resilience.py` (heartbeat/reconnect/backoff manager)
 - `services/market_ingestion/order_book_sync.py` (snapshot + delta sync engine)
 - `services/market_ingestion/gap_detection.py` (sequence gap classification and resync signaling)
@@ -367,6 +370,7 @@ Phase 3 agent runtime baseline:
 
 - `services/agent_orchestrator/contracts.py` (shared planner/risk/orchestration contracts)
 - `services/agent_orchestrator/orchestrator.py` (market.canonical consumer and decision lifecycle manager)
+- `services/agent_orchestrator/llm_runtime.py` (gateway-backed quick/deep tier suggestion overlay for planner/risk/execution)
 - `services/agent_orchestrator/planner_agent.py` (dynamic planning from market context and thresholds)
 - `services/agent_orchestrator/risk_agent.py` (pre-trade risk signal evaluation and approvals)
 - `services/agent_orchestrator/execution_decision_agent.py` (final constrained action proposal generation)
@@ -398,6 +402,13 @@ Phase 3 LLM gateway baseline:
 LLM env notes:
 
 - `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, and `LITELLM_MODEL` configure the LiteLLM-compatible adapter in `services/llm_gateway/litellm_http_adapter.py`.
+- Runtime orchestration LLM controls:
+  - `LLM_RUNTIME_ENABLED` (enables gateway-backed planner/risk/execution suggestions in worker runtime)
+  - `LLM_QUICK_PROVIDER_ORDER` (default `openai,anthropic`)
+  - `LLM_DEEP_PROVIDER_ORDER` (default `anthropic,openai`)
+  - `LLM_OPENAI_MODEL`, `LLM_ANTHROPIC_MODEL`
+  - `LLM_QUICK_TEMPERATURE`, `LLM_DEEP_TEMPERATURE`
+  - `LLM_PROVIDER_MAX_RETRIES`, `LLM_GATEWAY_RETRY_BASE_MS`, `LLM_GATEWAY_RETRY_MAX_MS`
 - DeepSeek via LiteLLM example:
   - `LITELLM_BASE_URL=https://api.deepseek.com`
   - `LITELLM_API_KEY=<deepseek-api-key>`
@@ -412,6 +423,8 @@ Market ingestion mode notes:
 - `MARKET_DATA_FETCH_MODE` selects runtime delta fetch mode:
   - `rest` (default, recommended for deterministic testing)
   - `websocket` (continuous feed mode)
+- `MARKET_USE_CCXT_PRO` enables CCXT Pro adapter path while retaining direct-adapter fallback for resilience.
+- `MARKET_CCXT_PRO_TIMEOUT_MS` configures CCXT Pro timeout budget.
 - `ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS` controls snapshot cadence (default `180` seconds).
 - `MARKET_DATA_REST_POLL_SECONDS` is a deprecated fallback for snapshot cadence.
 - `KLINE_INTERVALS`, `KLINE_POLL_INTERVAL_SECONDS`, and `KLINE_FETCH_LIMIT` control kline ingestion scope/cadence.
@@ -442,6 +455,7 @@ Runtime integration gate + Phase 4 foundations:
 - `services/simulation_execution/safety_guard.py` (`P4-003` MOCK-mode live-endpoint safety guard)
 - `services/simulation_execution/worker.py` (mock intent consumer -> OMS event publisher)
 - `services/simulation_execution/metrics_tracing.py` (`P4-007` execution metrics/tracing for mock worker)
+- `services/workers/execution_lifecycle.py` (REAL-mode private-order lifecycle worker: private stream primary + REST fallback status recovery)
 - `docs/runtime/runtime-integration-gate-2026-02-14.md` (runtime gate verification evidence)
 
 Real execution Go baseline (`P4-004`/`P4-005`/`P4-006`):
@@ -480,15 +494,18 @@ News pipeline baseline (`P6-001`..`P6-007`):
 API control-plane baseline (`P7-001`..`P7-012`):
 
 - `services/api/app.py` (`P7-001` FastAPI app factory, lifespan wiring, and router registration)
+- `services/api/repositories.py` (DB-backed control-plane and dashboard read/write repository)
 - `services/api/settings.py` (`P7-001` API settings contract for mode/auth defaults)
 - `services/api/auth.py` (`P7-001`/`P7-002` JWT bearer validation and role-gated dependencies)
-- `services/api/state.py` (`P7-001`/`P7-003` in-memory control-plane and trading-ops state adapters)
+- `services/api/state.py` (`P7-001`/`P7-003` in-memory control-plane fallback and state adapters)
 - `services/api/models.py` (`P7-001`/`P7-003` typed request/response schemas)
 - `services/api/routers/system.py` (`P7-001` liveness/readiness and metadata endpoints)
 - `services/api/routers/control.py` (`P7-001`/`P7-002` mode and strategy control endpoints with RBAC)
-- `services/api/routers/ops.py` (`P7-003` orders/positions/portfolio/risk status and circuit-breaker/kill-switch controls)
+- `services/api/routers/ops.py` (`P7-003` orders/positions/portfolio/risk status, market polling endpoints, and circuit-breaker/kill-switch controls)
 - `services/api/routers/governance.py` (`P7-004` LLM usage/quota/breach governance endpoints)
 - `services/api/routers/replay.py` (`P7-005` replay request lifecycle and decision replay endpoints)
+- `services/api/routers/internal.py` (`P10` validated exchange dispatch bridge for spot MARKET/LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET)
+- `services/api/internal_execution/adapters.py` (exchange-specific internal execution adapter routing layer)
 - `services/api/routers/dashboard.py` (`P7-006` HTML dashboard shell for status/governance/replay pages)
 - `services/api/routers/control.py` (`P7-009` mode history API: `GET /control/mode/history`)
 - `services/api/routers/ops.py` (`P7-010` news panel APIs: `/ops/news/items`, `/ops/news/summaries`, `/ops/news/impact`)
@@ -577,6 +594,20 @@ Core runtime env categories:
 - Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
 - DB/runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `RUNTIME_REQUIRE_DATABASE`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
+- Execution lifecycle worker:
+  - `EXECUTION_LIFECYCLE_INTENT_QUEUE` (default `execution.intent.real.lifecycle`)
+  - `EXECUTION_PRIVATE_STREAM_ENABLED`
+  - `EXECUTION_PRIVATE_STREAM_EXCHANGES` (defaults to `MARKET_EXCHANGES` / `EXCHANGE_DEFAULT`)
+  - `EXECUTION_PRIVATE_STREAM_WATCH_TIMEOUT_SECONDS`
+  - `EXECUTION_LIFECYCLE_STREAM_STALE_SECONDS`
+  - `EXECUTION_LIFECYCLE_REST_POLL_INTERVAL_SECONDS`
+  - `EXECUTION_LIFECYCLE_TERMINAL_RETENTION_SECONDS`
+  - `EXECUTION_LIFECYCLE_MAX_TRACKED_ORDERS`
+- Internal execution bridge:
+  - `INTERNAL_EXECUTION_REAL_DISPATCH` (`false` by default; when `true`, `/internal/execution/dispatch` performs signed exchange REST calls)
+  - `INTERNAL_EXECUTION_HTTP_TIMEOUT_SECONDS`
+  - Binance: `BINANCE_BASE_URL`, `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `BINANCE_RECV_WINDOW_MS`
+  - Bitget: `BITGET_BASE_URL`, `BITGET_API_KEY`, `BITGET_API_SECRET`, `BITGET_API_PASSPHRASE`
 - Market ingestion: `EXCHANGE_DEFAULT`, `MARKET_DATA_FETCH_MODE`, `MARKET_DATA_REST_POLL_SECONDS`, `MARKET_DATA_HTTP_TIMEOUT_SECONDS`
 - LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
@@ -598,11 +629,14 @@ Base domains:
 - System: `/health/liveness`, `/health/readiness`, `/metadata`, `/metrics`
 - Control: `/control/mode`, `/control/mode/history`, `/control/strategies`, `/control/strategies/{strategy_id}/state`
 - Ops: `/ops/orders`, `/ops/positions`, `/ops/portfolio/latest`, `/ops/risk/status`
+- Market polling: `/ops/market/klines`, `/ops/market/orderbook/latest`
+- Portfolio/signal polling: `/ops/portfolio/history`, `/ops/signals/latest`
 - Risk controls: `/ops/risk/circuit-breaker/trip`, `/ops/risk/circuit-breaker/reset`, `/ops/risk/kill-switch/enable`, `/ops/risk/kill-switch/disable`
 - Governance: `/governance/llm/usage`, `/governance/llm/breaches`
 - Replay: `/replay/requests`, `/replay/requests/{request_id}`, `/replay/decisions/{decision_id}`
 - News panel: `/ops/news/items`, `/ops/news/summaries`, `/ops/news/impact`
 - Notification ops: `/ops/notifications/preferences`, `/ops/notifications/metrics`, `/ops/notifications/deliveries`, `/ops/notifications/traces`
+- Internal bridge: `/internal/execution/dispatch` (`CREATE_ORDER`, `CANCEL_ORDER`, `GET_ORDER_STATUS`)
 
 ## Telegram Setup
 

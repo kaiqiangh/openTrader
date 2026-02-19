@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 from time import perf_counter
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -24,6 +24,9 @@ from services.shared.runtime.prometheus import PrometheusRegistry
 from services.shared.runtime.structured_logging import StructuredLogger
 from services.shared.runtime.trace_context import resolve_trace_context
 
+if TYPE_CHECKING:
+    from services.api.repositories import ControlPlaneRepository
+
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -34,9 +37,21 @@ def create_app(
     *,
     settings: APISettings | None = None,
     state: ControlPlaneState | None = None,
+    repository: ControlPlaneRepository | None = None,
 ) -> FastAPI:
     resolved_settings = settings or load_api_settings()
-    resolved_state = state or build_default_state(default_mode=resolved_settings.default_mode)
+    resolved_repository: Any | None = repository
+    if resolved_repository is None and state is None:
+        resolved_repository = _build_repository_from_env()
+
+    resolved_state = state
+    if resolved_state is None and resolved_repository is not None:
+        resolved_state = _load_state_from_repository(
+            repository=resolved_repository,
+            default_mode=resolved_settings.default_mode,
+        )
+    if resolved_state is None:
+        resolved_state = build_default_state(default_mode=resolved_settings.default_mode)
 
     app = FastAPI(
         title=resolved_settings.app_name,
@@ -45,6 +60,7 @@ def create_app(
     )
     app.state.settings = resolved_settings
     app.state.control_plane_state = resolved_state
+    app.state.control_plane_repository = resolved_repository
     app.state.prometheus_registry = PrometheusRegistry()
     app.state.structured_logger = StructuredLogger(service="api")
 
@@ -138,3 +154,19 @@ def create_app(
     app.include_router(replay_router)
     app.include_router(dashboard_router)
     return app
+
+
+def _build_repository_from_env() -> Any | None:
+    try:
+        from services.api.repositories import ControlPlaneRepository
+
+        return ControlPlaneRepository.from_env()
+    except Exception:
+        return None
+
+
+def _load_state_from_repository(*, repository: Any, default_mode: str) -> ControlPlaneState | None:
+    try:
+        return repository.load_state(default_mode=default_mode)
+    except Exception:
+        return None

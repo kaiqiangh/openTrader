@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 
 from services.api.auth import require_operator, require_viewer
-from services.api.dependencies import get_control_plane_state
+from services.api.dependencies import get_control_plane_repository, get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
@@ -43,8 +45,20 @@ def update_mode(
     body: ModeUpdateRequest,
     principal: AuthPrincipal = Depends(require_operator),
     state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
 ) -> ModeResponse:
-    _, changed_at = state.set_mode(mode=body.mode.value, actor=principal.user_id, reason=body.reason)
+    changed, changed_at = state.set_mode(mode=body.mode.value, actor=principal.user_id, reason=body.reason)
+    if changed and repository is not None:
+        try:
+            repository.persist_mode_change(
+                mode=state.mode,
+                changed_by=principal.user_id,
+                reason=body.reason,
+                changed_at=changed_at,
+                strategies=state.list_strategies(),
+            )
+        except Exception:
+            pass
     return ModeResponse(
         mode=ExecutionMode(state.mode),
         updated_at=changed_at,
@@ -67,6 +81,7 @@ def update_strategy_state(
     body: StrategyStateUpdateRequest,
     principal: AuthPrincipal = Depends(require_operator),
     state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
 ) -> StrategyRecordResponse:
     updated = state.set_strategy_state(
         strategy_id=strategy_id,
@@ -74,6 +89,11 @@ def update_strategy_state(
         actor=principal.user_id,
         reason=body.reason,
     )
+    if repository is not None:
+        try:
+            repository.upsert_strategy_state(updated)
+        except Exception:
+            pass
     return _strategy_model(updated)
 
 

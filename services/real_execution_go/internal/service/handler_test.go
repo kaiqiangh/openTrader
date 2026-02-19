@@ -47,8 +47,10 @@ func realEnvelope(t *testing.T, action string, idempotencyKey string) []byte {
 		"emitted_at":      "2026-02-14T00:00:00Z",
 		"payload": map[string]any{
 			"strategy_id": "scalp-long-short",
+			"exchange":    "binance",
 			"symbol":      "BTC/USDT",
 			"action":      action,
+			"order_type":  "MARKET",
 			"quantity":    0.2,
 		},
 	}
@@ -107,8 +109,10 @@ func TestHandlerDispatchesCancelIntent(t *testing.T) {
 		"emitted_at":      "2026-02-14T00:00:00Z",
 		"payload": map[string]any{
 			"strategy_id":       "scalp-long-short",
+			"exchange":          "binance",
 			"symbol":            "BTC/USDT",
 			"action":            "CANCEL",
+			"order_type":        "MARKET",
 			"quantity":          0.0,
 			"exchange_order_id": "order-raw-1",
 		},
@@ -141,8 +145,10 @@ func TestHandlerRejectsNonRealMode(t *testing.T) {
 		"emitted_at":      "2026-02-14T00:00:00Z",
 		"payload": map[string]any{
 			"strategy_id": "scalp-long-short",
+			"exchange":    "binance",
 			"symbol":      "BTC/USDT",
 			"action":      "BUY",
+			"order_type":  "MARKET",
 			"quantity":    0.2,
 		},
 	}

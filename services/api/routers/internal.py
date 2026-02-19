@@ -1,21 +1,35 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any, Literal
 import os
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from services.api.internal_execution import (
+    InternalDispatchUpstreamError,
+    InternalDispatchValidationError,
+    get_spot_adapter,
+    normalize_exchange,
+    normalize_order_type,
+    normalize_time_in_force,
+    validate_create_order_fields,
+)
+
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 class ExecutionDispatchCommand(BaseModel):
     command_id: str = Field(min_length=1)
-    operation: Literal["CREATE_ORDER", "CANCEL_ORDER"]
+    operation: Literal["CREATE_ORDER", "CANCEL_ORDER", "GET_ORDER_STATUS"]
     action: Literal["BUY", "SELL", "CLOSE", "CANCEL"]
+    exchange: str = Field(min_length=1)
     symbol: str = Field(min_length=1)
     quantity: float = Field(default=0.0)
+    order_type: str = Field(default="MARKET", min_length=1)
+    time_in_force: str | None = None
+    limit_price: float | None = None
+    trigger_price: float | None = None
     reduce_only: bool = False
     idempotency_key: str = Field(min_length=1)
     client_order_id: str | None = None
@@ -40,25 +54,65 @@ async def dispatch_execution_command(
     request: Request,
 ) -> ExecutionDispatchResult:
     _validate_bridge_api_key(request)
-    order_id = (
-        (command.exchange_order_id or "").strip()
-        or (command.client_order_id or "").strip()
-        or f"bridge-{command.decision_id[:8]}"
-    )
-    status_value = "canceled" if command.operation == "CANCEL_ORDER" else "submitted"
-    return ExecutionDispatchResult(
-        order_id=order_id,
-        status=status_value,
-        raw_response={
-            "accepted": True,
+    try:
+        normalized_exchange = normalize_exchange(command.exchange)
+        normalized_order_type = normalize_order_type(command.order_type)
+        normalized_tif = normalize_time_in_force(command.time_in_force)
+
+        payload = {
+            "command_id": command.command_id,
             "operation": command.operation,
             "action": command.action,
+            "exchange": normalized_exchange,
             "symbol": command.symbol,
-            "quantity": command.quantity,
+            "quantity": float(command.quantity),
+            "order_type": normalized_order_type,
+            "time_in_force": normalized_tif,
+            "limit_price": command.limit_price,
+            "trigger_price": command.trigger_price,
+            "reduce_only": bool(command.reduce_only),
+            "idempotency_key": command.idempotency_key,
+            "client_order_id": command.client_order_id,
+            "exchange_order_id": command.exchange_order_id,
             "trace_id": command.trace_id,
             "decision_id": command.decision_id,
-            "processed_at": _utc_now_iso(),
-        },
+        }
+
+        adapter = get_spot_adapter(normalized_exchange)
+        if command.operation == "CREATE_ORDER":
+            validate_create_order_fields(
+                order_type=normalized_order_type,
+                time_in_force=normalized_tif,
+                quantity=float(command.quantity),
+                limit_price=command.limit_price,
+                trigger_price=command.trigger_price,
+            )
+            outcome = adapter.create_order(payload=payload)
+        elif command.operation == "CANCEL_ORDER":
+            exchange_order_id = (command.exchange_order_id or "").strip()
+            client_order_id = (command.client_order_id or "").strip()
+            if not exchange_order_id and not client_order_id:
+                raise InternalDispatchValidationError(
+                    "cancel operation requires exchange_order_id or client_order_id"
+                )
+            outcome = adapter.cancel_order(payload=payload)
+        else:
+            exchange_order_id = (command.exchange_order_id or "").strip()
+            client_order_id = (command.client_order_id or "").strip()
+            if not exchange_order_id and not client_order_id:
+                raise InternalDispatchValidationError(
+                    "status operation requires exchange_order_id or client_order_id"
+                )
+            outcome = adapter.get_order_status(payload=payload)
+    except InternalDispatchValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except InternalDispatchUpstreamError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return ExecutionDispatchResult(
+        order_id=outcome.order_id,
+        status=outcome.status,
+        raw_response=outcome.raw_response,
     )
 
 
@@ -74,7 +128,3 @@ def _validate_bridge_api_key(request: Request) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid bridge authorization",
         )
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

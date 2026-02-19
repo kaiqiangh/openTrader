@@ -163,6 +163,8 @@ The following decisions are mandatory and final:
 - FR-039: Delivery failures must follow bounded retry policy with backoff, DLQ persistence, and operator-visible failure status.
 - FR-040: Critical notification delivery failures must produce secondary internal alerts and audit logs.
 - FR-041: UI surfaces must be read-only by default for runtime data access; no direct DB write path is allowed from UI components.
+- FR-042: Control-plane mode, strategy runtime state, and notification preferences must persist in DB and survive API restarts.
+- FR-043: Dashboard polling APIs must expose market klines, latest orderbook snapshot, portfolio history, and latest signals for 2-second UI refresh workflows.
 
 ## 7. Non-Functional Requirements
 

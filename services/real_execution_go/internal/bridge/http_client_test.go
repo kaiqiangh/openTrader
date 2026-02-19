@@ -26,11 +26,17 @@ func TestHTTPBridgeClientExecuteSuccess(t *testing.T) {
 		"cmd-1",
 		"idem-1",
 		ActionBuy,
+		"binance",
 		"BTC/USDT",
 		0.2,
 		"trace-1",
 		"decision-1",
 		"client-1",
+		OrderTypeMarket,
+		"",
+		nil,
+		nil,
+		false,
 	)
 
 	result, err := client.Execute(command)
@@ -56,11 +62,17 @@ func TestHTTPBridgeClientExecuteReturnsErrorOnNonSuccessStatus(t *testing.T) {
 		"cmd-2",
 		"idem-2",
 		ActionSell,
+		"binance",
 		"BTC/USDT",
 		0.1,
 		"trace-2",
 		"decision-2",
 		"client-2",
+		OrderTypeMarket,
+		"",
+		nil,
+		nil,
+		false,
 	)
 
 	if _, err := client.Execute(command); err == nil {

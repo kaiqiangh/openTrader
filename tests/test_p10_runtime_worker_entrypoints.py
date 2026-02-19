@@ -268,6 +268,20 @@ async def test_simulation_worker_runner_consumes_execution_intent_and_publishes_
 
 
 @pytest.mark.asyncio
+async def test_execution_lifecycle_worker_runner_consumes_real_intent_copy_queue() -> None:
+    broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
+    build = build_runtime_worker(settings=_settings(worker="execution_lifecycle"), broker=broker)
+    await broker.publish(
+        routing_key="execution.intent.real",
+        message=_execution_intent_envelope(mode="REAL"),
+    )
+
+    worked = await build.worker.run_once(timeout_seconds=0.0)
+
+    assert worked is True
+
+
+@pytest.mark.asyncio
 async def test_news_worker_runner_generates_summary_artifact() -> None:
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(settings=_settings(worker="news"), broker=broker)

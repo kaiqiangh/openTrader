@@ -18,12 +18,18 @@ type Envelope struct {
 }
 
 type IntentPayload struct {
-	StrategyID      string  `json:"strategy_id"`
-	Symbol          string  `json:"symbol"`
-	Action          string  `json:"action"`
-	Quantity        float64 `json:"quantity"`
-	ClientOrderID   string  `json:"client_order_id,omitempty"`
-	ExchangeOrderID string  `json:"exchange_order_id,omitempty"`
+	StrategyID      string   `json:"strategy_id"`
+	Exchange        string   `json:"exchange"`
+	Symbol          string   `json:"symbol"`
+	Action          string   `json:"action"`
+	OrderType       string   `json:"order_type,omitempty"`
+	TimeInForce     string   `json:"time_in_force,omitempty"`
+	LimitPrice      *float64 `json:"limit_price,omitempty"`
+	TriggerPrice    *float64 `json:"trigger_price,omitempty"`
+	ReduceOnly      bool     `json:"reduce_only"`
+	Quantity        float64  `json:"quantity"`
+	ClientOrderID   string   `json:"client_order_id,omitempty"`
+	ExchangeOrderID string   `json:"exchange_order_id,omitempty"`
 }
 
 func DecodeEnvelope(body []byte) (Envelope, error) {
@@ -56,8 +62,43 @@ func (e Envelope) Validate() error {
 	if strings.TrimSpace(e.Payload.Symbol) == "" {
 		return errors.New("payload.symbol is required")
 	}
+	if strings.TrimSpace(e.Payload.Exchange) == "" {
+		return errors.New("payload.exchange is required")
+	}
 	if strings.TrimSpace(e.Payload.Action) == "" {
 		return errors.New("payload.action is required")
+	}
+	orderType := strings.ToUpper(strings.TrimSpace(e.Payload.OrderType))
+	if orderType == "" {
+		orderType = "MARKET"
+	}
+	switch orderType {
+	case "MARKET":
+		if e.Payload.LimitPrice != nil {
+			return errors.New("payload.limit_price is not allowed for MARKET")
+		}
+		if e.Payload.TriggerPrice != nil {
+			return errors.New("payload.trigger_price is not allowed for MARKET")
+		}
+	case "LIMIT":
+		if e.Payload.LimitPrice == nil || *e.Payload.LimitPrice <= 0 {
+			return errors.New("payload.limit_price must be positive for LIMIT")
+		}
+		if strings.TrimSpace(e.Payload.TimeInForce) == "" {
+			return errors.New("payload.time_in_force is required for LIMIT")
+		}
+		if e.Payload.TriggerPrice != nil {
+			return errors.New("payload.trigger_price is not allowed for LIMIT")
+		}
+	case "STOP_MARKET", "TAKE_PROFIT_MARKET":
+		if e.Payload.TriggerPrice == nil || *e.Payload.TriggerPrice <= 0 {
+			return errors.New("payload.trigger_price must be positive for STOP_MARKET/TAKE_PROFIT_MARKET")
+		}
+		if e.Payload.LimitPrice != nil {
+			return errors.New("payload.limit_price is not allowed for STOP_MARKET/TAKE_PROFIT_MARKET")
+		}
+	default:
+		return fmt.Errorf("unsupported payload.order_type: %s", e.Payload.OrderType)
 	}
 	return nil
 }

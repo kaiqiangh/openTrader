@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from services.agent_orchestrator.replay_service import DecisionReplayNotFoundError, DecisionReplayResult
 from services.api.auth import require_viewer
-from services.api.dependencies import get_control_plane_state
+from services.api.dependencies import get_control_plane_repository, get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ReplayDecisionResultResponse,
@@ -23,6 +24,7 @@ async def submit_replay_request(
     body: ReplayRequestCreateRequest,
     principal: AuthPrincipal = Depends(require_viewer),
     state: ControlPlaneState = Depends(get_control_plane_state),
+    repository: Any | None = Depends(get_control_plane_repository),
 ) -> ReplayRequestResponse:
     try:
         request_record = await state.submit_replay_request(
@@ -31,6 +33,11 @@ async def submit_replay_request(
         )
     except DecisionReplayNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if repository is not None:
+        try:
+            repository.persist_replay_request(request_record)
+        except Exception:
+            pass
     return _request_model(request_record)
 
 

@@ -147,6 +147,16 @@ button:disabled {
   margin-top: 0.75rem;
 }
 
+.link-row a {
+  color: #8debd8;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.link-row a:hover {
+  text-decoration: underline;
+}
+
 .stats-grid {
   display: grid;
   gap: 0.55rem;
@@ -293,6 +303,57 @@ th {
 
 .summary-card p {
   margin: 0.25rem 0;
+}
+
+.chart-shell {
+  border: 1px solid rgba(157, 184, 204, 0.24);
+  border-radius: 10px;
+  background: rgba(8, 29, 44, 0.7);
+  padding: 0.45rem;
+  overflow-x: auto;
+}
+
+.chart-svg {
+  width: 100%;
+  min-width: 520px;
+  display: block;
+}
+
+.line-chart-path {
+  fill: none;
+  stroke: #36d7b7;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.candle-wick {
+  stroke: rgba(157, 184, 204, 0.85);
+  stroke-width: 1.1;
+}
+
+.candle-body.up {
+  fill: rgba(54, 215, 183, 0.9);
+}
+
+.candle-body.down {
+  fill: rgba(249, 160, 63, 0.9);
+}
+
+.signal-pill {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  border: 1px solid rgba(157, 184, 204, 0.24);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(8, 29, 44, 0.74);
+}
+
+.signal-pill strong {
+  color: #8debd8;
 }
 
 .muted {
