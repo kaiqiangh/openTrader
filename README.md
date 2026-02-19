@@ -271,6 +271,32 @@ The runtime settings loaders now auto-read `.env` from the current working direc
 
 ## Service and Script Runbook
 
+### Recommended startup sequence (fresh environment)
+
+Use this order when you bring up the stack for the first time or after a reset:
+
+```bash
+# 1) Validate env and toolchain
+make env-validate
+
+# 2) Start core infra + services
+docker compose up -d
+
+# 3) Confirm migration completed and services are healthy
+docker compose ps
+curl -s http://127.0.0.1:8000/health/readiness
+
+# 4) Run a lightweight smoke check
+make smoke
+```
+
+If you also want observability and Go real execution components:
+
+```bash
+docker compose --profile full up -d
+make smoke-full
+```
+
 ### Start all services (core vs full)
 
 Run from repo root:
@@ -364,6 +390,40 @@ GOCACHE=/tmp/go-build go run .
 | `make live-probe` | Nightly/live probe wrapper around mock workflow. | Writes `artifacts/live_runtime_probe/latest.json`. |
 | `uv run python scripts/verify_orderbook_snapshots.py --symbol BTC/USDT` | Validates orderbook snapshot persistence freshness. | Useful for websocket/REST ingestion integrity checks. |
 | `uv run python scripts/verify_klines_persistence.py --symbol BTC/USDT --interval 1m` | Validates kline persistence freshness. | Checks kline ingestion continuity per exchange. |
+
+### Script usage patterns (when to run what)
+
+- **Daily local startup**
+  1. `make env-validate`
+  2. `docker compose up -d`
+  3. `make smoke`
+
+- **Before opening a PR**
+  1. `uv run ruff check .`
+  2. `uv run pytest -q`
+  3. `make runtime-gate`
+
+- **Before enabling/validating REAL mode paths**
+  1. `docker compose --profile full up -d`
+  2. `make smoke-full`
+  3. `make runtime-gate-full`
+  4. (Optional) `make live-probe`
+
+- **Data freshness debugging**
+  1. `uv run python scripts/verify_orderbook_snapshots.py --symbol BTC/USDT`
+  2. `uv run python scripts/verify_klines_persistence.py --symbol BTC/USDT --interval 1m`
+  3. `make mock-workflow`
+
+### Worker quick reference
+
+Use these when running workers manually outside Docker compose:
+
+- `market`: ingests market snapshots/deltas and persists kline/orderbook/trade surfaces.
+- `orchestrator`: builds context, calls agents/LLM runtime, publishes intents.
+- `simulation`: consumes mock intents and emits simulated fills/lifecycle.
+- `oms`: maintains order lifecycle + portfolio projections from execution events.
+- `news`: ingests/summarizes news and publishes signal context.
+- `execution_lifecycle`: tracks REAL intents with private-stream primary and REST fallback.
 
 ### Stop and reset
 
