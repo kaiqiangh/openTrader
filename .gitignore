@@ -212,3 +212,8 @@ __marimo__/
 
 .DS_Store
 archive/
+
+# Next.js dashboard app
+apps/dashboard/node_modules/
+apps/dashboard/.next/
+apps/dashboard/out/

@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -72,6 +73,15 @@ def create_app(
         version=resolved_settings.app_version,
         lifespan=_lifespan,
     )
+    if resolved_settings.cors_allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(resolved_settings.cors_allowed_origins),
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["*"],
+            expose_headers=["traceparent", "x-trace-id"],
+        )
     app.state.settings = resolved_settings
     app.state.control_plane_state = resolved_state
     app.state.control_plane_repository = resolved_repository

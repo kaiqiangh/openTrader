@@ -194,10 +194,11 @@ flowchart TB
    docker compose up -d
    ```
 
-5. **Open Frontend Dashboard (read-only UI shell served by API)**
-   - URL: `http://localhost:8000/dashboard`
-   - The dashboard is a React UI served from `services/api/static/` and mounted by FastAPI.
+5. **Open Frontend Dashboard (standalone Next.js app)**
+   - Dashboard URL: `http://localhost:3000`
+   - API URL: `http://localhost:8000`
    - Dashboard API calls require a JWT bearer token; paste a viewer/operator/admin token into the "Session Token" field shown in the UI.
+   - Legacy fallback shell remains available at `http://localhost:8000/dashboard` during cutover.
 
 Use this sequence from the project root:
 
@@ -311,6 +312,7 @@ This starts the lean core runtime (recommended default):
 - `rabbitmq`
 - `migrator` (one-shot; expected `Exited (0)` after success)
 - `api`
+- `web_dashboard`
 - `runtime_worker_market`
 - `runtime_worker_orchestrator`
 - `runtime_worker_simulation`
@@ -354,9 +356,11 @@ curl -s http://127.0.0.1:8000/health/readiness
 
 Useful service URLs:
 
-- API + dashboard: `http://127.0.0.1:8000/dashboard`
+- Dashboard (Next.js): `http://127.0.0.1:3000`
+- API: `http://127.0.0.1:8000`
+- API legacy dashboard shell: `http://127.0.0.1:8000/dashboard`
 - RabbitMQ management: `http://127.0.0.1:15672`
-- Grafana (full profile): `http://127.0.0.1:3000`
+- Grafana (full profile): `http://127.0.0.1:3001`
 
 ### Runtime log verification and pipeline diagnostics
 
@@ -401,6 +405,12 @@ docker compose up -d
 Use this only if you intentionally run services outside Docker.
 
 ```bash
+# Next dashboard app
+cd apps/dashboard
+npm install
+npm run dev
+cd ../..
+
 # API
 uv run python -m uvicorn services.api.app:create_app --factory --host 0.0.0.0 --port 8000
 
@@ -760,7 +770,7 @@ Phase 9 release readiness closure (`P9-007`..`P9-009`):
 
 Core runtime env categories:
 
-- Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`, `API_READ_ONLY_MODE`
+- Platform: `APP_ENV`, `APP_NAME`, `LOG_LEVEL`, `API_HOST`, `API_PORT`, `API_READ_ONLY_MODE`, `API_CORS_ALLOWED_ORIGINS`
 - Data: `DATABASE_URL` (preferred), `POSTGRES_*` (fallback composition), `REDIS_URL`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
 - DB/runtime controls: `DB_POOL_PRE_PING`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE_SECONDS`, `RUNTIME_REQUIRE_DATABASE`, `ALLOW_SQLITE_RUNTIME`
 - Execution: `EXECUTION_MODE_DEFAULT`, `SIMULATION_SLIPPAGE_BPS`, `SIMULATION_FEE_BPS`
@@ -782,6 +792,8 @@ Core runtime env categories:
 - LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
+- Frontend: `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`)
+- Observability host ports: `GRAFANA_HOST_PORT` (default `3001`)
 
 Use `make env-validate` to validate required contracts.
 
@@ -844,7 +856,7 @@ To add a new strategy/runtime behavior:
 
 ## UI Scope
 
-- Current UI is React-based and read-only by default (`API_READ_ONLY_MODE=true`).
+- Current UI is a standalone Next.js React app (`apps/dashboard`) and read-only by default (`API_READ_ONLY_MODE=true`).
 - Dashboard surfaces strategy status, orders/positions/portfolio, risk, news, replay, and LLM governance telemetry.
 - DB writes are not performed from the UI layer; mutating operations remain backend-governed and auth-protected.
 
