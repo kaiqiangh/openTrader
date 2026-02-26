@@ -40,7 +40,6 @@ REQUIRED_CORE_SERVICES = (
     "runtime_worker_simulation",
     "runtime_worker_oms",
     "runtime_worker_news",
-    "notification_worker",
 )
 
 

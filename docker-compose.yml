@@ -29,6 +29,7 @@ services:
       - public
 
   redis:
+    profiles: ["pilot", "full"]
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -89,6 +90,7 @@ services:
       - internal
 
   notification_worker:
+    profiles: ["pilot", "full"]
     <<: *python_runtime
     working_dir: /app
     command:
@@ -333,6 +335,7 @@ services:
       - internal
 
   runtime_worker_execution_lifecycle:
+    profiles: ["pilot", "full"]
     <<: *python_runtime
     working_dir: /app
     command:

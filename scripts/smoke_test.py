@@ -14,15 +14,19 @@ import time
 
 CORE_REQUIRED_SERVICES = (
     "postgres_timescaledb",
-    "redis",
     "rabbitmq",
     "api",
-    "notification_worker",
     "runtime_worker_market",
     "runtime_worker_orchestrator",
     "runtime_worker_simulation",
     "runtime_worker_oms",
     "runtime_worker_news",
+)
+
+PILOT_PROFILE_SERVICES = (
+    "redis",
+    "notification_worker",
+    "runtime_worker_execution_lifecycle",
 )
 
 FULL_PROFILE_SERVICES = (
@@ -42,6 +46,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
     compose_up_cmd = ["docker", "compose"]
+    if args.with_pilot_profile:
+        compose_up_cmd.extend(["--profile", "pilot"])
     if args.with_full_profile:
         compose_up_cmd.extend(["--profile", "full"])
     compose_up_cmd.extend(["up", "-d"])
@@ -49,7 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     _run(["make", "env-validate"], cwd=repo_root)
     _run(compose_up_cmd, cwd=repo_root)
     time.sleep(args.wait_seconds)
-    required_services = CORE_REQUIRED_SERVICES + FULL_PROFILE_SERVICES if args.with_full_profile else CORE_REQUIRED_SERVICES
+    required_services = CORE_REQUIRED_SERVICES
+    if args.with_pilot_profile:
+        required_services += PILOT_PROFILE_SERVICES
+    if args.with_full_profile:
+        required_services += PILOT_PROFILE_SERVICES + FULL_PROFILE_SERVICES
     _assert_services_running(
         repo_root,
         required_services=required_services,
@@ -86,6 +96,15 @@ def main(argv: list[str] | None = None) -> int:
             "from services.api.app import create_app; print('/metrics ready' if create_app() else 'failed')",
         ],
         cwd=repo_root,
+        env_overrides={
+            "DATABASE_URL": _resolve_database_url_for_host(
+                os.getenv(
+                    "DATABASE_URL",
+                    "postgresql+psycopg://open_trader:change_me@127.0.0.1:5432/open_trader",
+                )
+            ),
+            "POSTGRES_HOST": "127.0.0.1",
+        },
     )
     if "/metrics ready" not in api_probe.stdout:
         raise RuntimeError("API smoke probe failed: '/metrics ready' not found in output")
@@ -152,8 +171,13 @@ def _assert_runtime_bridge_ready() -> None:
         "command_id": "smoke-cmd",
         "operation": "CREATE_ORDER",
         "action": "BUY",
+        "exchange": "binance",
         "symbol": "BTC/USDT",
         "quantity": 0.01,
+        "order_type": "MARKET",
+        "time_in_force": None,
+        "limit_price": None,
+        "trigger_price": None,
         "reduce_only": False,
         "idempotency_key": "smoke-idem",
         "client_order_id": "smoke-client",
@@ -259,6 +283,22 @@ def _resolve_rabbitmq_http_api_for_host(api_base_url: str) -> str:
         return api_base_url
     path = parsed.path or "/api"
     return urlunparse((parsed.scheme or "http", "127.0.0.1:15672", path, "", "", ""))
+
+
+def _resolve_database_url_for_host(database_url: str) -> str:
+    parsed = urlparse(database_url.strip())
+    host = (parsed.hostname or "").strip().lower()
+    if host != "postgres_timescaledb":
+        return database_url
+    userinfo = ""
+    if parsed.username:
+        userinfo = parsed.username
+        if parsed.password:
+            userinfo += f":{parsed.password}"
+        userinfo += "@"
+    port = parsed.port or 5432
+    netloc = f"{userinfo}127.0.0.1:{port}"
+    return urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
 
 def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) -> None:
@@ -436,9 +476,14 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         help="minimum continuous running time required for required services",
     )
     parser.add_argument(
+        "--with-pilot-profile",
+        action="store_true",
+        help="include optional pilot services (redis, notification worker, execution lifecycle worker)",
+    )
+    parser.add_argument(
         "--with-full-profile",
         action="store_true",
-        help="include optional full-profile services (observability + real_execution_go)",
+        help="include optional full-profile services (pilot + observability + real_execution_go)",
     )
     return parser.parse_args(argv)
 

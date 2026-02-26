@@ -297,7 +297,7 @@ docker compose --profile full up -d
 make smoke-full
 ```
 
-### Start all services (core vs full)
+### Start all services (lean core, pilot, full)
 
 Run from repo root:
 
@@ -305,20 +305,29 @@ Run from repo root:
 docker compose up -d
 ```
 
-This starts the core runtime:
+This starts the lean core runtime (recommended default):
 
 - `postgres_timescaledb`
-- `redis`
 - `rabbitmq`
 - `migrator` (one-shot; expected `Exited (0)` after success)
 - `api`
-- `notification_worker`
 - `runtime_worker_market`
 - `runtime_worker_orchestrator`
 - `runtime_worker_simulation`
 - `runtime_worker_oms`
-- `runtime_worker_execution_lifecycle`
 - `runtime_worker_news`
+
+To include REAL-pilot support and optional ops workers:
+
+```bash
+docker compose --profile pilot up -d
+```
+
+Pilot profile adds:
+
+- `redis`
+- `notification_worker`
+- `runtime_worker_execution_lifecycle`
 
 To include Go real execution and observability stack, use full profile:
 
@@ -357,7 +366,10 @@ Use these commands when dashboard data is empty or runtime workers look idle:
 # Runtime worker structured logs (JSON lines)
 docker compose logs --since=3m \
   runtime_worker_market runtime_worker_orchestrator runtime_worker_simulation \
-  runtime_worker_oms runtime_worker_execution_lifecycle runtime_worker_news
+  runtime_worker_oms runtime_worker_news
+
+# Include lifecycle/notification logs only when pilot profile is enabled
+docker compose logs --since=3m runtime_worker_execution_lifecycle notification_worker
 
 # API health and pipeline diagnostics
 curl -s http://127.0.0.1:8000/health/readiness
@@ -373,6 +385,16 @@ The pipeline endpoint reports stage-level status for:
 - `llm.calls`
 - `trading.fills`
 - `portfolio.snapshots`
+
+### Reset all container data (volumes)
+
+This removes all persisted local runtime data (Postgres, RabbitMQ, Redis, Grafana/Loki/Tempo/Prometheus volumes):
+
+```bash
+docker compose --profile full down -v --remove-orphans
+docker volume prune -f
+docker compose up -d
+```
 
 ### Start services individually (local process mode)
 

@@ -319,12 +319,28 @@ th {
   display: block;
 }
 
+.chart-svg-interactive {
+  cursor: crosshair;
+}
+
 .line-chart-path {
   fill: none;
   stroke: #36d7b7;
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.line-chart-point {
+  fill: #f9a03f;
+  stroke: rgba(4, 20, 31, 0.88);
+  stroke-width: 1;
+}
+
+.chart-crosshair {
+  stroke: rgba(157, 184, 204, 0.48);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
 }
 
 .candle-wick {
@@ -338,6 +354,27 @@ th {
 
 .candle-body.down {
   fill: rgba(249, 160, 63, 0.9);
+}
+
+.chart-tooltip {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  border: 1px solid rgba(157, 184, 204, 0.24);
+  border-radius: 10px;
+  padding: 0.45rem 0.62rem;
+  background: rgba(4, 20, 31, 0.74);
+  font-size: 0.84rem;
+}
+
+.chart-tooltip strong {
+  color: #8debd8;
+}
+
+.chart-tooltip-muted {
+  color: var(--muted);
 }
 
 .signal-pill {

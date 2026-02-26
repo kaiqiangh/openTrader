@@ -133,24 +133,101 @@ function linePath(points, width, height) {
     .join(" ");
 }
 
-function EquityLineChart({ points }) {
+function pointerIndex(event, count) {
+  if (!event || !event.currentTarget || count <= 0) {
+    return null;
+  }
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (!rect || rect.width <= 0) {
+    return null;
+  }
+  const ratio = (event.clientX - rect.left) / rect.width;
+  const clamped = Math.max(0, Math.min(1, ratio));
+  return Math.min(count - 1, Math.max(0, Math.round(clamped * (count - 1))));
+}
+
+function EquityLineChart({ snapshots }) {
   const width = 520;
   const height = 140;
-  const path = useMemo(() => linePath(points, width, height), [points]);
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const [pinnedIndex, setPinnedIndex] = useState(null);
+  const items = Array.isArray(snapshots) ? snapshots : [];
+  const values = useMemo(
+    () => items.map((item) => Number(item.total_balance_usd) || 0),
+    [items]
+  );
+  const path = useMemo(() => linePath(values, width, height), [values]);
+  const min = values.length > 0 ? Math.min(...values) : 0;
+  const max = values.length > 0 ? Math.max(...values) : 1;
+  const span = max - min || 1;
+
+  const activeIndex = pinnedIndex != null ? pinnedIndex : hoverIndex;
+  const activePoint = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
+  const activeValue = activePoint ? Number(activePoint.total_balance_usd) || 0 : null;
+  const activeX = activeIndex != null && values.length > 1 ? (activeIndex / (values.length - 1)) * width : width / 2;
+  const activeY = activeValue == null ? null : height - ((activeValue - min) / span) * height;
+
+  const handleMove = (event) => {
+    const index = pointerIndex(event, items.length);
+    if (index == null || pinnedIndex != null) {
+      return;
+    }
+    setHoverIndex(index);
+  };
+
+  const handleClick = (event) => {
+    const index = pointerIndex(event, items.length);
+    if (index == null) {
+      return;
+    }
+    setPinnedIndex((prev) => (prev === index ? null : index));
+  };
+
   return h(
     "div",
     { className: "chart-shell" },
     h(
       "svg",
-      { viewBox: `0 0 ${width} ${height}`, className: "chart-svg", role: "img", "aria-label": "Portfolio equity curve" },
-      h("path", { d: path, className: "line-chart-path" })
-    )
+      {
+        viewBox: `0 0 ${width} ${height}`,
+        className: "chart-svg chart-svg-interactive",
+        role: "img",
+        "aria-label": "Portfolio equity curve",
+        onMouseMove: handleMove,
+        onMouseLeave: () => {
+          if (pinnedIndex == null) {
+            setHoverIndex(null);
+          }
+        },
+        onClick: handleClick,
+      },
+      h("path", { d: path, className: "line-chart-path" }),
+      activePoint && activeY != null
+        ? h(
+            "g",
+            null,
+            h("line", { x1: activeX, x2: activeX, y1: 0, y2: height, className: "chart-crosshair" }),
+            h("circle", { cx: activeX, cy: activeY, r: 3.4, className: "line-chart-point" })
+          )
+        : null
+    ),
+    activePoint
+      ? h(
+          "div",
+          { className: "chart-tooltip" },
+          h("strong", null, `$${(Number(activePoint.total_balance_usd) || 0).toFixed(2)}`),
+          h("span", null, String(activePoint.snapshot_time || "")),
+          h("span", null, `mode=${String(activePoint.mode || "")}`)
+        )
+      : h("div", { className: "chart-tooltip chart-tooltip-muted" }, "Hover or click to inspect values")
   );
 }
 
 function CandleChart({ bars }) {
   const width = 520;
   const height = 160;
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const [pinnedIndex, setPinnedIndex] = useState(null);
   const items = Array.isArray(bars) ? bars : [];
   const prices = items.flatMap((bar) => [Number(bar.low) || 0, Number(bar.high) || 0]);
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
@@ -163,40 +240,82 @@ function CandleChart({ bars }) {
     const numeric = Number(value) || 0;
     return height - ((numeric - minPrice) / span) * height;
   };
+  const activeIndex = pinnedIndex != null ? pinnedIndex : hoverIndex;
+  const activeBar = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
+  const activeX = activeIndex != null ? activeIndex * slot + slot * 0.5 : null;
+
+  const handleMove = (event) => {
+    const index = pointerIndex(event, items.length);
+    if (index == null || pinnedIndex != null) {
+      return;
+    }
+    setHoverIndex(index);
+  };
+
+  const handleClick = (event) => {
+    const index = pointerIndex(event, items.length);
+    if (index == null) {
+      return;
+    }
+    setPinnedIndex((prev) => (prev === index ? null : index));
+  };
 
   return h(
     "div",
     { className: "chart-shell" },
     h(
       "svg",
-      { viewBox: `0 0 ${width} ${height}`, className: "chart-svg", role: "img", "aria-label": "Candlestick chart" },
+      {
+        viewBox: `0 0 ${width} ${height}`,
+        className: "chart-svg chart-svg-interactive",
+        role: "img",
+        "aria-label": "Candlestick chart",
+        onMouseMove: handleMove,
+        onMouseLeave: () => {
+          if (pinnedIndex == null) {
+            setHoverIndex(null);
+          }
+        },
+        onClick: handleClick,
+      },
       items.map((bar, index) => {
-        const open = Number(bar.open) || 0;
-        const close = Number(bar.close) || 0;
-        const high = Number(bar.high) || 0;
-        const low = Number(bar.low) || 0;
-        const x = index * slot + slot * 0.5;
-        const yOpen = toY(open);
-        const yClose = toY(close);
-        const yHigh = toY(high);
-        const yLow = toY(low);
-        const top = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
-        const bullish = close >= open;
-        return h(
-          "g",
-          { key: `${bar.time || index}` },
-          h("line", { x1: x, x2: x, y1: yHigh, y2: yLow, className: "candle-wick" }),
-          h("rect", {
-            x: x - candleWidth / 2,
-            y: top,
-            width: candleWidth,
-            height: bodyHeight,
-            className: bullish ? "candle-body up" : "candle-body down",
-          })
-        );
-      })
-    )
+          const open = Number(bar.open) || 0;
+          const close = Number(bar.close) || 0;
+          const high = Number(bar.high) || 0;
+          const low = Number(bar.low) || 0;
+          const x = index * slot + slot * 0.5;
+          const yOpen = toY(open);
+          const yClose = toY(close);
+          const yHigh = toY(high);
+          const yLow = toY(low);
+          const top = Math.min(yOpen, yClose);
+          const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
+          const bullish = close >= open;
+          return h(
+            "g",
+            { key: `${bar.time || index}` },
+            h("line", { x1: x, x2: x, y1: yHigh, y2: yLow, className: "candle-wick" }),
+            h("rect", {
+              x: x - candleWidth / 2,
+              y: top,
+              width: candleWidth,
+              height: bodyHeight,
+              className: bullish ? "candle-body up" : "candle-body down",
+            })
+          );
+        }),
+      activeBar && activeX != null ? h("line", { x1: activeX, x2: activeX, y1: 0, y2: height, className: "chart-crosshair" }) : null
+    ),
+    activeBar
+      ? h(
+          "div",
+          { className: "chart-tooltip" },
+          h("strong", null, String(activeBar.time || "")),
+          h("span", null, `O ${Number(activeBar.open || 0).toFixed(2)} | H ${Number(activeBar.high || 0).toFixed(2)}`),
+          h("span", null, `L ${Number(activeBar.low || 0).toFixed(2)} | C ${Number(activeBar.close || 0).toFixed(2)}`),
+          h("span", null, `Volume ${Number(activeBar.volume || 0).toFixed(4)}`)
+        )
+      : h("div", { className: "chart-tooltip chart-tooltip-muted" }, "Hover or click to inspect OHLC")
   );
 }
 
@@ -293,10 +412,6 @@ function StatusView({ token }) {
     return () => window.clearInterval(poll);
   }, [reload]);
 
-  const equityPoints = useMemo(
-    () => equityHistory.map((item) => Number(item.total_balance_usd) || 0),
-    [equityHistory]
-  );
   const topBids = useMemo(
     () => (orderbookSnapshot && Array.isArray(orderbookSnapshot.bids) ? orderbookSnapshot.bids.slice(0, 5) : []),
     [orderbookSnapshot]
@@ -383,7 +498,7 @@ function StatusView({ token }) {
     h(
       SectionCard,
       { title: "Portfolio Equity", subtitle: "Mode=MOCK equity curve from /ops/portfolio/history." },
-      equityPoints.length === 0 ? h("p", { className: "muted" }, "No portfolio history available.") : h(EquityLineChart, { points: equityPoints }),
+      equityHistory.length === 0 ? h("p", { className: "muted" }, "No portfolio history available.") : h(EquityLineChart, { snapshots: equityHistory }),
       latestSignal
         ? h(
             "div",
