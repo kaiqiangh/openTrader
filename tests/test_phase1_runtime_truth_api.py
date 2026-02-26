@@ -205,6 +205,64 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS exchanges (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS symbols (
+                    id TEXT PRIMARY KEY,
+                    exchange_id TEXT NOT NULL,
+                    symbol TEXT NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS orders (
+                    id TEXT PRIMARY KEY,
+                    exchange_id TEXT NOT NULL,
+                    symbol_id TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    filled_quantity REAL NOT NULL,
+                    average_price REAL NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS fills (
+                    id TEXT PRIMARY KEY,
+                    order_id TEXT NOT NULL,
+                    exchange_fill_id TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    price REAL NOT NULL,
+                    fee REAL NOT NULL,
+                    fee_currency TEXT NULL,
+                    filled_at TEXT NOT NULL
+                )
+                """
+            )
+        )
 
         connection.execute(
             text(
@@ -291,6 +349,67 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
                 "persisted_at": "2026-02-19T19:00:07Z",
             },
         )
+        connection.execute(
+            text(
+                """
+                INSERT INTO exchanges(id, name) VALUES(:id, :name)
+                """
+            ),
+            {"id": "f7bedf4e-c1f4-4eb2-a6a7-6a9519de2dbe", "name": "binance"},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO symbols(id, exchange_id, symbol) VALUES(:id, :exchange_id, :symbol)
+                """
+            ),
+            {
+                "id": "f1112dbf-0876-4336-b9b6-ecdcfbbd8d01",
+                "exchange_id": "f7bedf4e-c1f4-4eb2-a6a7-6a9519de2dbe",
+                "symbol": "BTC/USDT",
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO orders(id, exchange_id, symbol_id, side, type, status, mode, quantity, filled_quantity, average_price, updated_at)
+                VALUES(:id, :exchange_id, :symbol_id, :side, :type, :status, :mode, :quantity, :filled_quantity, :average_price, :updated_at)
+                """
+            ),
+            {
+                "id": "23b0e84a-8448-4455-a89b-9a41f4c8605c",
+                "exchange_id": "f7bedf4e-c1f4-4eb2-a6a7-6a9519de2dbe",
+                "symbol_id": "f1112dbf-0876-4336-b9b6-ecdcfbbd8d01",
+                "side": "BUY",
+                "type": "MARKET",
+                "status": "FILLED",
+                "mode": "MOCK",
+                "quantity": 0.1,
+                "filled_quantity": 0.1,
+                "average_price": 50050.0,
+                "updated_at": "2026-02-19T19:00:08Z",
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO fills(id, order_id, exchange_fill_id, side, mode, quantity, price, fee, fee_currency, filled_at)
+                VALUES(:id, :order_id, :exchange_fill_id, :side, :mode, :quantity, :price, :fee, :fee_currency, :filled_at)
+                """
+            ),
+            {
+                "id": "1020f6f3-677f-408d-9c2c-4b04b888fd49",
+                "order_id": "23b0e84a-8448-4455-a89b-9a41f4c8605c",
+                "exchange_fill_id": "fill-1",
+                "side": "BUY",
+                "mode": "MOCK",
+                "quantity": 0.1,
+                "price": 50050.0,
+                "fee": 0.25,
+                "fee_currency": "USDT",
+                "filled_at": "2026-02-19T19:00:08Z",
+            },
+        )
 
     app = create_app(settings=settings, repository=repo)
     client = TestClient(app)
@@ -330,3 +449,13 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
     assert signals.status_code == 200
     assert len(signals.json()["items"]) == 1
     assert signals.json()["items"][0]["action"] == "BUY"
+
+    trades = client.get(
+        "/ops/trades/latest",
+        headers=_auth_headers(viewer),
+        params={"mode": "MOCK", "symbol": "BTC/USDT", "limit": 10},
+    )
+    assert trades.status_code == 200
+    assert len(trades.json()["items"]) == 1
+    assert trades.json()["items"][0]["exchange"] == "binance"
+    assert trades.json()["items"][0]["price"] == 50050.0

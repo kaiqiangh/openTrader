@@ -40,6 +40,8 @@ from services.api.models import (
     RiskStatusResponse,
     SignalListResponse,
     SignalRecordResponse,
+    TradeListResponse,
+    TradeRecordResponse,
 )
 from services.api.state import (
     ControlPlaneState,
@@ -88,12 +90,18 @@ def get_market_klines(
 ) -> MarketKlineListResponse:
     if repository is None:
         return MarketKlineListResponse(items=[])
-    rows = repository.list_market_klines(
-        symbol=symbol,
-        interval=interval,
-        exchange=exchange,
-        limit=limit,
-    )
+    try:
+        rows = repository.list_market_klines(
+            symbol=symbol,
+            interval=interval,
+            exchange=exchange,
+            limit=limit,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="market data repository unavailable",
+        ) from exc
     return MarketKlineListResponse(items=[_kline_model(item) for item in rows])
 
 
@@ -106,7 +114,13 @@ def get_latest_orderbook_snapshot(
 ) -> OrderBookSnapshotResponse:
     if repository is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
-    payload = repository.latest_orderbook_snapshot(symbol=symbol, exchange=exchange)
+    try:
+        payload = repository.latest_orderbook_snapshot(symbol=symbol, exchange=exchange)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="market data repository unavailable",
+        ) from exc
     if payload is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
     return _orderbook_snapshot_model(payload)
@@ -133,7 +147,13 @@ def get_portfolio_history(
     limit: int = Query(default=200, ge=1, le=1000),
 ) -> PortfolioHistoryResponse:
     if repository is not None:
-        items = repository.list_portfolio_history(mode=mode, limit=limit)
+        try:
+            items = repository.list_portfolio_history(mode=mode, limit=limit)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="portfolio repository unavailable",
+            ) from exc
         return PortfolioHistoryResponse(items=[_snapshot_model(item) for item in items])
 
     mode_filter = mode.strip().upper() if mode else None
@@ -152,7 +172,13 @@ def get_latest_signals(
     limit: int = Query(default=50, ge=1, le=500),
 ) -> SignalListResponse:
     if repository is not None:
-        payload = repository.list_latest_signals(limit=limit)
+        try:
+            payload = repository.list_latest_signals(limit=limit)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="signal repository unavailable",
+            ) from exc
         return SignalListResponse(items=[_signal_model(item) for item in payload])
 
     summaries = sorted(state.replay_summaries.values(), key=lambda item: item.persisted_at, reverse=True)[:limit]
@@ -180,6 +206,26 @@ def get_latest_signals(
             )
         )
     return SignalListResponse(items=items)
+
+
+@router.get("/trades/latest", response_model=TradeListResponse)
+def get_latest_trades(
+    _: AuthPrincipal = Depends(require_viewer),
+    repository: Any | None = Depends(get_control_plane_repository),
+    mode: str | None = Query(default=None),
+    symbol: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> TradeListResponse:
+    if repository is None:
+        return TradeListResponse(items=[])
+    try:
+        payload = repository.list_latest_trades(mode=mode, symbol=symbol, limit=limit)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="trade repository unavailable",
+        ) from exc
+    return TradeListResponse(items=[_trade_model(item) for item in payload])
 
 
 @router.get("/risk/status", response_model=RiskStatusResponse)
@@ -483,6 +529,23 @@ def _signal_model(item: dict[str, Any]) -> SignalRecordResponse:
         quantity=float(item.get("quantity", 0.0) or 0.0),
         confidence=float(item.get("confidence", 0.0) or 0.0),
         created_at=str(item.get("created_at", "")),
+    )
+
+
+def _trade_model(item: dict[str, Any]) -> TradeRecordResponse:
+    return TradeRecordResponse(
+        fill_id=str(item.get("fill_id", "")),
+        order_id=str(item.get("order_id", "")),
+        exchange_fill_id=str(item.get("exchange_fill_id", "")),
+        exchange=str(item.get("exchange", "")),
+        symbol=str(item.get("symbol", "")),
+        mode=str(item.get("mode", "")),
+        side=str(item.get("side", "")),
+        quantity=float(item.get("quantity", 0.0) or 0.0),
+        price=float(item.get("price", 0.0) or 0.0),
+        fee=float(item.get("fee", 0.0) or 0.0),
+        fee_currency=str(item.get("fee_currency", "")),
+        filled_at=str(item.get("filled_at", "")),
     )
 
 

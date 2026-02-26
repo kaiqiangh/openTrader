@@ -41,16 +41,30 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or load_api_settings()
     resolved_repository: Any | None = repository
+    repository_load_error: Exception | None = None
     if resolved_repository is None and state is None:
-        resolved_repository = _build_repository_from_env()
+        try:
+            resolved_repository = _build_repository_from_env()
+        except Exception as exc:
+            repository_load_error = exc
 
     resolved_state = state
     if resolved_state is None and resolved_repository is not None:
-        resolved_state = _load_state_from_repository(
-            repository=resolved_repository,
-            default_mode=resolved_settings.default_mode,
-        )
+        try:
+            resolved_state = _load_state_from_repository(
+                repository=resolved_repository,
+                default_mode=resolved_settings.default_mode,
+            )
+        except Exception as exc:
+            if resolved_settings.strict_database_mode:
+                raise RuntimeError("failed to load control-plane state from repository") from exc
     if resolved_state is None:
+        if resolved_settings.strict_database_mode and state is None:
+            if repository_load_error is not None:
+                raise RuntimeError("failed to initialize control-plane repository from runtime environment") from repository_load_error
+            if resolved_repository is None:
+                raise RuntimeError("control-plane repository is required when API_STRICT_DATABASE_MODE=true")
+            raise RuntimeError("control-plane state is unavailable")
         resolved_state = build_default_state(default_mode=resolved_settings.default_mode)
 
     app = FastAPI(
@@ -157,16 +171,10 @@ def create_app(
 
 
 def _build_repository_from_env() -> Any | None:
-    try:
-        from services.api.repositories import ControlPlaneRepository
+    from services.api.repositories import ControlPlaneRepository
 
-        return ControlPlaneRepository.from_env()
-    except Exception:
-        return None
+    return ControlPlaneRepository.from_env()
 
 
 def _load_state_from_repository(*, repository: Any, default_mode: str) -> ControlPlaneState | None:
-    try:
-        return repository.load_state(default_mode=default_mode)
-    except Exception:
-        return None
+    return repository.load_state(default_mode=default_mode)

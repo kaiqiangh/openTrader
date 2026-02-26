@@ -218,6 +218,29 @@ class OrderBookSnapshotResponse(BaseModel):
     asks: list[OrderBookLevelResponse]
 
 
+class TradeRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fill_id: str
+    order_id: str
+    exchange_fill_id: str
+    exchange: str
+    symbol: str
+    mode: str
+    side: str
+    quantity: float
+    price: float
+    fee: float
+    fee_currency: str
+    filled_at: str
+
+
+class TradeListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[TradeRecordResponse]
+
+
 class SignalRecordResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -639,9 +639,14 @@ def build_runtime_broker(*, backend: str, topology_path: str) -> Any:
 
 async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult) -> int:
     logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
+    heartbeat_every = _worker_idle_heartbeat_cycles()
 
     if settings.bootstrap_topology and hasattr(build.broker, "bootstrap_topology"):
         await build.broker.bootstrap_topology()
+        logger.info(
+            event="runtime.worker.topology_bootstrapped",
+            context={"worker": settings.worker, "broker_backend": settings.broker_backend},
+        )
 
     if settings.validate_only:
         logger.info(
@@ -650,37 +655,122 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
         )
         return 0
 
+    logger.info(
+        event="runtime.worker.started",
+        context={
+            "worker": settings.worker,
+            "broker_backend": settings.broker_backend,
+            "mode": settings.mode,
+            "once": settings.once,
+            "poll_timeout_seconds": settings.poll_timeout_seconds,
+            "idle_sleep_seconds": settings.idle_sleep_seconds,
+            "max_idle_cycles": settings.max_idle_cycles,
+            "heartbeat_every_idle_cycles": heartbeat_every,
+        },
+    )
+
     idle_cycles = 0
+    total_cycles = 0
+    work_cycles = 0
     while True:
+        total_cycles += 1
+        cycle_started = time.monotonic()
         try:
             did_work = await build.worker.run_once(timeout_seconds=settings.poll_timeout_seconds)
         except Exception as exc:  # noqa: BLE001 - runtime loops must survive transient dependency failures
+            cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
             logger.error(
                 event="runtime.worker.cycle_failed",
                 context={
                     "worker": settings.worker,
+                    "cycle": total_cycles,
+                    "idle_cycles": idle_cycles,
+                    "latency_ms": cycle_latency_ms,
                     "error": str(exc),
                     "error_type": exc.__class__.__name__,
                 },
             )
             if settings.once:
+                logger.info(
+                    event="runtime.worker.exited",
+                    context={"worker": settings.worker, "reason": "once_cycle_failed", "cycle": total_cycles},
+                )
                 return 1
             idle_cycles += 1
             if settings.max_idle_cycles > 0 and idle_cycles >= settings.max_idle_cycles:
+                logger.info(
+                    event="runtime.worker.exited",
+                    context={
+                        "worker": settings.worker,
+                        "reason": "max_idle_cycles_after_failure",
+                        "cycle": total_cycles,
+                        "idle_cycles": idle_cycles,
+                    },
+                )
                 return 0
             await asyncio.sleep(settings.idle_sleep_seconds)
             continue
 
+        cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
         if did_work:
+            work_cycles += 1
+            logger.info(
+                event="runtime.worker.cycle_succeeded",
+                context={
+                    "worker": settings.worker,
+                    "cycle": total_cycles,
+                    "work_cycles": work_cycles,
+                    "latency_ms": cycle_latency_ms,
+                },
+            )
             idle_cycles = 0
             if settings.once:
+                logger.info(
+                    event="runtime.worker.exited",
+                    context={
+                        "worker": settings.worker,
+                        "reason": "once_cycle_completed",
+                        "cycle": total_cycles,
+                        "work_cycles": work_cycles,
+                    },
+                )
                 return 0
             continue
 
         idle_cycles += 1
+        if idle_cycles == 1 or (heartbeat_every > 0 and idle_cycles % heartbeat_every == 0):
+            logger.info(
+                event="runtime.worker.idle_heartbeat",
+                context={
+                    "worker": settings.worker,
+                    "cycle": total_cycles,
+                    "idle_cycles": idle_cycles,
+                    "work_cycles": work_cycles,
+                    "latency_ms": cycle_latency_ms,
+                },
+            )
         if settings.once:
+            logger.info(
+                event="runtime.worker.exited",
+                context={
+                    "worker": settings.worker,
+                    "reason": "once_no_work",
+                    "cycle": total_cycles,
+                    "idle_cycles": idle_cycles,
+                },
+            )
             return 0
         if settings.max_idle_cycles > 0 and idle_cycles >= settings.max_idle_cycles:
+            logger.info(
+                event="runtime.worker.exited",
+                context={
+                    "worker": settings.worker,
+                    "reason": "max_idle_cycles",
+                    "cycle": total_cycles,
+                    "idle_cycles": idle_cycles,
+                    "work_cycles": work_cycles,
+                },
+            )
             return 0
         await asyncio.sleep(settings.idle_sleep_seconds)
 
@@ -1349,6 +1439,14 @@ def _orderbook_snapshot_interval_seconds() -> float:
     if os.getenv("MARKET_DATA_REST_POLL_SECONDS", "").strip():
         return max(0.0, float(os.getenv("MARKET_DATA_REST_POLL_SECONDS", "300")))
     return 180.0
+
+
+def _worker_idle_heartbeat_cycles() -> int:
+    raw = os.getenv("RUNTIME_WORKER_IDLE_HEARTBEAT_CYCLES", "20").strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 20
 
 
 def _http_get_text(url: str, *, timeout_seconds: float) -> str:

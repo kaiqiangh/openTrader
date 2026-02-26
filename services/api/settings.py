@@ -15,6 +15,7 @@ class APISettings:
     jwt_issuer: str
     jwt_audience: str
     read_only_mode: bool = False
+    strict_database_mode: bool = True
 
 
 def load_api_settings() -> APISettings:
@@ -34,14 +35,18 @@ def load_api_settings() -> APISettings:
         jwt_secret_key=jwt_secret_key,
         jwt_issuer=os.getenv("JWT_ISSUER", "open-trader").strip() or "open-trader",
         jwt_audience=os.getenv("JWT_AUDIENCE", "open-trader-api").strip() or "open-trader-api",
-        read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false")),
+        read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"),
+        strict_database_mode=_parse_bool(
+            os.getenv("API_STRICT_DATABASE_MODE", "true"),
+            setting_name="API_STRICT_DATABASE_MODE",
+        ),
     )
 
 
-def _parse_bool(value: str) -> bool:
+def _parse_bool(value: str, *, setting_name: str) -> bool:
     normalized = value.strip().lower()
     if normalized in {"1", "true", "yes", "y", "on"}:
         return True
     if normalized in {"0", "false", "no", "n", "off"}:
         return False
-    raise ValueError("API_READ_ONLY_MODE must be a boolean value")
+    raise ValueError(f"{setting_name} must be a boolean value")

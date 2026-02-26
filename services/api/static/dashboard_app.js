@@ -224,6 +224,8 @@ function StatusView({ token }) {
   const [klineItems, setKlineItems] = useState([]);
   const [equityHistory, setEquityHistory] = useState([]);
   const [latestSignal, setLatestSignal] = useState(null);
+  const [orderbookSnapshot, setOrderbookSnapshot] = useState(null);
+  const [recentTrades, setRecentTrades] = useState([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -235,17 +237,23 @@ function StatusView({ token }) {
         tasks.push(
           apiFetchJson("/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=50", { token }),
           apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
-          apiFetchJson("/ops/signals/latest?limit=1", { token })
+          apiFetchJson("/ops/signals/latest?limit=1", { token }),
+          apiFetchJson("/ops/market/orderbook/latest?symbol=BTC/USDT", { token }),
+          apiFetchJson("/ops/trades/latest?mode=MOCK&symbol=BTC/USDT&limit=20", { token })
         );
       }
-      const [ready, risk, klines, portfolio, signals] = await Promise.all(tasks);
+      const [ready, risk, klines, portfolio, signals, orderbook, trades] = await Promise.all(tasks);
       setReadiness(ready);
       setRiskStatus(risk || null);
       setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
       setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
       setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
+      setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
+      setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
     } catch (exc) {
       setError(String(exc.message || exc));
+      setOrderbookSnapshot(null);
+      setRecentTrades([]);
     } finally {
       setLoading(false);
     }
@@ -262,6 +270,14 @@ function StatusView({ token }) {
   const equityPoints = useMemo(
     () => equityHistory.map((item) => Number(item.total_balance_usd) || 0),
     [equityHistory]
+  );
+  const topBids = useMemo(
+    () => (orderbookSnapshot && Array.isArray(orderbookSnapshot.bids) ? orderbookSnapshot.bids.slice(0, 5) : []),
+    [orderbookSnapshot]
+  );
+  const topAsks = useMemo(
+    () => (orderbookSnapshot && Array.isArray(orderbookSnapshot.asks) ? orderbookSnapshot.asks.slice(0, 5) : []),
+    [orderbookSnapshot]
   );
 
   return h(
@@ -313,6 +329,119 @@ function StatusView({ token }) {
             h("span", null, `strategy=${latestSignal.strategy_id}`)
           )
         : h("p", { className: "muted" }, "No latest signal available.")
+    ),
+    h(
+      SectionCard,
+      { title: "Order Book (Top 5)", subtitle: "Latest snapshot from /ops/market/orderbook/latest." },
+      orderbookSnapshot
+        ? h(
+            "div",
+            { className: "stats-grid" },
+            h(KeyStat, { label: "Best Bid", value: Number(orderbookSnapshot.best_bid || 0).toFixed(2) }),
+            h(KeyStat, { label: "Best Ask", value: Number(orderbookSnapshot.best_ask || 0).toFixed(2) }),
+            h(KeyStat, { label: "Spread (bps)", value: Number(orderbookSnapshot.spread_bps || 0).toFixed(3) })
+          )
+        : h("p", { className: "muted" }, "No orderbook snapshot available."),
+      orderbookSnapshot
+        ? h(
+            "div",
+            { className: "json-columns" },
+            h(
+              "div",
+              { className: "mini-card" },
+              h("h3", null, "Bids"),
+              topBids.length === 0
+                ? h("p", { className: "muted" }, "No bid levels.")
+                : h(
+                    "table",
+                    null,
+                    h("thead", null, h("tr", null, h("th", null, "Price"), h("th", null, "Amount"))),
+                    h(
+                      "tbody",
+                      null,
+                      topBids.map((level, index) =>
+                        h(
+                          "tr",
+                          { key: `bid-${index}` },
+                          h("td", null, Number(level.price || 0).toFixed(2)),
+                          h("td", null, Number(level.amount || 0).toFixed(6))
+                        )
+                      )
+                    )
+                  )
+            ),
+            h(
+              "div",
+              { className: "mini-card" },
+              h("h3", null, "Asks"),
+              topAsks.length === 0
+                ? h("p", { className: "muted" }, "No ask levels.")
+                : h(
+                    "table",
+                    null,
+                    h("thead", null, h("tr", null, h("th", null, "Price"), h("th", null, "Amount"))),
+                    h(
+                      "tbody",
+                      null,
+                      topAsks.map((level, index) =>
+                        h(
+                          "tr",
+                          { key: `ask-${index}` },
+                          h("td", null, Number(level.price || 0).toFixed(2)),
+                          h("td", null, Number(level.amount || 0).toFixed(6))
+                        )
+                      )
+                    )
+                  )
+            )
+          )
+        : null
+    ),
+    h(
+      SectionCard,
+      { title: "Recent Trades", subtitle: "Latest fills from /ops/trades/latest." },
+      recentTrades.length === 0
+        ? h("p", { className: "muted" }, "No recent trade records available.")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h(
+                  "tr",
+                  null,
+                  h("th", null, "Time"),
+                  h("th", null, "Exchange"),
+                  h("th", null, "Symbol"),
+                  h("th", null, "Side"),
+                  h("th", null, "Quantity"),
+                  h("th", null, "Price"),
+                  h("th", null, "Fee")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                recentTrades.map((item) =>
+                  h(
+                    "tr",
+                    { key: `${item.fill_id}` },
+                    h("td", null, String(item.filled_at || "")),
+                    h("td", null, String(item.exchange || "")),
+                    h("td", null, String(item.symbol || "")),
+                    h("td", null, String(item.side || "")),
+                    h("td", null, Number(item.quantity || 0).toFixed(6)),
+                    h("td", null, Number(item.price || 0).toFixed(2)),
+                    h("td", null, `${Number(item.fee || 0).toFixed(6)} ${item.fee_currency || ""}`.trim())
+                  )
+                )
+              )
+            )
+          )
     )
   );
 }

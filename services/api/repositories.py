@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypeVar
 import json
 import uuid
 
@@ -34,6 +34,8 @@ from services.llm_gateway.persistence import LLMCallRecord
 from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder
 from services.shared.runtime.database import create_runtime_engine_from_env
 
+T = TypeVar("T")
+
 
 class ControlPlaneRepository:
     """Database-backed repository for API control-plane and dashboard reads/writes."""
@@ -49,37 +51,57 @@ class ControlPlaneRepository:
     def load_state(self, *, default_mode: str) -> ControlPlaneState:
         state = build_default_state(default_mode=default_mode)
 
-        self._hydrate_mode_and_strategies(state)
-        state.orders = self._list_orders(limit=1000)
-        state.positions = self._list_positions(limit=1000)
-        state.portfolio_snapshots = self._list_portfolio_snapshots(limit=1000)
-
-        state.llm_call_records = self._list_llm_calls(limit=5000)
-        state.llm_quota_limits = self._load_llm_quota_limits()
-
-        state.replay_traces = self._load_replay_traces(limit=500)
-        state.replay_agent_runs = self._load_replay_agent_runs(
-            decision_ids=tuple(state.replay_traces.keys()),
+        self._load_optional(loader=lambda: self._hydrate_mode_and_strategies(state), default=None)
+        state.orders = self._load_optional(loader=lambda: self._list_orders(limit=1000), default=[])
+        state.positions = self._load_optional(loader=lambda: self._list_positions(limit=1000), default=[])
+        state.portfolio_snapshots = self._load_optional(
+            loader=lambda: self._list_portfolio_snapshots(limit=1000),
+            default=[],
         )
-        state.replay_agent_messages = self._load_replay_agent_messages(
-            agent_run_ids=tuple(state.replay_agent_runs.keys()),
-        )
-        state.replay_llm_calls = self._load_replay_llm_calls(
-            decision_ids=tuple(state.replay_traces.keys()),
-        )
-        state.replay_summaries = self._load_replay_summaries(limit=500)
-        state.replay_requests = self._load_replay_requests(limit=500)
 
-        state.news_items = self._list_news_items(limit=500)
-        state.news_summaries = self._list_news_summaries(limit=200)
+        state.llm_call_records = self._load_optional(loader=lambda: self._list_llm_calls(limit=5000), default=[])
+        state.llm_quota_limits = self._load_optional(loader=self._load_llm_quota_limits, default={})
 
-        notification_preferences = self._list_notification_preferences()
+        state.replay_traces = self._load_optional(loader=lambda: self._load_replay_traces(limit=500), default={})
+        state.replay_agent_runs = self._load_optional(
+            loader=lambda: self._load_replay_agent_runs(decision_ids=tuple(state.replay_traces.keys())),
+            default={},
+        )
+        state.replay_agent_messages = self._load_optional(
+            loader=lambda: self._load_replay_agent_messages(agent_run_ids=tuple(state.replay_agent_runs.keys())),
+            default={},
+        )
+        state.replay_llm_calls = self._load_optional(
+            loader=lambda: self._load_replay_llm_calls(decision_ids=tuple(state.replay_traces.keys())),
+            default={},
+        )
+        state.replay_summaries = self._load_optional(loader=lambda: self._load_replay_summaries(limit=500), default={})
+        state.replay_requests = self._load_optional(loader=lambda: self._load_replay_requests(limit=500), default={})
+
+        state.news_items = self._load_optional(loader=lambda: self._list_news_items(limit=500), default=[])
+        state.news_summaries = self._load_optional(loader=lambda: self._list_news_summaries(limit=200), default=[])
+
+        notification_preferences = self._load_optional(loader=self._list_notification_preferences, default={})
         if notification_preferences:
             state.notification_preferences = notification_preferences
-        state.notification_delivery_logs = self._list_notification_deliveries(limit=500)
-        state.notification_trace_spans = self._list_notification_trace_spans(limit=500)
+        state.notification_delivery_logs = self._load_optional(
+            loader=lambda: self._list_notification_deliveries(limit=500),
+            default=[],
+        )
+        state.notification_trace_spans = self._load_optional(
+            loader=lambda: self._list_notification_trace_spans(limit=500),
+            default=[],
+        )
         state.notification_metrics = self._build_notification_metrics(state)
         return state
+
+    def _load_optional(self, *, loader: Callable[[], T], default: T) -> T:
+        try:
+            return loader()
+        except Exception as exc:
+            if _is_missing_relation_error(exc):
+                return default
+            raise
 
     def persist_mode_change(
         self,
@@ -387,6 +409,61 @@ class ControlPlaneRepository:
                 }
             )
         return tuple(items)
+
+    def list_latest_trades(
+        self,
+        *,
+        mode: str | None = None,
+        symbol: str | None = None,
+        limit: int = 100,
+    ) -> tuple[dict[str, Any], ...]:
+        rows = self._fetchall(
+            """
+            SELECT
+                f.id AS fill_id,
+                f.order_id AS order_id,
+                f.exchange_fill_id AS exchange_fill_id,
+                COALESCE(e.name, 'unknown') AS exchange,
+                s.symbol AS symbol,
+                f.mode AS mode,
+                f.side AS side,
+                f.quantity AS quantity,
+                f.price AS price,
+                f.fee AS fee,
+                f.fee_currency AS fee_currency,
+                f.filled_at AS filled_at
+            FROM fills f
+            JOIN orders o ON o.id = f.order_id
+            JOIN symbols s ON s.id = o.symbol_id
+            LEFT JOIN exchanges e ON e.id = o.exchange_id
+            WHERE (:mode IS NULL OR f.mode = :mode)
+              AND (:symbol IS NULL OR s.symbol = :symbol)
+            ORDER BY f.filled_at DESC
+            LIMIT :limit
+            """,
+            {
+                "mode": mode,
+                "symbol": symbol,
+                "limit": max(1, int(limit)),
+            },
+        )
+        return tuple(
+            {
+                "fill_id": str(row.get("fill_id", "")),
+                "order_id": str(row.get("order_id", "")),
+                "exchange_fill_id": str(row.get("exchange_fill_id", "")),
+                "exchange": str(row.get("exchange", "unknown") or "unknown"),
+                "symbol": str(row.get("symbol", "")),
+                "mode": str(row.get("mode", "")),
+                "side": str(row.get("side", "")),
+                "quantity": float(row.get("quantity", 0.0) or 0.0),
+                "price": float(row.get("price", 0.0) or 0.0),
+                "fee": float(row.get("fee", 0.0) or 0.0),
+                "fee_currency": str(row.get("fee_currency", "")),
+                "filled_at": str(row.get("filled_at", "")),
+            }
+            for row in rows
+        )
 
     def _hydrate_mode_and_strategies(self, state: ControlPlaneState) -> None:
         mode_rows = self._fetchall(
@@ -1041,30 +1118,21 @@ class ControlPlaneRepository:
             self._execute(statement, {})
 
     def _execute(self, statement: str, params: Mapping[str, Any]) -> int:
-        try:
-            with self.engine.begin() as connection:
-                result = connection.execute(text(statement), dict(params))
-                return int(result.rowcount or 0)
-        except Exception:
-            return 0
+        with self.engine.begin() as connection:
+            result = connection.execute(text(statement), dict(params))
+            return int(result.rowcount or 0)
 
     def _fetchone(self, statement: str, params: Mapping[str, Any]) -> Mapping[str, Any] | None:
-        try:
-            with self.engine.connect() as connection:
-                row = connection.execute(text(statement), dict(params)).mappings().first()
-                if row is None:
-                    return None
-                return dict(row)
-        except Exception:
-            return None
+        with self.engine.connect() as connection:
+            row = connection.execute(text(statement), dict(params)).mappings().first()
+            if row is None:
+                return None
+            return dict(row)
 
     def _fetchall(self, statement: str, params: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-        try:
-            with self.engine.connect() as connection:
-                rows = connection.execute(text(statement), dict(params)).mappings().all()
-                return [dict(row) for row in rows]
-        except Exception:
-            return []
+        with self.engine.connect() as connection:
+            rows = connection.execute(text(statement), dict(params)).mappings().all()
+            return [dict(row) for row in rows]
 
 
 def _safe_json_dict(value: Any) -> dict[str, Any]:
@@ -1082,6 +1150,17 @@ def _safe_json_dict(value: Any) -> dict[str, Any]:
     if isinstance(parsed, Mapping):
         return dict(parsed)
     return {}
+
+
+def _is_missing_relation_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    markers = (
+        "no such table",
+        "does not exist",
+        "undefined table",
+        "undefinedtable",
+    )
+    return any(marker in message for marker in markers)
 
 
 def _safe_json_list(value: Any) -> list[Any]:

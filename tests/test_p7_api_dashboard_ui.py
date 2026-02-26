@@ -86,5 +86,7 @@ def test_dashboard_static_assets_are_served() -> None:
 
     assert js.status_code == 200
     assert "createRoot" in js.text
+    assert "/ops/market/orderbook/latest" in js.text
+    assert "/ops/trades/latest" in js.text
     assert css.status_code == 200
     assert ":root" in css.text
