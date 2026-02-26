@@ -445,6 +445,7 @@ GOCACHE=/tmp/go-build go run .
 | `make runtime-gate` | Runtime integration gate (core). | Writes `artifacts/runtime_integration_gate/latest.json`. |
 | `make runtime-gate-full` | Runtime integration gate (full profile). | Same report path, with full profile checks. |
 | `make mock-workflow` | Strict real-data + mock-trade workflow probe. | Requires recent DB market/news data and reachable LiteLLM endpoint. |
+| `uv run python scripts/llm_smoke_trigger.py --symbol BTC/USDT --mode MOCK` | Forces one orchestrator cycle and validates `llm_calls` persistence for the injected decision. | Prints JSON summary with `decision_id`, `trace_id`, and latest persisted LLM call status. |
 | `make live-probe` | Nightly/live probe wrapper around mock workflow. | Writes `artifacts/live_runtime_probe/latest.json`. |
 | `uv run python scripts/verify_orderbook_snapshots.py --symbol BTC/USDT` | Validates orderbook snapshot persistence freshness. | Useful for websocket/REST ingestion integrity checks. |
 | `uv run python scripts/verify_klines_persistence.py --symbol BTC/USDT --interval 1m` | Validates kline persistence freshness. | Checks kline ingestion continuity per exchange. |
@@ -497,6 +498,7 @@ LLM calls are opt-in at runtime. If you do not enable this path, the orchestrato
 3. Verify runtime status and call persistence:
    - `curl -s -H "Authorization: Bearer <JWT>" http://127.0.0.1:8000/ops/llm/runtime`
    - `curl -s -H "Authorization: Bearer <JWT>" http://127.0.0.1:8000/governance/llm/usage`
+   - `uv run python scripts/llm_smoke_trigger.py --symbol BTC/USDT --mode MOCK`
 4. In dashboard, open `http://127.0.0.1:3000/status` and check the `LLM Runtime` panel.
 
 ### Stop and reset

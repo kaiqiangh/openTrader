@@ -1,4 +1,4 @@
-.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke smoke-full runtime-gate runtime-gate-full mock-workflow live-probe
+.PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke smoke-full runtime-gate runtime-gate-full mock-workflow llm-smoke live-probe
 
 test:
 	uv run pytest -v
@@ -49,6 +49,9 @@ runtime-gate-full:
 
 mock-workflow:
 	uv run python scripts/mock_realtime_workflow_test.py
+
+llm-smoke:
+	uv run python scripts/llm_smoke_trigger.py --symbol BTC/USDT --mode MOCK
 
 live-probe:
 	uv run python scripts/live_runtime_probe.py
