@@ -89,6 +89,9 @@ class MarketIngestionRuntimeWorker:
         self._bootstrapped = False
         self._last_kline_poll_monotonic: float | None = None
         self._next_ws_probe_monotonic = 0.0
+        self._last_delta_source: str | None = None
+        self._last_fallback_reason: str | None = None
+        self._last_envelope_summary: dict[str, Any] = {}
 
         self._websocket_integrity_enabled = _source_is_websocket(self.adapter.delta_source)
         self._sync_engine: OrderBookSyncEngine | None = None
@@ -117,8 +120,11 @@ class MarketIngestionRuntimeWorker:
                 delta = await self._poll_websocket_delta_with_integrity()
             else:
                 delta = await self.adapter.poll_delta(self.symbol, limit=self.depth)
+                self._last_delta_source = self.adapter.delta_source
+                self._last_fallback_reason = None
             self._record_processed_delta_metrics(delta)
             envelope = await self.pipeline.publish_order_book_delta(delta, mode=self.mode)
+            self._last_envelope_summary = _market_envelope_summary(envelope)
             if self.state_store is not None:
                 await self.state_store.persist_orderbook_envelope(envelope)
             await self._poll_klines_if_due()
@@ -158,6 +164,8 @@ class MarketIngestionRuntimeWorker:
             if self._metrics is not None:
                 self._metrics.record_reconnect(now_seconds=time.time())
             return await self._fetch_rest_snapshot_delta(reason="websocket_error_fallback")
+        self._last_delta_source = "websocket"
+        self._last_fallback_reason = None
 
         return await self._apply_integrity_to_websocket_delta(delta)
 
@@ -192,6 +200,8 @@ class MarketIngestionRuntimeWorker:
             self._sync_engine.load_snapshot(snapshot)
         if self._metrics is not None:
             self._metrics.record_resync_request(now_seconds=time.time())
+        self._last_delta_source = "rest"
+        self._last_fallback_reason = reason
         self._next_ws_probe_monotonic = time.monotonic() + self.ws_probe_interval_seconds
         return _snapshot_to_delta(snapshot)
 
@@ -219,6 +229,20 @@ class MarketIngestionRuntimeWorker:
             "pipeline_metrics": self._metrics.snapshot(now_seconds=time.time()),
             "current_sequence": self._sync_engine.current_sequence if self._sync_engine is not None else None,
         }
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "exchange": self.adapter.exchange,
+            "symbol": self.symbol,
+            "mode": self.mode,
+            "delta_source": self._last_delta_source,
+            "fallback_reason": self._last_fallback_reason,
+            "integrity": self.integrity_snapshot(),
+            "kline_intervals": list(self.kline_intervals),
+        }
+        if self._last_envelope_summary:
+            payload["latest"] = dict(self._last_envelope_summary)
+        return payload
 
     async def _poll_klines_if_due(self) -> None:
         if self.kline_client is None or not self.kline_intervals:
@@ -268,6 +292,15 @@ class MultiExchangeMarketIngestionRuntimeWorker:
         if last_envelope is None:
             raise RuntimeError("multi-exchange market worker executed with no workers")
         return last_envelope
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return {
+            "workers_total": len(self.workers),
+            "workers": [
+                worker.activity_snapshot() if hasattr(worker, "activity_snapshot") else {"exchange": worker.adapter.exchange}
+                for worker in self.workers
+            ],
+        }
 
 
 class AgentOrchestratorRuntimeWorker:
@@ -335,3 +368,32 @@ def _snapshot_to_delta(snapshot: OrderBookSnapshot) -> OrderBookDelta:
         bids=snapshot.bids,
         asks=snapshot.asks,
     )
+
+
+def _market_envelope_summary(envelope: Mapping[str, Any]) -> dict[str, Any]:
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return {}
+    bids = payload.get("bids")
+    asks = payload.get("asks")
+    best_bid = 0.0
+    best_ask = 0.0
+    if isinstance(bids, list) and bids:
+        level = bids[0]
+        if isinstance(level, Mapping):
+            best_bid = float(level.get("price", 0.0) or 0.0)
+    if isinstance(asks, list) and asks:
+        level = asks[0]
+        if isinstance(level, Mapping):
+            best_ask = float(level.get("price", 0.0) or 0.0)
+    return {
+        "trace_id": str(envelope.get("trace_id", "")),
+        "decision_id": str(envelope.get("decision_id", "")),
+        "exchange": str(payload.get("exchange", "")),
+        "symbol": str(payload.get("symbol", "")),
+        "timestamp_ms": payload.get("timestamp_ms"),
+        "sequence_start": payload.get("sequence_start"),
+        "sequence_end": payload.get("sequence_end"),
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+    }

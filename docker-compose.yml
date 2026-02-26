@@ -332,6 +332,45 @@ services:
     networks:
       - internal
 
+  runtime_worker_execution_lifecycle:
+    <<: *python_runtime
+    working_dir: /app
+    command:
+      - uv
+      - run
+      - --frozen
+      - python
+      - -m
+      - services.workers.main
+      - --worker
+      - execution_lifecycle
+      - --bootstrap-topology
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-open_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-open_trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
+      RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres_timescaledb:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - internal
+
   runtime_worker_news:
     <<: *python_runtime
     working_dir: /app

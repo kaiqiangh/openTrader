@@ -30,6 +30,8 @@ from services.api.models import (
     OrderBookSnapshotResponse,
     OrderListResponse,
     OrderRecordResponse,
+    PipelineHealthResponse,
+    PipelineStageStatusResponse,
     PortfolioHistoryResponse,
     PortfolioSnapshotResponse,
     PositionListResponse,
@@ -226,6 +228,52 @@ def get_latest_trades(
             detail="trade repository unavailable",
         ) from exc
     return TradeListResponse(items=[_trade_model(item) for item in payload])
+
+
+@router.get("/pipeline/health", response_model=PipelineHealthResponse)
+def get_pipeline_health(
+    _: AuthPrincipal = Depends(require_viewer),
+    repository: Any | None = Depends(get_control_plane_repository),
+    mode: str | None = Query(default=None),
+) -> PipelineHealthResponse:
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="pipeline repository unavailable",
+        )
+    try:
+        payload = repository.pipeline_health_snapshot(mode=mode)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="pipeline health query failed",
+        ) from exc
+
+    stages_raw = payload.get("stages")
+    stages: list[PipelineStageStatusResponse] = []
+    if isinstance(stages_raw, (list, tuple)):
+        for row in stages_raw:
+            if not isinstance(row, dict):
+                continue
+            stages.append(
+                PipelineStageStatusResponse(
+                    stage=str(row.get("stage", "")),
+                    healthy=bool(row.get("healthy", False)),
+                    status=str(row.get("status", "")),
+                    records_total=int(row.get("records_total", 0) or 0),
+                    latest_at=(str(row.get("latest_at")) if row.get("latest_at") is not None else None),
+                    age_seconds=(float(row["age_seconds"]) if row.get("age_seconds") is not None else None),
+                    stale_after_seconds=float(row.get("stale_after_seconds", 0.0) or 0.0),
+                    detail=(str(row.get("detail")) if row.get("detail") is not None else None),
+                )
+            )
+
+    return PipelineHealthResponse(
+        generated_at=str(payload.get("generated_at", "")),
+        overall_healthy=bool(payload.get("overall_healthy", False)),
+        mode_filter=(str(payload.get("mode_filter")) if payload.get("mode_filter") is not None else None),
+        stages=stages,
+    )
 
 
 @router.get("/risk/status", response_model=RiskStatusResponse)

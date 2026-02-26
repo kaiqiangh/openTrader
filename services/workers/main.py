@@ -163,6 +163,7 @@ class MarketWorkerRunner:
         self.worker = worker
         self.min_cycle_interval_seconds = max(0.0, float(min_cycle_interval_seconds))
         self._last_run_monotonic: float | None = None
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         _ = timeout_seconds
@@ -173,11 +174,19 @@ class MarketWorkerRunner:
                 await asyncio.sleep(remaining)
         cycle_started = time.monotonic()
         try:
-            await self.worker.run_once()
+            envelope = await self.worker.run_once()
+            worker_activity = _worker_activity_snapshot(self.worker)
+            if worker_activity:
+                self._last_activity = worker_activity
+            else:
+                self._last_activity = _market_activity_from_envelope(envelope)
         finally:
             # Keep cadence even on transient fetch failures to avoid tight retry loops.
             self._last_run_monotonic = cycle_started
         return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return dict(self._last_activity)
 
 
 class OrchestratorWorkerRunner:
@@ -191,6 +200,7 @@ class OrchestratorWorkerRunner:
         self.worker = worker
         self.strategy = strategy
         self.trace_store = trace_store
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         result = await self.worker.run_once(
@@ -198,6 +208,7 @@ class OrchestratorWorkerRunner:
             timeout_seconds=timeout_seconds,
         )
         if result is None:
+            self._last_activity = {"event": "no_market_event", "strategy_id": self.strategy.strategy_id}
             return False
         if self.trace_store is not None:
             await self.trace_store.persist_cycle(
@@ -216,16 +227,46 @@ class OrchestratorWorkerRunner:
                 ),
                 decision_news_links=_decision_news_links(self.worker.last_envelope),
             )
+        self._last_activity = _orchestrator_activity_payload(
+            result=result,
+            strategy=self.strategy,
+            metrics_snapshot=self.worker.orchestrator.metrics.snapshot(),
+        )
         return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return dict(self._last_activity)
 
 
 class SimulationWorkerRunner:
     def __init__(self, *, worker: SimulationExecutionWorker) -> None:
         self.worker = worker
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         result = await self.worker.run_once(timeout_seconds=timeout_seconds)
-        return result is not None
+        if result is None:
+            self._last_activity = {"event": "no_mock_intent"}
+            return False
+        self._last_activity = {
+            "event": "simulation_order_executed",
+            "order_id": result.order_id,
+            "status": result.status,
+            "action": result.action,
+            "symbol": result.symbol,
+            "quantity": result.quantity,
+            "fill_price": result.fill_price,
+            "fee_paid": result.fee_paid,
+            "events_published": len(result.events),
+        }
+        metrics_snapshot = self.worker.metrics.snapshot()
+        totals = metrics_snapshot.get("totals")
+        if isinstance(totals, Mapping):
+            self._last_activity["metrics_totals"] = dict(totals)
+        return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return dict(self._last_activity)
 
 
 class OMSLifecycleWorkerRunner:
@@ -248,6 +289,7 @@ class OMSLifecycleWorkerRunner:
         self._lifecycle_events: dict[str, list[LifecycleEvent]] = {}
         self._positions: dict[str, PositionState] = {}
         self._mark_prices: dict[str, float] = {}
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         envelope = await self.broker.consume(
@@ -355,7 +397,31 @@ class OMSLifecycleWorkerRunner:
         )
         if self.state_store is not None:
             self.state_store.insert_portfolio_snapshot(snapshot)
+        self._last_activity = {
+            "event": str(envelope.get("event_type", "")),
+            "trace_id": str(envelope.get("trace_id", "")),
+            "decision_id": str(envelope.get("decision_id", "")),
+            "order_id": order_id,
+            "symbol": symbol,
+            "mode": mode,
+            "order_status": updated_order.status,
+            "filled_quantity": updated_order.filled_quantity,
+            "average_price": updated_order.average_price,
+            "positions_total": len(positions),
+            "portfolio_total_balance_usd": snapshot.total_balance_usd,
+            "portfolio_unrealized_pnl": snapshot.unrealized_pnl,
+            "portfolio_realized_pnl_today": snapshot.realized_pnl_today,
+        }
         return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "tracked_orders_total": len(self._orders) if self.state_store is None else None,
+            "positions_total": len(self._positions) if self.state_store is None else None,
+        }
+        if self._last_activity:
+            payload["last_activity"] = dict(self._last_activity)
+        return payload
 
 
 class NewsWorkerRunner:
@@ -427,10 +493,18 @@ class NewsWorkerRunner:
         self.ingestion = NewsIngestionService(store=self.item_store)
         self.tagging = NewsTaggingRelevancePipeline(store=self.tag_store)
         self.summarizer = RollingNewsSummarizer(store=self.summary_store)
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         _ = timeout_seconds
         cycle = self.framework.fetch_cycle(limit_per_source=10)
+        self._last_activity = {
+            "event": "news.fetch_cycle",
+            "source_mode": self.source_mode,
+            "sources_total": cycle.sources_total,
+            "degraded_sources": list(cycle.degraded_sources),
+            "records_fetched_total": cycle.total_items,
+        }
         if cycle.total_items == 0:
             return False
 
@@ -440,11 +514,16 @@ class NewsWorkerRunner:
             for outcome in batch.outcomes
             if outcome.inserted and outcome.item is not None
         )
+        self._last_activity["ingestion"] = {
+            "total_records": batch.total_records,
+            "inserted_count": batch.inserted_count,
+            "duplicate_count": batch.duplicate_count,
+        }
         if not inserted:
             return False
 
         tag_result = self.tagging.tag_items(inserted)
-        self.summarizer.summarize_window(
+        summary = self.summarizer.summarize_window(
             symbol_scope="GLOBAL",
             window_start=_utc_now_iso(),
             window_end=_utc_now_iso(),
@@ -452,7 +531,18 @@ class NewsWorkerRunner:
             tags=tag_result.tags,
             max_items=5,
         )
+        self._last_activity["tagging"] = {
+            "tagged_items": tag_result.tagged_items,
+        }
+        self._last_activity["summary"] = {
+            "summary_id": summary.summary_id,
+            "source_count": len(summary.source_news_ids),
+            "token_count": summary.token_count,
+        }
         return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return dict(self._last_activity)
 
     def _fetch_mock_records(self, *, since: str | None, limit: int) -> list[dict[str, Any]]:
         _ = since
@@ -679,16 +769,21 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
             did_work = await build.worker.run_once(timeout_seconds=settings.poll_timeout_seconds)
         except Exception as exc:  # noqa: BLE001 - runtime loops must survive transient dependency failures
             cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
+            activity = _worker_activity_snapshot(build.worker)
+            context = {
+                "worker": settings.worker,
+                "cycle": total_cycles,
+                "idle_cycles": idle_cycles,
+                "latency_ms": cycle_latency_ms,
+                "error": str(exc),
+                "error_type": exc.__class__.__name__,
+            }
+            if activity:
+                context["activity"] = activity
             logger.error(
                 event="runtime.worker.cycle_failed",
-                context={
-                    "worker": settings.worker,
-                    "cycle": total_cycles,
-                    "idle_cycles": idle_cycles,
-                    "latency_ms": cycle_latency_ms,
-                    "error": str(exc),
-                    "error_type": exc.__class__.__name__,
-                },
+                context=context,
+                **_correlation_from_activity(activity),
             )
             if settings.once:
                 logger.info(
@@ -712,16 +807,21 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
             continue
 
         cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
+        activity = _worker_activity_snapshot(build.worker)
         if did_work:
             work_cycles += 1
+            context = {
+                "worker": settings.worker,
+                "cycle": total_cycles,
+                "work_cycles": work_cycles,
+                "latency_ms": cycle_latency_ms,
+            }
+            if activity:
+                context["activity"] = activity
             logger.info(
                 event="runtime.worker.cycle_succeeded",
-                context={
-                    "worker": settings.worker,
-                    "cycle": total_cycles,
-                    "work_cycles": work_cycles,
-                    "latency_ms": cycle_latency_ms,
-                },
+                context=context,
+                **_correlation_from_activity(activity),
             )
             idle_cycles = 0
             if settings.once:
@@ -739,15 +839,19 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
 
         idle_cycles += 1
         if idle_cycles == 1 or (heartbeat_every > 0 and idle_cycles % heartbeat_every == 0):
+            context = {
+                "worker": settings.worker,
+                "cycle": total_cycles,
+                "idle_cycles": idle_cycles,
+                "work_cycles": work_cycles,
+                "latency_ms": cycle_latency_ms,
+            }
+            if activity:
+                context["activity"] = activity
             logger.info(
                 event="runtime.worker.idle_heartbeat",
-                context={
-                    "worker": settings.worker,
-                    "cycle": total_cycles,
-                    "idle_cycles": idle_cycles,
-                    "work_cycles": work_cycles,
-                    "latency_ms": cycle_latency_ms,
-                },
+                context=context,
+                **_correlation_from_activity(activity),
             )
         if settings.once:
             logger.info(
@@ -1038,6 +1142,137 @@ def _build_order_book_payload(*, base_price: float, sequence: int, timestamp_ms:
         "bids": [[bid_0, 5.0], [round(bid_0 - 1.0, 4), 2.5]],
         "asks": [[ask_0, 4.0], [round(ask_0 + 1.0, 4), 2.0]],
     }
+
+
+def _worker_activity_snapshot(worker: Any) -> dict[str, Any]:
+    snapshot_fn = getattr(worker, "activity_snapshot", None)
+    if snapshot_fn is None or not callable(snapshot_fn):
+        return {}
+    try:
+        payload = snapshot_fn()
+    except Exception:  # noqa: BLE001 - observability helper must never crash the worker loop
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
+    return dict(payload)
+
+
+def _correlation_from_activity(activity: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(activity, Mapping):
+        return {}
+    return {
+        "trace_id": _find_nested_activity_value(activity, "trace_id"),
+        "decision_id": _find_nested_activity_value(activity, "decision_id"),
+        "order_id": _find_nested_activity_value(activity, "order_id"),
+        "strategy_id": _find_nested_activity_value(activity, "strategy_id"),
+        "mode": _find_nested_activity_value(activity, "mode"),
+    }
+
+
+def _find_nested_activity_value(payload: Any, key: str, *, depth: int = 0) -> str | None:
+    if depth > 3:
+        return None
+    if isinstance(payload, Mapping):
+        direct = payload.get(key)
+        if direct is not None:
+            text_value = str(direct).strip()
+            if text_value:
+                return text_value
+        for value in payload.values():
+            nested = _find_nested_activity_value(value, key, depth=depth + 1)
+            if nested is not None:
+                return nested
+        return None
+    if isinstance(payload, list):
+        for item in payload[:5]:
+            nested = _find_nested_activity_value(item, key, depth=depth + 1)
+            if nested is not None:
+                return nested
+    return None
+
+
+def _market_activity_from_envelope(envelope: Mapping[str, Any]) -> dict[str, Any]:
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return {}
+    bids = payload.get("bids")
+    asks = payload.get("asks")
+    best_bid = _first_level_price(bids)
+    best_ask = _first_level_price(asks)
+    return {
+        "trace_id": str(envelope.get("trace_id", "")),
+        "decision_id": str(envelope.get("decision_id", "")),
+        "exchange": str(payload.get("exchange", "")),
+        "symbol": str(payload.get("symbol", "")),
+        "timestamp_ms": payload.get("timestamp_ms"),
+        "sequence_start": payload.get("sequence_start"),
+        "sequence_end": payload.get("sequence_end"),
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+    }
+
+
+def _first_level_price(levels: Any) -> float:
+    if not isinstance(levels, list) or not levels:
+        return 0.0
+    first = levels[0]
+    if not isinstance(first, Mapping):
+        return 0.0
+    return float(first.get("price", 0.0) or 0.0)
+
+
+def _orchestrator_activity_payload(
+    *,
+    result: Any,
+    strategy: StrategyConfig,
+    metrics_snapshot: Mapping[str, Any],
+) -> dict[str, Any]:
+    llm_providers = _extract_llm_provider_tags(
+        tuple(getattr(result.plan, "rationale", ()) or ()),
+        tuple(getattr(result.risk, "rationale", ()) or ()),
+        tuple(getattr(result.execution_decision, "rationale", ()) or ()),
+    )
+    llm_totals: dict[str, Any] = {}
+    llm_usage = metrics_snapshot.get("llm_usage")
+    if isinstance(llm_usage, Mapping):
+        totals = llm_usage.get("totals")
+        if isinstance(totals, Mapping):
+            llm_totals = {
+                "calls_total": int(totals.get("calls_total", 0) or 0),
+                "failed_calls_total": int(totals.get("failed_calls_total", 0) or 0),
+                "tokens_total": int(totals.get("tokens_total", 0) or 0),
+                "estimated_cost_total": float(totals.get("estimated_cost_total", 0.0) or 0.0),
+            }
+    return {
+        "event": "agent.decision.completed",
+        "trace_id": getattr(result, "trace_id", ""),
+        "decision_id": getattr(result, "decision_id", ""),
+        "strategy_id": strategy.strategy_id,
+        "mode": getattr(result, "mode", ""),
+        "status": getattr(result, "status", ""),
+        "symbol": strategy.symbol,
+        "action": getattr(result.execution_decision, "action", "HOLD"),
+        "quantity": float(getattr(result.execution_decision, "quantity", 0.0) or 0.0),
+        "confidence": float(getattr(result.execution_decision, "confidence", 0.0) or 0.0),
+        "risk_approved": bool(getattr(result.risk, "approved", False)),
+        "guardrail_allowed": bool(getattr(result.guardrail, "allowed", False)),
+        "llm_provider_models": list(llm_providers),
+        "llm_usage": llm_totals,
+    }
+
+
+def _extract_llm_provider_tags(*rationales: tuple[str, ...]) -> tuple[str, ...]:
+    tags: list[str] = []
+    prefix = "llm_provider="
+    for rationale in rationales:
+        for item in rationale:
+            value = str(item).strip()
+            if not value.startswith(prefix):
+                continue
+            provider_model = value[len(prefix) :].strip()
+            if provider_model:
+                tags.append(provider_model)
+    return tuple(dict.fromkeys(tags))
 
 
 def _to_lifecycle_event(envelope: Mapping[str, Any]) -> LifecycleEvent:

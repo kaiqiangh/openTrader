@@ -259,6 +259,11 @@ class ExecutionLifecycleWorker:
         self._tracked_orders: dict[str, TrackedLifecycleOrder] = {}
         self._last_private_update_monotonic: float | None = None
         self._last_fallback_poll_monotonic: float = 0.0
+        self._intents_tracked_total = 0
+        self._private_updates_total = 0
+        self._rest_fallback_polls_total = 0
+        self._rest_fallback_updates_total = 0
+        self._last_activity: dict[str, Any] = {}
 
     async def run_once(self, *, timeout_seconds: float) -> bool:
         did_work = False
@@ -267,6 +272,19 @@ class ExecutionLifecycleWorker:
         if intent is not None:
             tracked = self._track_execution_intent(intent)
             did_work = tracked is not None
+            if tracked is not None:
+                self._intents_tracked_total += 1
+                self._last_activity = {
+                    "event": "intent_tracked",
+                    "trace_id": tracked.trace_id,
+                    "decision_id": tracked.decision_id,
+                    "mode": tracked.mode,
+                    "exchange": tracked.exchange,
+                    "symbol": tracked.symbol,
+                    "status": tracked.status,
+                    "order_type": tracked.order_type,
+                    "requested_quantity": tracked.requested_quantity,
+                }
 
         open_orders = self._open_orders()
         if open_orders:
@@ -276,6 +294,7 @@ class ExecutionLifecycleWorker:
             )
             if private_updates:
                 self._last_private_update_monotonic = time.monotonic()
+                self._private_updates_total += len(private_updates)
             for snapshot in private_updates:
                 published = await self._apply_snapshot(snapshot=snapshot, source="private_stream")
                 did_work = did_work or published
@@ -369,6 +388,7 @@ class ExecutionLifecycleWorker:
         return (now - self._last_private_update_monotonic) >= self.stream_stale_after_seconds
 
     async def _poll_rest_fallback(self) -> bool:
+        self._rest_fallback_polls_total += 1
         did_work = False
         for order in self._open_orders():
             snapshot = await self.status_poller.fetch_status(order=order)
@@ -376,6 +396,8 @@ class ExecutionLifecycleWorker:
                 continue
             published = await self._apply_snapshot(snapshot=snapshot, source="rest_fallback")
             did_work = did_work or published
+            if published:
+                self._rest_fallback_updates_total += 1
         return did_work
 
     async def _apply_snapshot(self, *, snapshot: LifecycleStatusSnapshot, source: str) -> bool:
@@ -457,6 +479,19 @@ class ExecutionLifecycleWorker:
         order.reported_fee_total = max(order.reported_fee_total, fee_total)
         if order.is_terminal:
             order.terminal_marked_at_monotonic = time.monotonic()
+        self._last_activity = {
+            "event": event_type,
+            "source": source,
+            "trace_id": order.trace_id,
+            "decision_id": order.decision_id,
+            "mode": order.mode,
+            "order_id": _resolve_order_id(order),
+            "exchange": order.exchange,
+            "symbol": order.symbol,
+            "status": order.status,
+            "filled_quantity_total": order.reported_filled_quantity,
+            "average_price": order.average_price,
+        }
         return True
 
     def _resolve_order(self, *, snapshot: LifecycleStatusSnapshot) -> TrackedLifecycleOrder | None:
@@ -503,6 +538,22 @@ class ExecutionLifecycleWorker:
                 removable.append(key)
         for key in removable:
             self._tracked_orders.pop(key, None)
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        terminal_total = sum(1 for order in self._tracked_orders.values() if order.is_terminal)
+        payload: dict[str, Any] = {
+            "tracked_orders_total": len(self._tracked_orders),
+            "open_orders_total": len(self._open_orders()),
+            "terminal_orders_total": terminal_total,
+            "private_stream_enabled": self.private_stream_connector.supports_private_stream,
+            "intents_tracked_total": self._intents_tracked_total,
+            "private_updates_total": self._private_updates_total,
+            "rest_fallback_polls_total": self._rest_fallback_polls_total,
+            "rest_fallback_updates_total": self._rest_fallback_updates_total,
+        }
+        if self._last_activity:
+            payload["last_activity"] = dict(self._last_activity)
+        return payload
 
 
 def _snapshot_from_dispatch_outcome(*, order: TrackedLifecycleOrder, outcome: Any) -> LifecycleStatusSnapshot:

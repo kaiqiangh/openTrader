@@ -459,3 +459,17 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
     assert len(trades.json()["items"]) == 1
     assert trades.json()["items"][0]["exchange"] == "binance"
     assert trades.json()["items"][0]["price"] == 50050.0
+
+    pipeline = client.get(
+        "/ops/pipeline/health",
+        headers=_auth_headers(viewer),
+        params={"mode": "MOCK"},
+    )
+    assert pipeline.status_code == 200
+    payload = pipeline.json()
+    assert payload["mode_filter"] == "MOCK"
+    stage_by_name = {item["stage"]: item for item in payload["stages"]}
+    assert stage_by_name["market.klines"]["records_total"] >= 1
+    assert stage_by_name["market.orderbook"]["records_total"] >= 1
+    assert stage_by_name["trading.fills"]["records_total"] >= 1
+    assert stage_by_name["portfolio.snapshots"]["records_total"] >= 1

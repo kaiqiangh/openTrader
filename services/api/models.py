@@ -241,6 +241,28 @@ class TradeListResponse(BaseModel):
     items: list[TradeRecordResponse]
 
 
+class PipelineStageStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stage: str
+    healthy: bool
+    status: str
+    records_total: int
+    latest_at: str | None = None
+    age_seconds: float | None = None
+    stale_after_seconds: float
+    detail: str | None = None
+
+
+class PipelineHealthResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    generated_at: str
+    overall_healthy: bool
+    mode_filter: str | None = None
+    stages: list[PipelineStageStatusResponse]
+
+
 class SignalRecordResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

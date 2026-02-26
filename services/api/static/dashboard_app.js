@@ -233,6 +233,7 @@ function StatusView({ token }) {
   const [latestSignal, setLatestSignal] = useState(null);
   const [orderbookSnapshot, setOrderbookSnapshot] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
+  const [pipelineHealth, setPipelineHealth] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -241,13 +242,14 @@ function StatusView({ token }) {
       const ready = await apiFetchJson("/health/readiness");
       setReadiness(ready);
       if (token) {
-        const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult] = await Promise.allSettled([
+        const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult, pipelineResult] = await Promise.allSettled([
           apiFetchJson("/ops/risk/status", { token }),
           apiFetchJson("/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=50", { token }),
           apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
           apiFetchJson("/ops/signals/latest?limit=1", { token }),
           apiFetchJson("/ops/market/orderbook/latest?symbol=BTC/USDT", { token }),
           apiFetchJson("/ops/trades/latest?mode=MOCK&symbol=BTC/USDT&limit=20", { token }),
+          apiFetchJson("/ops/pipeline/health?mode=MOCK", { token }),
         ]);
         const risk = settledValue(riskResult, null);
         const klines = settledValue(klineResult, { items: [] });
@@ -255,6 +257,7 @@ function StatusView({ token }) {
         const signals = settledValue(signalResult, { items: [] });
         const orderbook = settledValue(orderbookResult, null);
         const trades = settledValue(tradesResult, { items: [] });
+        const pipeline = settledValue(pipelineResult, null);
 
         setRiskStatus(risk || null);
         setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
@@ -262,6 +265,7 @@ function StatusView({ token }) {
         setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
         setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
         setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
+        setPipelineHealth(pipeline && Array.isArray(pipeline.stages) ? pipeline : null);
       } else {
         setRiskStatus(null);
         setKlineItems([]);
@@ -269,11 +273,13 @@ function StatusView({ token }) {
         setLatestSignal(null);
         setOrderbookSnapshot(null);
         setRecentTrades([]);
+        setPipelineHealth(null);
       }
     } catch (exc) {
       setError(String(exc.message || exc));
       setOrderbookSnapshot(null);
       setRecentTrades([]);
+      setPipelineHealth(null);
     } finally {
       setLoading(false);
     }
@@ -298,6 +304,10 @@ function StatusView({ token }) {
   const topAsks = useMemo(
     () => (orderbookSnapshot && Array.isArray(orderbookSnapshot.asks) ? orderbookSnapshot.asks.slice(0, 5) : []),
     [orderbookSnapshot]
+  );
+  const pipelineStages = useMemo(
+    () => (pipelineHealth && Array.isArray(pipelineHealth.stages) ? pipelineHealth.stages : []),
+    [pipelineHealth]
   );
 
   return h(
@@ -324,6 +334,40 @@ function StatusView({ token }) {
           ),
       h("div", { className: "button-row" }, h("button", { type: "button", onClick: () => void reload() }, "Refresh")),
       error ? h("p", { className: "error" }, error) : null
+    ),
+    h(
+      SectionCard,
+      { title: "Pipeline Health", subtitle: "DB-backed dataflow checks for ingestion, decisions, and portfolio updates." },
+      pipelineStages.length === 0
+        ? h("p", { className: "muted" }, "No pipeline health snapshot available.")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h("tr", null, h("th", null, "Stage"), h("th", null, "Status"), h("th", null, "Records"), h("th", null, "Age(s)"), h("th", null, "Latest"))
+              ),
+              h(
+                "tbody",
+                null,
+                pipelineStages.map((item) =>
+                  h(
+                    "tr",
+                    { key: String(item.stage || "") },
+                    h("td", null, String(item.stage || "")),
+                    h("td", null, String(item.status || "")),
+                    h("td", null, String(item.records_total || 0)),
+                    h("td", null, item.age_seconds == null ? "-" : Number(item.age_seconds).toFixed(1)),
+                    h("td", null, String(item.latest_at || "-"))
+                  )
+                )
+              )
+            )
+          )
     ),
     h(
       SectionCard,

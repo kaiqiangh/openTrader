@@ -457,6 +457,168 @@ class ControlPlaneRepository:
             for row in rows
         )
 
+    def pipeline_health_snapshot(self, *, mode: str | None = None) -> dict[str, Any]:
+        normalized_mode = _normalize_optional_mode(mode)
+        stages = [
+            self._pipeline_stage_snapshot(
+                stage="market.klines",
+                statement="""
+                SELECT COUNT(*) AS records_total, MAX(time) AS latest_at
+                FROM klines
+                """,
+                params={},
+                stale_after_seconds=180.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="market.orderbook",
+                statement="""
+                SELECT COUNT(*) AS records_total, MAX(snapshot_time) AS latest_at
+                FROM orderbook_snapshots
+                """,
+                params={},
+                stale_after_seconds=120.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="news.items",
+                statement="""
+                SELECT COUNT(*) AS records_total, MAX(published_at) AS latest_at
+                FROM news_items
+                """,
+                params={},
+                stale_after_seconds=1800.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="agent.decisions",
+                statement=_pipeline_query_with_mode(
+                    base_statement="""
+                    SELECT COUNT(*) AS records_total, MAX(persisted_at) AS latest_at
+                    FROM runtime_decision_memory
+                    """,
+                    mode_column="mode",
+                    mode=normalized_mode,
+                ),
+                params={"mode": normalized_mode} if normalized_mode is not None else {},
+                stale_after_seconds=600.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="llm.calls",
+                statement="""
+                SELECT COUNT(*) AS records_total, MAX(created_at) AS latest_at
+                FROM llm_calls
+                """,
+                params={},
+                stale_after_seconds=900.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="trading.fills",
+                statement=_pipeline_query_with_mode(
+                    base_statement="""
+                    SELECT COUNT(*) AS records_total, MAX(filled_at) AS latest_at
+                    FROM fills
+                    """,
+                    mode_column="mode",
+                    mode=normalized_mode,
+                ),
+                params={"mode": normalized_mode} if normalized_mode is not None else {},
+                stale_after_seconds=900.0,
+            ),
+            self._pipeline_stage_snapshot(
+                stage="portfolio.snapshots",
+                statement=_pipeline_query_with_mode(
+                    base_statement="""
+                    SELECT COUNT(*) AS records_total, MAX(snapshot_time) AS latest_at
+                    FROM portfolio_snapshots
+                    """,
+                    mode_column="mode",
+                    mode=normalized_mode,
+                ),
+                params={"mode": normalized_mode} if normalized_mode is not None else {},
+                stale_after_seconds=900.0,
+            ),
+        ]
+        return {
+            "generated_at": _utc_now_iso(),
+            "overall_healthy": all(bool(item.get("healthy")) for item in stages),
+            "mode_filter": normalized_mode,
+            "stages": tuple(stages),
+        }
+
+    def _pipeline_stage_snapshot(
+        self,
+        *,
+        stage: str,
+        statement: str,
+        params: Mapping[str, Any],
+        stale_after_seconds: float,
+    ) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        try:
+            row = self._fetchone(statement, params) or {}
+        except Exception as exc:
+            if not _is_missing_relation_error(exc):
+                raise
+            return {
+                "stage": stage,
+                "healthy": False,
+                "status": "missing_table",
+                "records_total": 0,
+                "latest_at": None,
+                "age_seconds": None,
+                "stale_after_seconds": float(stale_after_seconds),
+                "detail": str(exc),
+            }
+
+        records_total = max(0, int(row.get("records_total", 0) or 0))
+        latest_value = row.get("latest_at")
+        latest_at = _datetime_to_iso(latest_value)
+        if records_total <= 0:
+            return {
+                "stage": stage,
+                "healthy": False,
+                "status": "empty",
+                "records_total": 0,
+                "latest_at": None,
+                "age_seconds": None,
+                "stale_after_seconds": float(stale_after_seconds),
+                "detail": "no records persisted",
+            }
+        if latest_at is None:
+            return {
+                "stage": stage,
+                "healthy": False,
+                "status": "invalid_timestamp",
+                "records_total": records_total,
+                "latest_at": None,
+                "age_seconds": None,
+                "stale_after_seconds": float(stale_after_seconds),
+                "detail": "latest timestamp could not be parsed",
+            }
+
+        latest_dt = _parse_datetime_utc(latest_at)
+        if latest_dt is None:
+            return {
+                "stage": stage,
+                "healthy": False,
+                "status": "invalid_timestamp",
+                "records_total": records_total,
+                "latest_at": latest_at,
+                "age_seconds": None,
+                "stale_after_seconds": float(stale_after_seconds),
+                "detail": "latest timestamp is not UTC ISO",
+            }
+        age_seconds = max(0.0, (now - latest_dt).total_seconds())
+        is_stale = age_seconds > stale_after_seconds
+        return {
+            "stage": stage,
+            "healthy": not is_stale,
+            "status": "stale" if is_stale else "healthy",
+            "records_total": records_total,
+            "latest_at": latest_at,
+            "age_seconds": age_seconds,
+            "stale_after_seconds": float(stale_after_seconds),
+            "detail": None,
+        }
+
     def _hydrate_mode_and_strategies(self, state: ControlPlaneState) -> None:
         mode_rows = self._fetchall(
             """
@@ -1142,6 +1304,56 @@ def _safe_json_dict(value: Any) -> dict[str, Any]:
     if isinstance(parsed, Mapping):
         return dict(parsed)
     return {}
+
+
+def _pipeline_query_with_mode(*, base_statement: str, mode_column: str, mode: str | None) -> str:
+    statement = base_statement.strip()
+    if mode is None:
+        return statement
+    return f"{statement}\nWHERE {mode_column} = :mode"
+
+
+def _normalize_optional_mode(mode: str | None) -> str | None:
+    if mode is None:
+        return None
+    normalized = mode.strip().upper()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _datetime_to_iso(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            coerced = value.replace(tzinfo=timezone.utc)
+        else:
+            coerced = value.astimezone(timezone.utc)
+        return coerced.isoformat().replace("+00:00", "Z")
+    if not isinstance(value, str):
+        return None
+    text_value = value.strip()
+    if not text_value:
+        return None
+    parsed = _parse_datetime_utc(text_value)
+    if parsed is None:
+        return None
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
+def _parse_datetime_utc(value: str) -> datetime | None:
+    text_value = value.strip()
+    if not text_value:
+        return None
+    candidate = text_value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed
 
 
 def _is_missing_relation_error(exc: Exception) -> bool:

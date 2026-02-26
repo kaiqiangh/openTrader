@@ -317,6 +317,7 @@ This starts the core runtime:
 - `runtime_worker_orchestrator`
 - `runtime_worker_simulation`
 - `runtime_worker_oms`
+- `runtime_worker_execution_lifecycle`
 - `runtime_worker_news`
 
 To include Go real execution and observability stack, use full profile:
@@ -347,6 +348,31 @@ Useful service URLs:
 - API + dashboard: `http://127.0.0.1:8000/dashboard`
 - RabbitMQ management: `http://127.0.0.1:15672`
 - Grafana (full profile): `http://127.0.0.1:3000`
+
+### Runtime log verification and pipeline diagnostics
+
+Use these commands when dashboard data is empty or runtime workers look idle:
+
+```bash
+# Runtime worker structured logs (JSON lines)
+docker compose logs --since=3m \
+  runtime_worker_market runtime_worker_orchestrator runtime_worker_simulation \
+  runtime_worker_oms runtime_worker_execution_lifecycle runtime_worker_news
+
+# API health and pipeline diagnostics
+curl -s http://127.0.0.1:8000/health/readiness
+curl -s -H "Authorization: Bearer <JWT>" \
+  "http://127.0.0.1:8000/ops/pipeline/health?mode=MOCK"
+```
+
+The pipeline endpoint reports stage-level status for:
+- `market.klines`
+- `market.orderbook`
+- `news.items`
+- `agent.decisions`
+- `llm.calls`
+- `trading.fills`
+- `portfolio.snapshots`
 
 ### Start services individually (local process mode)
 

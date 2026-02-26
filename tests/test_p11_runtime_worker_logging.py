@@ -42,15 +42,34 @@ class _CapturedLogger:
     def __init__(self, *, service: str) -> None:
         self.service = service
 
-    def info(self, *, event: str, context: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
-        payload = {"level": "INFO", "event": event, "context": dict(context or {})}
+    def info(self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        payload = {"level": "INFO", "event": event, "context": dict(context or {}), **kwargs}
         self.__class__.records.append(payload)
         return payload
 
-    def error(self, *, event: str, context: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
-        payload = {"level": "ERROR", "event": event, "context": dict(context or {})}
+    def error(self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        payload = {"level": "ERROR", "event": event, "context": dict(context or {}), **kwargs}
         self.__class__.records.append(payload)
         return payload
+
+
+@dataclass
+class _ActivityWorker:
+    calls: int = 0
+
+    async def run_once(self, *, timeout_seconds: float) -> bool:
+        _ = timeout_seconds
+        self.calls += 1
+        return True
+
+    def activity_snapshot(self) -> dict[str, Any]:
+        return {
+            "trace_id": "trace-123",
+            "decision_id": "decision-456",
+            "mode": "MOCK",
+            "status": "RISK_APPROVED",
+            "event": "agent.decision.completed",
+        }
 
 
 def _settings(*, once: bool, bootstrap_topology: bool = False) -> RuntimeWorkerSettings:
@@ -137,3 +156,20 @@ async def test_worker_loop_logs_topology_bootstrap_event(monkeypatch: pytest.Mon
     assert broker.bootstrapped is True
     events = [record["event"] for record in _CapturedLogger.records]
     assert "runtime.worker.topology_bootstrapped" in events
+
+
+@pytest.mark.asyncio
+async def test_worker_loop_logs_activity_snapshot_and_correlation(monkeypatch: pytest.MonkeyPatch) -> None:
+    _CapturedLogger.records = []
+    monkeypatch.setattr(runtime_main, "StructuredLogger", _CapturedLogger)
+    worker = _ActivityWorker()
+    build = RuntimeWorkerBuildResult(worker=worker, broker=object())
+
+    code = await run_worker_loop(settings=_settings(once=True), build=build)
+
+    assert code == 0
+    success_record = next(record for record in _CapturedLogger.records if record["event"] == "runtime.worker.cycle_succeeded")
+    assert success_record["trace_id"] == "trace-123"
+    assert success_record["decision_id"] == "decision-456"
+    assert success_record["mode"] == "MOCK"
+    assert success_record["context"]["activity"]["status"] == "RISK_APPROVED"
