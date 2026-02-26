@@ -1072,36 +1072,31 @@ def _build_llm_runtime(
     timeout_ms = max(1, int(timeout_seconds * 1000))
     retries = max(0, int(os.getenv("LLM_PROVIDER_MAX_RETRIES", "1")))
 
-    openai_model = os.getenv("LLM_OPENAI_MODEL", "openai/gpt-4o-mini").strip() or "openai/gpt-4o-mini"
-    anthropic_model = (
-        os.getenv("LLM_ANTHROPIC_MODEL", "anthropic/claude-3-5-sonnet-20241022").strip()
-        or "anthropic/claude-3-5-sonnet-20241022"
+    quick_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "litellm")))
+    deep_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "litellm")))
+    default_order = quick_order or ("litellm",)
+    normalized_litellm_model = _normalize_litellm_model(
+        base_url=base_url,
+        model=os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat"),
     )
-    quick_order = tuple(_parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "openai,anthropic")))
-    deep_order = tuple(_parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "anthropic,openai")))
-    default_order = quick_order or ("openai", "anthropic")
+
+    provider_aliases = _ordered_provider_aliases(default_order, deep_order)
+    providers: dict[str, ProviderSettings] = {}
+    for alias in provider_aliases:
+        model = _resolve_provider_model(alias=alias, litellm_model=normalized_litellm_model)
+        prompt_cost, completion_cost = _resolve_provider_costs(alias=alias)
+        providers[alias] = ProviderSettings(
+            alias=alias,
+            model=model,
+            timeout_ms=timeout_ms,
+            max_retries=retries,
+            enabled=True,
+            prompt_cost_per_1k_tokens=prompt_cost,
+            completion_cost_per_1k_tokens=completion_cost,
+        )
 
     gateway_settings = GatewaySettings(
-        providers={
-            "openai": ProviderSettings(
-                alias="openai",
-                model=openai_model,
-                timeout_ms=timeout_ms,
-                max_retries=retries,
-                enabled=True,
-                prompt_cost_per_1k_tokens=float(os.getenv("LLM_OPENAI_PROMPT_COST_PER_1K", "0.0")),
-                completion_cost_per_1k_tokens=float(os.getenv("LLM_OPENAI_COMPLETION_COST_PER_1K", "0.0")),
-            ),
-            "anthropic": ProviderSettings(
-                alias="anthropic",
-                model=anthropic_model,
-                timeout_ms=timeout_ms,
-                max_retries=retries,
-                enabled=True,
-                prompt_cost_per_1k_tokens=float(os.getenv("LLM_ANTHROPIC_PROMPT_COST_PER_1K", "0.0")),
-                completion_cost_per_1k_tokens=float(os.getenv("LLM_ANTHROPIC_COMPLETION_COST_PER_1K", "0.0")),
-            ),
-        },
+        providers=providers,
         default_provider_order=default_order,
         retry_base_ms=max(1, int(os.getenv("LLM_GATEWAY_RETRY_BASE_MS", "100"))),
         retry_max_ms=max(10, int(os.getenv("LLM_GATEWAY_RETRY_MAX_MS", "2000"))),
@@ -1114,21 +1109,76 @@ def _build_llm_runtime(
     )
     gateway = LLMGateway(
         settings=gateway_settings,
-        provider_clients={
-            "openai": provider_client,
-            "anthropic": provider_client,
-        },
+        provider_clients={alias: provider_client for alias in provider_aliases},
         call_store=SQLAlchemyLLMCallStore(connection=runtime_engine),
         quota_store=SQLAlchemyLLMQuotaStore(connection=runtime_engine),
         metrics=metrics,
     )
     return LLMDecisionRuntime(
         gateway=gateway,
-        quick_provider_order=quick_order or ("openai", "anthropic"),
-        deep_provider_order=deep_order or ("anthropic", "openai"),
+        quick_provider_order=default_order,
+        deep_provider_order=deep_order or default_order,
         quick_temperature=float(os.getenv("LLM_QUICK_TEMPERATURE", "0.1")),
         deep_temperature=float(os.getenv("LLM_DEEP_TEMPERATURE", "0.2")),
     )
+
+
+def _ordered_provider_aliases(*orders: tuple[str, ...]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for order in orders:
+        for raw_alias in order:
+            alias = raw_alias.strip().lower()
+            if not alias or alias in seen:
+                continue
+            seen.add(alias)
+            ordered.append(alias)
+    return tuple(ordered) or ("litellm",)
+
+
+def _resolve_provider_model(*, alias: str, litellm_model: str) -> str:
+    if alias == "litellm":
+        return litellm_model
+    if alias == "openai":
+        return os.getenv("LLM_OPENAI_MODEL", "openai/gpt-4o-mini").strip() or "openai/gpt-4o-mini"
+    if alias == "anthropic":
+        return (
+            os.getenv("LLM_ANTHROPIC_MODEL", "anthropic/claude-3-5-sonnet-20241022").strip()
+            or "anthropic/claude-3-5-sonnet-20241022"
+        )
+    custom_model = os.getenv(f"LLM_{_provider_alias_env_token(alias)}_MODEL", "").strip()
+    return custom_model or litellm_model
+
+
+def _resolve_provider_costs(*, alias: str) -> tuple[float, float]:
+    env_prefix = f"LLM_{_provider_alias_env_token(alias)}"
+    if alias == "openai":
+        prompt_cost_raw = os.getenv("LLM_OPENAI_PROMPT_COST_PER_1K")
+        completion_cost_raw = os.getenv("LLM_OPENAI_COMPLETION_COST_PER_1K")
+    elif alias == "anthropic":
+        prompt_cost_raw = os.getenv("LLM_ANTHROPIC_PROMPT_COST_PER_1K")
+        completion_cost_raw = os.getenv("LLM_ANTHROPIC_COMPLETION_COST_PER_1K")
+    else:
+        prompt_cost_raw = os.getenv(f"{env_prefix}_PROMPT_COST_PER_1K")
+        completion_cost_raw = os.getenv(f"{env_prefix}_COMPLETION_COST_PER_1K")
+    prompt_cost = float(prompt_cost_raw) if prompt_cost_raw else 0.0
+    completion_cost = float(completion_cost_raw) if completion_cost_raw else 0.0
+    return prompt_cost, completion_cost
+
+
+def _provider_alias_env_token(alias: str) -> str:
+    sanitized = "".join(ch if ch.isalnum() else "_" for ch in alias.strip().upper())
+    return sanitized or "LITELLM"
+
+
+def _normalize_litellm_model(*, base_url: str, model: str) -> str:
+    normalized_model = model.strip() or "deepseek/deepseek-chat"
+    parsed_host = urlparse(base_url).netloc.lower()
+    host_scope = parsed_host or base_url.lower()
+    if "api.deepseek.com" in host_scope and normalized_model.startswith("deepseek/"):
+        suffix = normalized_model.split("/", 1)[1].strip()
+        return suffix or "deepseek-chat"
+    return normalized_model
 
 
 def _build_order_book_payload(*, base_price: float, sequence: int, timestamp_ms: int) -> dict[str, Any]:

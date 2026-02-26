@@ -15,6 +15,8 @@ def test_api_settings_loads_jwt_secret_from_dotenv(tmp_path, monkeypatch) -> Non
 
     assert settings.jwt_secret_key == "dotenv-secret"
     assert settings.default_mode == "MOCK"
+    assert settings.llm_quick_provider_order == ("litellm",)
+    assert settings.llm_deep_provider_order == ("litellm",)
 
 
 def test_notification_settings_loads_telegram_secrets_from_dotenv(tmp_path, monkeypatch) -> None:

@@ -51,8 +51,8 @@ def load_api_settings() -> APISettings:
             setting_name="LLM_RUNTIME_ENABLED",
         ),
         litellm_base_url=os.getenv("LITELLM_BASE_URL", "").strip(),
-        llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "openai,anthropic")),
-        llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "anthropic,openai")),
+        llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "litellm")),
+        llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "litellm")),
         read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"),
         strict_database_mode=_parse_bool(
             os.getenv("API_STRICT_DATABASE_MODE", "true"),

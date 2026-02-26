@@ -600,16 +600,16 @@ LLM env notes:
 - `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, and `LITELLM_MODEL` configure the LiteLLM-compatible adapter in `services/llm_gateway/litellm_http_adapter.py`.
 - Runtime orchestration LLM controls:
   - `LLM_RUNTIME_ENABLED` (enables gateway-backed planner/risk/execution suggestions in worker runtime)
-  - `LLM_QUICK_PROVIDER_ORDER` (default `openai,anthropic`)
-  - `LLM_DEEP_PROVIDER_ORDER` (default `anthropic,openai`)
-  - `LLM_OPENAI_MODEL`, `LLM_ANTHROPIC_MODEL`
+  - `LLM_QUICK_PROVIDER_ORDER` (default `litellm`)
+  - `LLM_DEEP_PROVIDER_ORDER` (default `litellm`)
+  - Optional alias model overrides: `LLM_OPENAI_MODEL`, `LLM_ANTHROPIC_MODEL`, `LLM_<ALIAS>_MODEL`
   - `LLM_QUICK_TEMPERATURE`, `LLM_DEEP_TEMPERATURE`
   - `LLM_PROVIDER_MAX_RETRIES`, `LLM_GATEWAY_RETRY_BASE_MS`, `LLM_GATEWAY_RETRY_MAX_MS`
 - DeepSeek via LiteLLM example:
   - `LITELLM_BASE_URL=https://api.deepseek.com`
   - `LITELLM_API_KEY=<deepseek-api-key>`
   - `LITELLM_MODEL=deepseek-chat`
-- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are optional upstream credentials for the LiteLLM deployment backend and are not directly read by openTrader runtime modules.
+- `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are not read by openTrader runtime modules; only keep them if your external LiteLLM router/deployment requires them.
 - Validate wiring:
   - `make mock-workflow`
   - `uv run python scripts/mock_realtime_workflow_test.py --seed 42 --symbol BTC/USDT --interval 1m` (strict real-data + mock-trade probe)
