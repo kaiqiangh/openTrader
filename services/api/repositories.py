@@ -274,23 +274,21 @@ class ControlPlaneRepository:
         exchange: str | None = None,
         limit: int = 120,
     ) -> tuple[dict[str, Any], ...]:
-        rows = self._fetchall(
-            """
-            SELECT time, exchange, symbol, "interval", open, high, low, close, volume, quote_volume, trades
-            FROM klines
-            WHERE symbol = :symbol
-              AND "interval" = :interval
-              AND (:exchange IS NULL OR exchange = :exchange)
-            ORDER BY time DESC
-            LIMIT :limit
-            """,
-            {
-                "symbol": symbol,
-                "interval": interval,
-                "exchange": exchange,
-                "limit": max(1, int(limit)),
-            },
-        )
+        statement_lines = [
+            'SELECT time, exchange, symbol, "interval", open, high, low, close, volume, quote_volume, trades',
+            "FROM klines",
+            'WHERE symbol = :symbol AND "interval" = :interval',
+        ]
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": max(1, int(limit)),
+        }
+        if exchange is not None:
+            statement_lines.append("AND exchange = :exchange")
+            params["exchange"] = exchange
+        statement_lines.extend(["ORDER BY time DESC", "LIMIT :limit"])
+        rows = self._fetchall("\n".join(statement_lines), params)
         ordered = list(reversed(rows))
         return tuple(
             {
@@ -315,20 +313,17 @@ class ControlPlaneRepository:
         symbol: str,
         exchange: str | None = None,
     ) -> dict[str, Any] | None:
-        row = self._fetchone(
-            """
-            SELECT snapshot_time, exchange, symbol, bids, asks, best_bid, best_ask, spread_bps
-            FROM orderbook_snapshots
-            WHERE symbol = :symbol
-              AND (:exchange IS NULL OR exchange = :exchange)
-            ORDER BY snapshot_time DESC
-            LIMIT 1
-            """,
-            {
-                "symbol": symbol,
-                "exchange": exchange,
-            },
-        )
+        statement_lines = [
+            "SELECT snapshot_time, exchange, symbol, bids, asks, best_bid, best_ask, spread_bps",
+            "FROM orderbook_snapshots",
+            "WHERE symbol = :symbol",
+        ]
+        params: dict[str, Any] = {"symbol": symbol}
+        if exchange is not None:
+            statement_lines.append("AND exchange = :exchange")
+            params["exchange"] = exchange
+        statement_lines.extend(["ORDER BY snapshot_time DESC", "LIMIT 1"])
+        row = self._fetchone("\n".join(statement_lines), params)
         if row is None:
             return None
         return {
@@ -348,19 +343,17 @@ class ControlPlaneRepository:
         mode: str | None,
         limit: int = 200,
     ) -> tuple[PortfolioSnapshot, ...]:
-        rows = self._fetchall(
-            """
-            SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today
-            FROM portfolio_snapshots
-            WHERE (:mode IS NULL OR mode = :mode)
-            ORDER BY snapshot_time DESC
-            LIMIT :limit
-            """,
-            {
-                "mode": mode,
-                "limit": max(1, int(limit)),
-            },
-        )
+        statement_lines = [
+            "SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today",
+            "FROM portfolio_snapshots",
+            "WHERE 1=1",
+        ]
+        params: dict[str, Any] = {"limit": max(1, int(limit))}
+        if mode is not None:
+            statement_lines.append("AND mode = :mode")
+            params["mode"] = mode
+        statement_lines.extend(["ORDER BY snapshot_time DESC", "LIMIT :limit"])
+        rows = self._fetchall("\n".join(statement_lines), params)
         return tuple(
             PortfolioSnapshot(
                 snapshot_time=str(row.get("snapshot_time", "")),
@@ -417,36 +410,35 @@ class ControlPlaneRepository:
         symbol: str | None = None,
         limit: int = 100,
     ) -> tuple[dict[str, Any], ...]:
-        rows = self._fetchall(
-            """
-            SELECT
-                f.id AS fill_id,
-                f.order_id AS order_id,
-                f.exchange_fill_id AS exchange_fill_id,
-                COALESCE(e.name, 'unknown') AS exchange,
-                s.symbol AS symbol,
-                f.mode AS mode,
-                f.side AS side,
-                f.quantity AS quantity,
-                f.price AS price,
-                f.fee AS fee,
-                f.fee_currency AS fee_currency,
-                f.filled_at AS filled_at
-            FROM fills f
-            JOIN orders o ON o.id = f.order_id
-            JOIN symbols s ON s.id = o.symbol_id
-            LEFT JOIN exchanges e ON e.id = o.exchange_id
-            WHERE (:mode IS NULL OR f.mode = :mode)
-              AND (:symbol IS NULL OR s.symbol = :symbol)
-            ORDER BY f.filled_at DESC
-            LIMIT :limit
-            """,
-            {
-                "mode": mode,
-                "symbol": symbol,
-                "limit": max(1, int(limit)),
-            },
-        )
+        statement_lines = [
+            "SELECT",
+            "    f.id AS fill_id,",
+            "    f.order_id AS order_id,",
+            "    f.exchange_fill_id AS exchange_fill_id,",
+            "    COALESCE(e.name, 'unknown') AS exchange,",
+            "    s.symbol AS symbol,",
+            "    f.mode AS mode,",
+            "    f.side AS side,",
+            "    f.quantity AS quantity,",
+            "    f.price AS price,",
+            "    f.fee AS fee,",
+            "    f.fee_currency AS fee_currency,",
+            "    f.filled_at AS filled_at",
+            "FROM fills f",
+            "JOIN orders o ON o.id = f.order_id",
+            "JOIN symbols s ON s.id = o.symbol_id",
+            "LEFT JOIN exchanges e ON e.id = o.exchange_id",
+            "WHERE 1=1",
+        ]
+        params: dict[str, Any] = {"limit": max(1, int(limit))}
+        if mode is not None:
+            statement_lines.append("AND f.mode = :mode")
+            params["mode"] = mode
+        if symbol is not None:
+            statement_lines.append("AND s.symbol = :symbol")
+            params["symbol"] = symbol
+        statement_lines.extend(["ORDER BY f.filled_at DESC", "LIMIT :limit"])
+        rows = self._fetchall("\n".join(statement_lines), params)
         return tuple(
             {
                 "fill_id": str(row.get("fill_id", "")),
