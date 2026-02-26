@@ -72,6 +72,28 @@ class LLMBreachRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class LLMCallLogRecord:
+    llm_call_id: str
+    trace_id: str
+    decision_id: str
+    strategy_id: str
+    agent_name: str
+    provider: str
+    model: str
+    status: str
+    mode: str | None
+    tier: str | None
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    latency_ms: float
+    estimated_cost: float
+    created_at: str
+    prompt_preview: str | None
+    response_preview: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayRequestRecord:
     request_id: str
     decision_id: str
@@ -430,6 +452,65 @@ class ControlPlaneState:
         items.sort(key=lambda item: item.created_at, reverse=True)
         return tuple(items[:safe_limit])
 
+    def list_llm_call_logs(
+        self,
+        *,
+        strategy_id: str | None = None,
+        agent_name: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> tuple[LLMCallLogRecord, ...]:
+        safe_limit = max(1, int(limit))
+        strategy_filter = strategy_id.strip() if strategy_id else None
+        agent_filter = agent_name.strip() if agent_name else None
+        status_filter = status.strip().lower() if status else None
+
+        rows: list[LLMCallLogRecord] = []
+        for record in self.llm_call_records:
+            if strategy_filter and record.strategy_id != strategy_filter:
+                continue
+            if agent_filter and record.agent_name != agent_filter:
+                continue
+
+            response_status = str(record.response_payload.get("status", "succeeded")).strip().lower() or "succeeded"
+            if status_filter and response_status != status_filter:
+                continue
+
+            metadata = record.prompt_payload.get("metadata", {})
+            mode = None
+            tier = None
+            if isinstance(metadata, dict):
+                mode_value = metadata.get("mode")
+                tier_value = metadata.get("tier")
+                mode = str(mode_value) if mode_value is not None else None
+                tier = str(tier_value) if tier_value is not None else None
+
+            rows.append(
+                LLMCallLogRecord(
+                    llm_call_id=record.llm_call_id,
+                    trace_id=record.trace_id,
+                    decision_id=record.decision_id,
+                    strategy_id=record.strategy_id,
+                    agent_name=record.agent_name,
+                    provider=record.provider,
+                    model=record.model,
+                    status=response_status,
+                    mode=mode,
+                    tier=tier,
+                    prompt_tokens=int(record.prompt_tokens),
+                    completion_tokens=int(record.completion_tokens),
+                    total_tokens=int(record.total_tokens),
+                    latency_ms=float(record.latency_ms),
+                    estimated_cost=float(record.estimated_cost),
+                    created_at=record.created_at,
+                    prompt_preview=_extract_prompt_preview(record.prompt_payload),
+                    response_preview=_extract_response_preview(record.response_payload),
+                )
+            )
+
+        rows.sort(key=lambda item: item.created_at, reverse=True)
+        return tuple(rows[:safe_limit])
+
     async def replay_decision(self, *, decision_id: str) -> DecisionReplayResult:
         service = DecisionReplayService(
             trace_store=_StateReplayTraceStore(self),
@@ -463,6 +544,12 @@ class ControlPlaneState:
         traces = list(self.replay_traces.values())
         traces.sort(key=lambda item: item.started_at, reverse=True)
         return tuple(traces)
+
+    def list_replay_requests(self, *, limit: int = 200) -> tuple[ReplayRequestRecord, ...]:
+        safe_limit = max(1, int(limit))
+        items = list(self.replay_requests.values())
+        items.sort(key=lambda item: item.requested_at, reverse=True)
+        return tuple(items[:safe_limit])
 
     def list_news_items(self, *, symbol: str | None = None, limit: int = 50) -> tuple[NewsPanelItem, ...]:
         symbol_filter = symbol.strip().upper() if symbol else None
@@ -961,6 +1048,39 @@ def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _extract_prompt_preview(prompt_payload: dict[str, Any]) -> str | None:
+    messages = prompt_payload.get("messages")
+    if not isinstance(messages, list):
+        return None
+    for item in reversed(messages):
+        if not isinstance(item, dict):
+            continue
+        content = item.get("content")
+        if content is None:
+            continue
+        text = str(content).strip()
+        if text:
+            return _trim_preview(text)
+    return None
+
+
+def _extract_response_preview(response_payload: dict[str, Any]) -> str | None:
+    content = response_payload.get("content")
+    if content is None:
+        return None
+    text = str(content).strip()
+    if not text:
+        return None
+    return _trim_preview(text)
+
+
+def _trim_preview(value: str, *, limit: int = 180) -> str:
+    text = value.strip().replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit - 3]}..."
 
 
 def _utc_now_iso() -> str:

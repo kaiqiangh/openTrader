@@ -529,6 +529,35 @@ class LLMBreachListResponse(BaseModel):
     items: list[LLMBreachRecordResponse]
 
 
+class LLMCallLogRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    llm_call_id: str
+    trace_id: str
+    decision_id: str
+    strategy_id: str
+    agent_name: str
+    provider: str
+    model: str
+    status: str
+    mode: str | None = None
+    tier: str | None = None
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    latency_ms: float
+    estimated_cost: float
+    created_at: str
+    prompt_preview: str | None = None
+    response_preview: str | None = None
+
+
+class LLMCallLogListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[LLMCallLogRecordResponse]
+
+
 class ReplayRequestCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -561,3 +590,32 @@ class ReplayRequestResponse(BaseModel):
     requested_by: str
     requested_at: str
     result: ReplayDecisionResultResponse
+
+
+class ReplayCatalogDecisionRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    trace_id: str
+    strategy_id: str
+    mode: str
+    status: str
+    started_at: str
+    completed_at: str
+
+
+class ReplayCatalogRequestRecordResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    decision_id: str
+    status: str
+    requested_by: str
+    requested_at: str
+
+
+class ReplayCatalogResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decisions: list[ReplayCatalogDecisionRecordResponse]
+    requests: list[ReplayCatalogRequestRecordResponse]

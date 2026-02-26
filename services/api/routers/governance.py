@@ -6,12 +6,14 @@ from services.api.auth import require_viewer
 from services.api.dependencies import get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
+    LLMCallLogListResponse,
+    LLMCallLogRecordResponse,
     LLMBreachListResponse,
     LLMBreachRecordResponse,
     LLMUsageListResponse,
     LLMUsageRecordResponse,
 )
-from services.api.state import ControlPlaneState, LLMBreachRecord, LLMUsageRecord
+from services.api.state import ControlPlaneState, LLMCallLogRecord, LLMBreachRecord, LLMUsageRecord
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 
@@ -37,6 +39,24 @@ def list_llm_breaches(
 ) -> LLMBreachListResponse:
     items = state.list_llm_breaches(strategy_id=strategy_id, agent_name=agent_name, limit=limit)
     return LLMBreachListResponse(items=[_breach_model(item) for item in items])
+
+
+@router.get("/llm/calls", response_model=LLMCallLogListResponse)
+def list_llm_calls(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    strategy_id: str | None = Query(default=None),
+    agent_name: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> LLMCallLogListResponse:
+    items = state.list_llm_call_logs(
+        strategy_id=strategy_id,
+        agent_name=agent_name,
+        status=status_filter,
+        limit=limit,
+    )
+    return LLMCallLogListResponse(items=[_call_model(item) for item in items])
 
 
 def _usage_model(item: LLMUsageRecord) -> LLMUsageRecordResponse:
@@ -68,4 +88,27 @@ def _breach_model(item: LLMBreachRecord) -> LLMBreachRecordResponse:
         projected_tokens=item.projected_tokens,
         projected_cost=item.projected_cost,
         created_at=item.created_at,
+    )
+
+
+def _call_model(item: LLMCallLogRecord) -> LLMCallLogRecordResponse:
+    return LLMCallLogRecordResponse(
+        llm_call_id=item.llm_call_id,
+        trace_id=item.trace_id,
+        decision_id=item.decision_id,
+        strategy_id=item.strategy_id,
+        agent_name=item.agent_name,
+        provider=item.provider,
+        model=item.model,
+        status=item.status,
+        mode=item.mode,
+        tier=item.tier,
+        prompt_tokens=item.prompt_tokens,
+        completion_tokens=item.completion_tokens,
+        total_tokens=item.total_tokens,
+        latency_ms=item.latency_ms,
+        estimated_cost=item.estimated_cost,
+        created_at=item.created_at,
+        prompt_preview=item.prompt_preview,
+        response_preview=item.response_preview,
     )

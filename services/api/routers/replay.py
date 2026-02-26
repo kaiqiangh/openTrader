@@ -3,13 +3,16 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from services.agent_orchestrator.replay_service import DecisionReplayNotFoundError, DecisionReplayResult
 from services.api.auth import require_viewer
 from services.api.dependencies import get_control_plane_repository, get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
+    ReplayCatalogDecisionRecordResponse,
+    ReplayCatalogRequestRecordResponse,
+    ReplayCatalogResponse,
     ReplayDecisionResultResponse,
     ReplayRequestCreateRequest,
     ReplayRequestResponse,
@@ -64,6 +67,41 @@ async def get_replay_decision(
     except DecisionReplayNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return _result_model(result)
+
+
+@router.get("/catalog", response_model=ReplayCatalogResponse)
+def get_replay_catalog(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+    decision_limit: int = Query(default=200, ge=1, le=1000),
+    request_limit: int = Query(default=200, ge=1, le=1000),
+) -> ReplayCatalogResponse:
+    traces = state.list_replay_traces()[:decision_limit]
+    requests = state.list_replay_requests(limit=request_limit)
+    return ReplayCatalogResponse(
+        decisions=[
+            ReplayCatalogDecisionRecordResponse(
+                decision_id=item.decision_id,
+                trace_id=item.trace_id,
+                strategy_id=item.strategy_id,
+                mode=item.mode,
+                status=item.status,
+                started_at=item.started_at,
+                completed_at=item.completed_at or "",
+            )
+            for item in traces
+        ],
+        requests=[
+            ReplayCatalogRequestRecordResponse(
+                request_id=item.request_id,
+                decision_id=item.decision_id,
+                status=item.status,
+                requested_by=item.requested_by,
+                requested_at=item.requested_at,
+            )
+            for item in requests
+        ],
+    )
 
 
 def _request_model(record: ReplayRequestRecord) -> ReplayRequestResponse:

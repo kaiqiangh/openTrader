@@ -39,6 +39,13 @@ body {
   padding: 1.45rem 1.25rem 1rem;
 }
 
+.header-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
 .dashboard-header h1 {
   margin: 0;
   font-size: clamp(1.5rem, 2.5vw, 2.15rem);
@@ -166,6 +173,39 @@ button:disabled {
   box-shadow: none;
 }
 
+.tool-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(92, 137, 182, 0.45);
+  background: linear-gradient(145deg, rgba(12, 33, 56, 0.94), rgba(8, 24, 41, 0.92));
+  color: #bfe3ff;
+  font-size: 1.1rem;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.tool-toggle:hover {
+  border-color: rgba(32, 226, 181, 0.6);
+  color: #d8fff4;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+}
+
+.button-secondary {
+  color: #d7e8fa;
+  background: rgba(8, 26, 45, 0.78);
+  border-color: rgba(81, 126, 171, 0.5);
+  font-weight: 600;
+  margin-left: 0.35rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.button-secondary:hover {
+  filter: none;
+  border-color: rgba(32, 226, 181, 0.64);
+  color: #ebffff;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -261,6 +301,13 @@ th {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 0.55rem;
+}
+
+.copy-id {
+  font-family: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  word-break: break-all;
 }
 
 .mini-card {
@@ -498,9 +545,23 @@ th {
   margin: 0.42rem 0;
 }
 
+.warning {
+  color: #ffcf8f;
+  margin: 0.42rem 0;
+}
+
 @media (max-width: 740px) {
   .dashboard-header {
     padding: 1rem 0.9rem 0.68rem;
+  }
+
+  .header-top-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tool-toggle {
+    align-self: flex-start;
   }
 
   .dashboard-root {

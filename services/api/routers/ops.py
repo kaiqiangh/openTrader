@@ -90,7 +90,7 @@ def get_market_klines(
     symbol: str = Query(min_length=1),
     interval: str = Query(default="1m", min_length=1),
     exchange: str | None = Query(default=None),
-    limit: int = Query(default=120, ge=1, le=1000),
+    limit: int = Query(default=120, ge=1, le=10000),
 ) -> MarketKlineListResponse:
     if repository is None:
         return MarketKlineListResponse(items=[])

@@ -192,6 +192,13 @@ def test_governance_usage_and_breach_history_endpoints() -> None:
     assert breach_item["reason"] == "monthly_cost_limit_exceeded"
     assert breach_item["decision_id"] == "d11ef6a5-38f9-4cdf-b22e-28a84c61dcc7"
 
+    calls_response = client.get("/governance/llm/calls", headers=_auth_headers(viewer_token))
+    assert calls_response.status_code == 200
+    call_items = calls_response.json()["items"]
+    assert len(call_items) == 2
+    assert call_items[0]["status"] == "quota_blocked"
+    assert call_items[1]["status"] == "succeeded"
+
 
 def test_replay_request_and_retrieval_endpoints() -> None:
     settings = _settings()
@@ -222,6 +229,12 @@ def test_replay_request_and_retrieval_endpoints() -> None:
     assert decision_detail.status_code == 200
     assert decision_detail.json()["decision_id"] == decision_id
     assert decision_detail.json()["status"] == "RISK_APPROVED"
+
+    catalog_response = client.get("/replay/catalog", headers=_auth_headers(viewer_token))
+    assert catalog_response.status_code == 200
+    catalog_payload = catalog_response.json()
+    assert catalog_payload["decisions"][0]["decision_id"] == decision_id
+    assert catalog_payload["requests"][0]["request_id"] == request_id
 
 
 def test_replay_decision_not_found_returns_404() -> None:

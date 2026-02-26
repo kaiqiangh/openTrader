@@ -7,6 +7,27 @@ const requestCache = new Map();
 const TOKEN_STORAGE_KEY = "openTraderJWT";
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 const KLINE_INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"];
+const KLINE_INTERVAL_MINUTES = {
+  "1m": 1,
+  "5m": 5,
+  "15m": 15,
+  "1h": 60,
+  "4h": 240,
+  "1d": 1440,
+  "1w": 10080,
+  "1M": 43200,
+};
+const MIN_KLINE_BARS = 20;
+
+function intervalSizeMinutes(interval) {
+  return KLINE_INTERVAL_MINUTES[interval] || 1;
+}
+
+function baseKlineLimitForInterval(interval) {
+  const factor = intervalSizeMinutes(interval);
+  const desiredBars = 100;
+  return Math.min(10000, Math.max(240, factor * desiredBars));
+}
 
 function safeReadToken() {
   try {
@@ -106,6 +127,134 @@ function settledValue(result, fallback) {
     return result.value;
   }
   return fallback;
+}
+
+function intervalBucketStart(timeMs, interval) {
+  const date = new Date(timeMs);
+  if (interval === "1w") {
+    const weekday = date.getUTCDay();
+    const diff = (weekday + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - diff);
+    date.setUTCHours(0, 0, 0, 0);
+    return date.getTime();
+  }
+  if (interval === "1M") {
+    date.setUTCDate(1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date.getTime();
+  }
+  const minutes = intervalSizeMinutes(interval);
+  const minute = date.getUTCMinutes();
+  const flooredMinute = minute - (minute % minutes);
+  date.setUTCMinutes(flooredMinute, 0, 0);
+  if (minutes >= 60) {
+    const hourSpan = Math.max(1, Math.floor(minutes / 60));
+    const flooredHour = date.getUTCHours() - (date.getUTCHours() % hourSpan);
+    date.setUTCHours(flooredHour, 0, 0, 0);
+  }
+  if (minutes >= 1440) {
+    date.setUTCHours(0, 0, 0, 0);
+  }
+  return date.getTime();
+}
+
+function normalizeBaseKline(item) {
+  const rawTime = item && item.time ? item.time : "";
+  const timeMs = Date.parse(String(rawTime));
+  return {
+    time: Number.isFinite(timeMs) ? new Date(timeMs).toISOString() : "",
+    open: Number(item && item.open) || 0,
+    high: Number(item && item.high) || 0,
+    low: Number(item && item.low) || 0,
+    close: Number(item && item.close) || 0,
+    volume: Number(item && item.volume) || 0,
+    quote_volume: Number(item && item.quote_volume) || 0,
+    trades: Number(item && item.trades) || 0,
+  };
+}
+
+function aggregateKlines(baseBars, interval) {
+  const items = Array.isArray(baseBars) ? baseBars : [];
+  if (interval === "1m") {
+    return items.map(normalizeBaseKline);
+  }
+  const sorted = items
+    .map((item) => {
+      const rawTime = item && item.time ? item.time : "";
+      const timeMs = Date.parse(String(rawTime));
+      return {
+        ...normalizeBaseKline(item),
+        _timeMs: Number.isFinite(timeMs) ? timeMs : null,
+      };
+    })
+    .filter((item) => item._timeMs != null)
+    .sort((a, b) => a._timeMs - b._timeMs);
+  if (sorted.length === 0) {
+    return [];
+  }
+  const buckets = new Map();
+  sorted.forEach((item) => {
+    const bucketStart = intervalBucketStart(item._timeMs, interval);
+    const key = String(bucketStart);
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, {
+        time: new Date(bucketStart).toISOString(),
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+        volume: item.volume,
+        quote_volume: item.quote_volume,
+        trades: item.trades,
+      });
+      return;
+    }
+    existing.high = Math.max(existing.high, item.high);
+    existing.low = Math.min(existing.low, item.low);
+    existing.close = item.close;
+    existing.volume += item.volume;
+    existing.quote_volume += item.quote_volume;
+    existing.trades += item.trades;
+  });
+  return Array.from(buckets.values()).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+}
+
+function klineDataNotice(interval, baseCount, aggregatedCount) {
+  const factor = intervalSizeMinutes(interval);
+  if (aggregatedCount === 0) {
+    return `No ${interval} bars available. Need at least ${factor} one-minute candles.`;
+  }
+  if (aggregatedCount < MIN_KLINE_BARS) {
+    return `Only ${aggregatedCount} ${interval} bars available from ${baseCount} one-minute candles. More history is needed for a stable chart.`;
+  }
+  return "";
+}
+
+async function copyText(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const node = document.createElement("textarea");
+      node.value = text;
+      node.setAttribute("readonly", "");
+      node.style.position = "absolute";
+      node.style.left = "-9999px";
+      document.body.appendChild(node);
+      node.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(node);
+      return Boolean(ok);
+    } catch {
+      return false;
+    }
+  }
 }
 
 function SectionCard({ title, subtitle, children }) {
@@ -442,13 +591,14 @@ function StatusView({ token }) {
   const [klineInterval, setKlineInterval] = useState("1m");
   const [readiness, setReadiness] = useState(null);
   const [riskStatus, setRiskStatus] = useState(null);
-  const [klineItems, setKlineItems] = useState([]);
+  const [klineSourceItems, setKlineSourceItems] = useState([]);
   const [equityHistory, setEquityHistory] = useState([]);
   const [latestSignal, setLatestSignal] = useState(null);
   const [orderbookSnapshot, setOrderbookSnapshot] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
   const [pipelineHealth, setPipelineHealth] = useState(null);
   const [llmRuntime, setLlmRuntime] = useState(null);
+  const [klineNotice, setKlineNotice] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -457,9 +607,10 @@ function StatusView({ token }) {
       const ready = await apiFetchJson("/health/readiness");
       setReadiness(ready);
       if (token) {
+        const baseLimit = baseKlineLimitForInterval(klineInterval);
         const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult, pipelineResult, llmResult] = await Promise.allSettled([
           apiFetchJson("/ops/risk/status", { token }),
-          apiFetchJson(`/ops/market/klines?symbol=BTC/USDT&interval=${encodeURIComponent(klineInterval)}&limit=120`, { token }),
+          apiFetchJson(`/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=${baseLimit}`, { token }),
           apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
           apiFetchJson("/ops/signals/latest?limit=1", { token }),
           apiFetchJson("/ops/market/orderbook/latest?symbol=BTC/USDT", { token }),
@@ -477,7 +628,7 @@ function StatusView({ token }) {
         const llm = settledValue(llmResult, null);
 
         setRiskStatus(risk || null);
-        setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
+        setKlineSourceItems(Array.isArray(klines && klines.items) ? klines.items : []);
         setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
         setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
         setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
@@ -486,7 +637,7 @@ function StatusView({ token }) {
         setLlmRuntime(llm && typeof llm === "object" ? llm : null);
       } else {
         setRiskStatus(null);
-        setKlineItems([]);
+        setKlineSourceItems([]);
         setEquityHistory([]);
         setLatestSignal(null);
         setOrderbookSnapshot(null);
@@ -500,6 +651,7 @@ function StatusView({ token }) {
       setRecentTrades([]);
       setPipelineHealth(null);
       setLlmRuntime(null);
+      setKlineNotice("");
     } finally {
       setLoading(false);
     }
@@ -525,6 +677,11 @@ function StatusView({ token }) {
     () => (pipelineHealth && Array.isArray(pipelineHealth.stages) ? pipelineHealth.stages : []),
     [pipelineHealth]
   );
+  const klineItems = useMemo(() => aggregateKlines(klineSourceItems, klineInterval), [klineSourceItems, klineInterval]);
+
+  useEffect(() => {
+    setKlineNotice(klineDataNotice(klineInterval, klineSourceItems.length, klineItems.length));
+  }, [klineInterval, klineSourceItems.length, klineItems.length]);
 
   return h(
     "div",
@@ -587,7 +744,7 @@ function StatusView({ token }) {
     ),
     h(
       SectionCard,
-      { title: "BTC/USDT Candles", subtitle: `Interval ${klineInterval} (auto-refresh every 2 seconds).` },
+      { title: "BTC/USDT Candles", subtitle: `Derived ${klineInterval} bars from 1m stream (auto-refresh every 2 seconds).` },
       h(
         "div",
         { className: "timeframe-switch" },
@@ -604,7 +761,8 @@ function StatusView({ token }) {
           )
         )
       ),
-      klineItems.length === 0 ? h("p", { className: "muted" }, "No kline data available.") : h(CandleChart, { bars: klineItems }),
+      klineItems.length === 0 ? h("p", { className: "muted" }, "No one-minute kline data available.") : h(CandleChart, { bars: klineItems }),
+      klineNotice ? h("p", { className: "warning" }, klineNotice) : null,
       h(
         "div",
         { className: "button-row link-row" },
@@ -777,8 +935,11 @@ function GovernanceView({ token }) {
   const [filters, setFilters] = useState({ strategy_id: "", agent_name: "" });
   const [usageItems, setUsageItems] = useState([]);
   const [breachItems, setBreachItems] = useState([]);
+  const [callItems, setCallItems] = useState([]);
+  const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [isPending, startTransition] = useTransition();
 
@@ -787,6 +948,8 @@ function GovernanceView({ token }) {
       setError("Set JWT token to load governance data.");
       setUsageItems([]);
       setBreachItems([]);
+      setCallItems([]);
+      setRuntimeStatus(null);
       return;
     }
 
@@ -794,16 +957,22 @@ function GovernanceView({ token }) {
     setLoading(true);
     setError("");
     try {
-      const [usagePayload, breachPayload] = await Promise.all([
+      const [usagePayload, breachPayload, callPayload, runtimePayload] = await Promise.all([
         apiFetchJson(`/governance/llm/usage${query}`, { token }),
         apiFetchJson(`/governance/llm/breaches${query}`, { token }),
+        apiFetchJson(`/governance/llm/calls${buildQuery({ ...filters, limit: 300 })}`, { token }),
+        apiFetchJson("/ops/llm/runtime", { token }),
       ]);
       setUsageItems(Array.isArray(usagePayload.items) ? usagePayload.items : []);
       setBreachItems(Array.isArray(breachPayload.items) ? breachPayload.items : []);
+      setCallItems(Array.isArray(callPayload.items) ? callPayload.items : []);
+      setRuntimeStatus(runtimePayload && typeof runtimePayload === "object" ? runtimePayload : null);
     } catch (exc) {
       setError(String(exc.message || exc));
       setUsageItems([]);
       setBreachItems([]);
+      setCallItems([]);
+      setRuntimeStatus(null);
     } finally {
       setLoading(false);
     }
@@ -819,6 +988,11 @@ function GovernanceView({ token }) {
       setRefreshSeed((value) => value + 1);
     });
   };
+
+  const copyId = useCallback(async (value, label) => {
+    const ok = await copyText(value);
+    setCopyMessage(ok ? `${label} copied.` : `Failed to copy ${label}.`);
+  }, []);
 
   return h(
     "div",
@@ -857,6 +1031,29 @@ function GovernanceView({ token }) {
       ),
       loading
         ? h("p", { className: "muted" }, "Loading governance data...")
+        : null,
+      runtimeStatus
+        ? h(
+            "div",
+            { className: "stats-grid" },
+            h(KeyStat, { label: "Runtime Enabled", value: String(Boolean(runtimeStatus.runtime_enabled)) }),
+            h(KeyStat, { label: "LiteLLM URL", value: runtimeStatus.litellm_base_url_configured ? "configured" : "missing" }),
+            h(KeyStat, { label: "Total Calls", value: String(runtimeStatus.total_calls || 0) }),
+            h(KeyStat, { label: "Succeeded", value: String(runtimeStatus.succeeded_calls || 0) }),
+            h(KeyStat, { label: "Failed", value: String(runtimeStatus.failed_calls || 0) }),
+            h(KeyStat, { label: "Latest", value: String(runtimeStatus.latest_call_at || "n/a") })
+          )
+        : null,
+      runtimeStatus && runtimeStatus.runtime_enabled && Number(runtimeStatus.total_calls || 0) === 0
+        ? h(
+            "p",
+            { className: "warning" },
+            "LLM runtime is enabled but no calls are persisted yet. Ensure both market and orchestrator workers are running and producing decisions."
+          )
+        : null,
+      h("h3", null, "Usage by Strategy / Agent"),
+      usageItems.length === 0
+        ? h("p", { className: "muted" }, "No token usage rows found.")
         : h(
             "div",
             { className: "table-wrap" },
@@ -914,7 +1111,8 @@ function GovernanceView({ token }) {
               h("th", null, "Strategy"),
               h("th", null, "Agent"),
               h("th", null, "Reason"),
-              h("th", null, "Decision")
+              h("th", null, "Decision"),
+              h("th", null, "Copy")
             )
           ),
           h(
@@ -928,12 +1126,89 @@ function GovernanceView({ token }) {
                 h("td", null, item.strategy_id),
                 h("td", null, item.agent_name),
                 h("td", null, item.reason),
-                h("td", null, item.decision_id)
+                h("td", null, h("code", { className: "copy-id" }, item.decision_id)),
+                h(
+                  "td",
+                  null,
+                  h(
+                    "button",
+                    { type: "button", className: "button-secondary", onClick: () => void copyId(item.decision_id, "decision_id") },
+                    "Copy"
+                  )
+                )
               )
             )
           )
         )
       ),
+      h("h3", null, "LLM Invocation Logs"),
+      callItems.length === 0
+        ? h("p", { className: "muted" }, "No LLM invocation logs found.")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h(
+                  "tr",
+                  null,
+                  h("th", null, "Created At"),
+                  h("th", null, "Status"),
+                  h("th", null, "Mode/Tier"),
+                  h("th", null, "Provider/Model"),
+                  h("th", null, "Strategy/Agent"),
+                  h("th", null, "Tokens"),
+                  h("th", null, "decision_id"),
+                  h("th", null, "llm_call_id"),
+                  h("th", null, "Prompt Preview"),
+                  h("th", null, "Response Preview")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                callItems.map((item) =>
+                  h(
+                    "tr",
+                    { key: item.llm_call_id, className: "virtual-row" },
+                    h("td", null, String(item.created_at || "")),
+                    h("td", null, String(item.status || "")),
+                    h("td", null, `${item.mode || "-"} / ${item.tier || "-"}`),
+                    h("td", null, `${item.provider || "-"} / ${item.model || "-"}`),
+                    h("td", null, `${item.strategy_id || "-"} / ${item.agent_name || "-"}`),
+                    h("td", null, String(item.total_tokens || 0)),
+                    h(
+                      "td",
+                      null,
+                      h("code", { className: "copy-id" }, String(item.decision_id || "")),
+                      h(
+                        "button",
+                        { type: "button", className: "button-secondary", onClick: () => void copyId(item.decision_id, "decision_id") },
+                        "Copy"
+                      )
+                    ),
+                    h(
+                      "td",
+                      null,
+                      h("code", { className: "copy-id" }, String(item.llm_call_id || "")),
+                      h(
+                        "button",
+                        { type: "button", className: "button-secondary", onClick: () => void copyId(item.llm_call_id, "llm_call_id") },
+                        "Copy"
+                      )
+                    ),
+                    h("td", null, String(item.prompt_preview || "-")),
+                    h("td", null, String(item.response_preview || "-"))
+                  )
+                )
+              )
+            )
+          ),
+      copyMessage ? h("p", { className: "muted" }, copyMessage) : null,
       error ? h("p", { className: "error" }, error) : null
     )
   );
@@ -944,8 +1219,27 @@ function ReplayView({ token }) {
   const [requestIdInput, setRequestIdInput] = useState("");
   const [decisionPayload, setDecisionPayload] = useState(null);
   const [requestPayload, setRequestPayload] = useState(null);
+  const [catalog, setCatalog] = useState({ decisions: [], requests: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
+
+  const loadCatalog = useCallback(async () => {
+    if (!token) {
+      setCatalog({ decisions: [], requests: [] });
+      return;
+    }
+    try {
+      const payload = await apiFetchJson("/replay/catalog?decision_limit=400&request_limit=400", { token });
+      setCatalog({
+        decisions: Array.isArray(payload.decisions) ? payload.decisions : [],
+        requests: Array.isArray(payload.requests) ? payload.requests : [],
+      });
+    } catch (exc) {
+      setError(String(exc.message || exc));
+      setCatalog({ decisions: [], requests: [] });
+    }
+  }, [token]);
 
   const loadDecision = useCallback(async () => {
     if (!token || !decisionIdInput.trim()) {
@@ -1000,12 +1294,13 @@ function ReplayView({ token }) {
       setRequestPayload(payload);
       setDecisionPayload(payload.result || null);
       setRequestIdInput(payload.request_id || "");
+      await loadCatalog();
     } catch (exc) {
       setError(String(exc.message || exc));
     } finally {
       setLoading(false);
     }
-  }, [token, decisionIdInput]);
+  }, [token, decisionIdInput, loadCatalog]);
 
   const llmCalls = useMemo(() => {
     if (!decisionPayload || !Array.isArray(decisionPayload.llm_calls)) {
@@ -1013,6 +1308,15 @@ function ReplayView({ token }) {
     }
     return decisionPayload.llm_calls;
   }, [decisionPayload]);
+
+  const copyId = useCallback(async (value, label) => {
+    const ok = await copyText(value);
+    setCopyMessage(ok ? `${label} copied.` : `Failed to copy ${label}.`);
+  }, []);
+
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
 
   return h(
     "div",
@@ -1037,7 +1341,8 @@ function ReplayView({ token }) {
           "button",
           { type: "button", onClick: () => void submitReplayRequest(), disabled: loading },
           "Submit Replay Request"
-        )
+        ),
+        h("button", { type: "button", onClick: () => void loadCatalog(), disabled: loading }, "Refresh ID Catalog")
       ),
       h(
         "div",
@@ -1051,6 +1356,122 @@ function ReplayView({ token }) {
         h("button", { type: "button", onClick: () => void loadRequest(), disabled: loading }, "Fetch Request")
       ),
       loading ? h("p", { className: "muted" }, "Loading replay data...") : null,
+      h("h3", null, "Available decision_id values"),
+      catalog.decisions.length === 0
+        ? h("p", { className: "muted" }, "No decision traces found.")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h(
+                  "tr",
+                  null,
+                  h("th", null, "decision_id"),
+                  h("th", null, "trace_id"),
+                  h("th", null, "status"),
+                  h("th", null, "started_at"),
+                  h("th", null, "Actions")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                catalog.decisions.map((item) =>
+                  h(
+                    "tr",
+                    { key: item.decision_id, className: "virtual-row" },
+                    h("td", null, h("code", { className: "copy-id" }, String(item.decision_id || ""))),
+                    h("td", null, h("code", { className: "copy-id" }, String(item.trace_id || ""))),
+                    h("td", null, String(item.status || "")),
+                    h("td", null, String(item.started_at || "")),
+                    h(
+                      "td",
+                      null,
+                      h(
+                        "button",
+                        {
+                          type: "button",
+                          className: "button-secondary",
+                          onClick: () => {
+                            setDecisionIdInput(String(item.decision_id || ""));
+                          },
+                        },
+                        "Use"
+                      ),
+                      h(
+                        "button",
+                        { type: "button", className: "button-secondary", onClick: () => void copyId(item.decision_id, "decision_id") },
+                        "Copy"
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          ),
+      h("h3", null, "Available request_id values"),
+      catalog.requests.length === 0
+        ? h("p", { className: "muted" }, "No replay requests found.")
+        : h(
+            "div",
+            { className: "table-wrap" },
+            h(
+              "table",
+              null,
+              h(
+                "thead",
+                null,
+                h(
+                  "tr",
+                  null,
+                  h("th", null, "request_id"),
+                  h("th", null, "decision_id"),
+                  h("th", null, "status"),
+                  h("th", null, "requested_at"),
+                  h("th", null, "Actions")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                catalog.requests.map((item) =>
+                  h(
+                    "tr",
+                    { key: item.request_id, className: "virtual-row" },
+                    h("td", null, h("code", { className: "copy-id" }, String(item.request_id || ""))),
+                    h("td", null, h("code", { className: "copy-id" }, String(item.decision_id || ""))),
+                    h("td", null, String(item.status || "")),
+                    h("td", null, String(item.requested_at || "")),
+                    h(
+                      "td",
+                      null,
+                      h(
+                        "button",
+                        {
+                          type: "button",
+                          className: "button-secondary",
+                          onClick: () => {
+                            setRequestIdInput(String(item.request_id || ""));
+                          },
+                        },
+                        "Use"
+                      ),
+                      h(
+                        "button",
+                        { type: "button", className: "button-secondary", onClick: () => void copyId(item.request_id, "request_id") },
+                        "Copy"
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          ),
       requestPayload
         ? h(
             "div",
@@ -1083,6 +1504,7 @@ function ReplayView({ token }) {
             )
           )
         : null,
+      copyMessage ? h("p", { className: "muted" }, copyMessage) : null,
       error ? h("p", { className: "error" }, error) : null
     )
   );
@@ -1566,6 +1988,8 @@ function App({ initialView }) {
   const [token, setToken] = useState(() => safeReadToken());
   const [tokenInput, setTokenInput] = useState(() => safeReadToken());
   const [tokenMessage, setTokenMessage] = useState("");
+  const [tokenPanelOpen, setTokenPanelOpen] = useState(false);
+  const isHomeView = initialView === "home";
 
   const setStoredToken = () => {
     const value = tokenInput.trim();
@@ -1580,6 +2004,12 @@ function App({ initialView }) {
     setTokenInput("");
     setTokenMessage("Token cleared.");
   };
+
+  useEffect(() => {
+    if (!isHomeView) {
+      setTokenPanelOpen(false);
+    }
+  }, [isHomeView]);
 
   const body = useMemo(() => {
     if (initialView === "notifications") {
@@ -1662,8 +2092,24 @@ function App({ initialView }) {
     h(
       "header",
       { className: "dashboard-header" },
-      h("h1", null, viewMeta.title),
-      h("p", null, viewMeta.description),
+      h(
+        "div",
+        { className: "header-top-row" },
+        h("div", null, h("h1", null, viewMeta.title), h("p", null, viewMeta.description)),
+        isHomeView
+          ? h(
+              "button",
+              {
+                type: "button",
+                className: "tool-toggle",
+                title: "Session Token Tool",
+                "aria-label": "Session Token Tool",
+                onClick: () => setTokenPanelOpen((current) => !current),
+              },
+              "🛠"
+            )
+          : null
+      ),
       h(
         "nav",
         { "aria-label": "dashboard-navigation" },
@@ -1686,30 +2132,32 @@ function App({ initialView }) {
       h(
         "div",
         { className: "app-shell" },
-        h(
-          "section",
-          { className: "panel-card token-card" },
-          h("header", { className: "panel-header" }, h("h2", null, "Session Token"), h("p", null, "Paste JWT bearer token for authenticated API calls.")),
-          h(
-            "div",
-            { className: "panel-body" },
-            h(
-              "div",
-              { className: "filter-row" },
-              h("input", {
-                type: "password",
-                placeholder: "JWT token",
-                value: tokenInput,
-                onChange: (event) => setTokenInput(event.target.value),
-              }),
-              h("button", { type: "button", onClick: setStoredToken }, "Save Token"),
-              h("button", { type: "button", onClick: clearStoredToken }, "Clear")
-            ),
-            h("p", { className: "muted" }, token ? "Token is configured." : "No token configured."),
-            h("p", { className: "muted" }, `API base: ${API_BASE_URL}`),
-            tokenMessage ? h("p", { className: "muted" }, tokenMessage) : null
-          )
-        ),
+        isHomeView && tokenPanelOpen
+          ? h(
+              "section",
+              { className: "panel-card token-card" },
+              h("header", { className: "panel-header" }, h("h2", null, "Session Token"), h("p", null, "Paste JWT bearer token for authenticated API calls.")),
+              h(
+                "div",
+                { className: "panel-body" },
+                h(
+                  "div",
+                  { className: "filter-row" },
+                  h("input", {
+                    type: "password",
+                    placeholder: "JWT token",
+                    value: tokenInput,
+                    onChange: (event) => setTokenInput(event.target.value),
+                  }),
+                  h("button", { type: "button", onClick: setStoredToken }, "Save Token"),
+                  h("button", { type: "button", onClick: clearStoredToken }, "Clear")
+                ),
+                h("p", { className: "muted" }, token ? "Token is configured." : "No token configured."),
+                h("p", { className: "muted" }, `API base: ${API_BASE_URL}`),
+                tokenMessage ? h("p", { className: "muted" }, tokenMessage) : null
+              )
+            )
+          : null,
         body
       )
     )
