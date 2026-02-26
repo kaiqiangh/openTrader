@@ -409,13 +409,14 @@ th {
     linear-gradient(178deg, rgba(5, 20, 36, 0.86), rgba(7, 24, 43, 0.86));
   padding: 0.52rem;
   overflow-x: auto;
-  transition: opacity 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
   will-change: opacity, transform;
 }
 
 .chart-shell.chart-loading {
-  opacity: 0.58;
-  transform: translateY(2px);
+  opacity: 0.38;
+  transform: translateY(3px);
+  border-color: rgba(111, 146, 178, 0.22);
 }
 
 .chart-shell.chart-ready {
@@ -423,11 +424,38 @@ th {
   transform: translateY(0);
 }
 
+.chart-skeleton {
+  border-radius: 12px;
+  border: 1px solid rgba(80, 124, 166, 0.32);
+  background:
+    linear-gradient(90deg, rgba(16, 35, 57, 0.5), rgba(25, 56, 86, 0.56), rgba(16, 35, 57, 0.5)),
+    linear-gradient(180deg, rgba(6, 20, 34, 0.9), rgba(8, 24, 41, 0.86));
+  padding: 0.9rem 0.75rem;
+}
+
+.chart-skeleton-wave {
+  height: 210px;
+  border-radius: 9px;
+  background: linear-gradient(100deg, rgba(41, 88, 127, 0.14) 20%, rgba(79, 145, 194, 0.36) 50%, rgba(41, 88, 127, 0.14) 80%);
+  background-size: 200% 100%;
+  animation: chart-sweep 0.9s linear infinite;
+  margin-bottom: 0.55rem;
+}
+
+@keyframes chart-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .chart-svg {
   width: 100%;
   min-width: 760px;
   display: block;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.16s ease;
 }
 
 .chart-svg-interactive {
@@ -451,7 +479,7 @@ th {
 
 .line-chart-area {
   fill: url(#equityAreaGradient);
-  transition: opacity 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 
 .line-chart-path {
@@ -460,7 +488,7 @@ th {
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: filter 0.22s ease;
+  transition: filter 0.16s ease;
 }
 
 .chart-shell:hover .line-chart-path {
@@ -482,11 +510,11 @@ th {
 .candle-wick {
   stroke: rgba(185, 212, 236, 0.9);
   stroke-width: 1.05;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 
 .candle-body {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 
 .candle-body.up {
@@ -506,7 +534,7 @@ th {
 }
 
 .volume-bar {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 
 .chart-metrics {

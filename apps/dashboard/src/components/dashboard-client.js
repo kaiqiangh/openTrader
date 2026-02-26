@@ -18,6 +18,8 @@ const KLINE_INTERVAL_MINUTES = {
   "1M": 43200,
 };
 const MIN_KLINE_BARS = 20;
+const EQUITY_ANIMATION_DURATION_MS = 220;
+const EQUITY_ANIMATION_EASING_POWER = 2.4;
 
 function intervalSizeMinutes(interval) {
   return KLINE_INTERVAL_MINUTES[interval] || 1;
@@ -275,6 +277,15 @@ function JsonBlock({ value }) {
   return h("pre", { className: "json-block" }, formatted);
 }
 
+function ChartLoadingPlaceholder({ label }) {
+  return h(
+    "div",
+    { className: "chart-skeleton", "aria-live": "polite" },
+    h("div", { className: "chart-skeleton-wave" }),
+    h("p", { className: "muted" }, label || "Loading chart...")
+  );
+}
+
 function linePath(points, width, height) {
   if (!Array.isArray(points) || points.length === 0) {
     return "";
@@ -356,12 +367,12 @@ function EquityLineChart({ snapshots }) {
     }
     let frameId = 0;
     const startedAt = performance.now();
-    const durationMs = 260;
+    const durationMs = EQUITY_ANIMATION_DURATION_MS;
     const from = source.slice();
     const to = target.slice();
     const step = (now) => {
       const ratio = Math.max(0, Math.min(1, (now - startedAt) / durationMs));
-      const eased = 1 - (1 - ratio) ** 3;
+      const eased = 1 - (1 - ratio) ** EQUITY_ANIMATION_EASING_POWER;
       const next = to.map((targetValue, index) => from[index] + (targetValue - from[index]) * eased);
       setAnimatedValues(next);
       if (ratio < 1) {
@@ -736,12 +747,18 @@ function StatusView({ token }) {
   const [llmRuntime, setLlmRuntime] = useState(null);
   const [klineNotice, setKlineNotice] = useState("");
   const [klineLoading, setKlineLoading] = useState(false);
+  const reloadSequenceRef = useRef(0);
 
   const reload = useCallback(async () => {
+    const sequence = reloadSequenceRef.current + 1;
+    reloadSequenceRef.current = sequence;
     setLoading(true);
     setError("");
     try {
       const ready = await apiFetchJson("/health/readiness");
+      if (reloadSequenceRef.current !== sequence) {
+        return;
+      }
       setReadiness(ready);
       if (token) {
         const baseLimit = baseKlineLimitForInterval(klineInterval);
@@ -755,6 +772,9 @@ function StatusView({ token }) {
           apiFetchJson("/ops/pipeline/health?mode=MOCK", { token }),
           apiFetchJson("/ops/llm/runtime", { token }),
         ]);
+        if (reloadSequenceRef.current !== sequence) {
+          return;
+        }
         const risk = settledValue(riskResult, null);
         const klines = settledValue(klineResult, { items: [] });
         const portfolio = settledValue(portfolioResult, { items: [] });
@@ -785,6 +805,9 @@ function StatusView({ token }) {
         setKlineLoading(false);
       }
     } catch (exc) {
+      if (reloadSequenceRef.current !== sequence) {
+        return;
+      }
       setError(String(exc.message || exc));
       setOrderbookSnapshot(null);
       setRecentTrades([]);
@@ -793,7 +816,9 @@ function StatusView({ token }) {
       setKlineNotice("");
       setKlineLoading(false);
     } finally {
-      setLoading(false);
+      if (reloadSequenceRef.current === sequence) {
+        setLoading(false);
+      }
     }
   }, [token, klineInterval]);
 
@@ -916,7 +941,7 @@ function StatusView({ token }) {
         )
       ),
       klineLoading
-        ? h("p", { className: "muted" }, `Loading ${klineInterval} candles...`)
+        ? h(ChartLoadingPlaceholder, { label: `Loading ${klineInterval} candles...` })
         : klineItems.length === 0
           ? h("p", { className: "muted" }, "No one-minute kline data available.")
           : h(CandleChart, { key: candleChartKey, bars: klineItems }),
