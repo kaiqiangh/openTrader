@@ -409,12 +409,25 @@ th {
     linear-gradient(178deg, rgba(5, 20, 36, 0.86), rgba(7, 24, 43, 0.86));
   padding: 0.52rem;
   overflow-x: auto;
+  transition: opacity 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
+  will-change: opacity, transform;
+}
+
+.chart-shell.chart-loading {
+  opacity: 0.58;
+  transform: translateY(2px);
+}
+
+.chart-shell.chart-ready {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .chart-svg {
   width: 100%;
   min-width: 760px;
   display: block;
+  transition: opacity 0.18s ease;
 }
 
 .chart-svg-interactive {
@@ -438,6 +451,7 @@ th {
 
 .line-chart-area {
   fill: url(#equityAreaGradient);
+  transition: opacity 0.2s ease;
 }
 
 .line-chart-path {
@@ -446,6 +460,11 @@ th {
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: filter 0.22s ease;
+}
+
+.chart-shell:hover .line-chart-path {
+  filter: drop-shadow(0 0 4px rgba(32, 226, 181, 0.28));
 }
 
 .line-chart-point {
@@ -463,6 +482,11 @@ th {
 .candle-wick {
   stroke: rgba(185, 212, 236, 0.9);
   stroke-width: 1.05;
+  transition: opacity 0.2s ease;
+}
+
+.candle-body {
+  transition: opacity 0.2s ease;
 }
 
 .candle-body.up {
@@ -479,6 +503,10 @@ th {
 
 .volume-bar.down {
   fill: rgba(255, 154, 79, 0.32);
+}
+
+.volume-bar {
+  transition: opacity 0.2s ease;
 }
 
 .chart-metrics {

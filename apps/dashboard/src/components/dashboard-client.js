@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 const h = React.createElement;
 const requestCache = new Map();
@@ -305,34 +305,105 @@ function pointerIndex(event, count) {
   return Math.min(count - 1, Math.max(0, Math.round(clamped * (count - 1))));
 }
 
+function seriesSignature(items, timeKeys) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "empty";
+  }
+  const keys = Array.isArray(timeKeys) && timeKeys.length > 0 ? timeKeys : ["time"];
+  const resolveTime = (item) => {
+    if (!item || typeof item !== "object") {
+      return "";
+    }
+    for (const key of keys) {
+      if (item[key]) {
+        return String(item[key]);
+      }
+    }
+    return "";
+  };
+  const first = items[0];
+  const last = items[items.length - 1];
+  return `${items.length}:${resolveTime(first)}:${resolveTime(last)}`;
+}
+
 function EquityLineChart({ snapshots }) {
   const width = 760;
   const height = 180;
   const gridLines = 5;
   const [hoverIndex, setHoverIndex] = useState(null);
   const [pinnedIndex, setPinnedIndex] = useState(null);
+  const [isReady, setIsReady] = useState(false);
   const items = Array.isArray(snapshots) ? snapshots : [];
-  const values = useMemo(
-    () => items.map((item) => Number(item.total_balance_usd) || 0),
-    [items]
-  );
-  const path = useMemo(() => linePath(values, width, height), [values]);
+  const values = useMemo(() => items.map((item) => Number(item.total_balance_usd) || 0), [items]);
+  const [animatedValues, setAnimatedValues] = useState(values);
+  const animatedValuesRef = useRef(animatedValues);
+  const seriesKey = useMemo(() => seriesSignature(items, ["snapshot_time"]), [items]);
+
+  useEffect(() => {
+    animatedValuesRef.current = animatedValues;
+  }, [animatedValues]);
+
+  useEffect(() => {
+    const target = values;
+    const source = Array.isArray(animatedValuesRef.current) ? animatedValuesRef.current : [];
+    if (target.length === 0) {
+      setAnimatedValues([]);
+      return;
+    }
+    if (source.length !== target.length) {
+      setAnimatedValues(target);
+      return;
+    }
+    let frameId = 0;
+    const startedAt = performance.now();
+    const durationMs = 260;
+    const from = source.slice();
+    const to = target.slice();
+    const step = (now) => {
+      const ratio = Math.max(0, Math.min(1, (now - startedAt) / durationMs));
+      const eased = 1 - (1 - ratio) ** 3;
+      const next = to.map((targetValue, index) => from[index] + (targetValue - from[index]) * eased);
+      setAnimatedValues(next);
+      if (ratio < 1) {
+        frameId = window.requestAnimationFrame(step);
+      }
+    };
+    frameId = window.requestAnimationFrame(step);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [values]);
+
+  useEffect(() => {
+    setHoverIndex(null);
+    setPinnedIndex(null);
+  }, [seriesKey]);
+
+  useEffect(() => {
+    setIsReady(false);
+    const frameId = window.requestAnimationFrame(() => setIsReady(true));
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [seriesKey]);
+
+  const path = useMemo(() => linePath(animatedValues, width, height), [animatedValues]);
   const areaPath = useMemo(() => {
     if (!path) {
       return "";
     }
     return `${path} L ${width} ${height} L 0 ${height} Z`;
   }, [path, width, height]);
-  const min = values.length > 0 ? Math.min(...values) : 0;
-  const max = values.length > 0 ? Math.max(...values) : 1;
+  const min = animatedValues.length > 0 ? Math.min(...animatedValues) : 0;
+  const max = animatedValues.length > 0 ? Math.max(...animatedValues) : 1;
   const span = max - min || 1;
   const delta = values.length > 1 ? values[values.length - 1] - values[0] : 0;
   const deltaPct = values.length > 1 && values[0] !== 0 ? (delta / values[0]) * 100.0 : 0;
 
   const activeIndex = pinnedIndex != null ? pinnedIndex : hoverIndex;
   const activePoint = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
-  const activeValue = activePoint ? Number(activePoint.total_balance_usd) || 0 : null;
-  const activeX = activeIndex != null && values.length > 1 ? (activeIndex / (values.length - 1)) * width : width / 2;
+  const activeValue = activeIndex != null && activeIndex >= 0 && activeIndex < animatedValues.length ? animatedValues[activeIndex] : null;
+  const activeX = activeIndex != null && animatedValues.length > 1 ? (activeIndex / (animatedValues.length - 1)) * width : width / 2;
   const activeY = activeValue == null ? null : height - ((activeValue - min) / span) * height;
 
   const handleMove = (event) => {
@@ -353,7 +424,7 @@ function EquityLineChart({ snapshots }) {
 
   return h(
     "div",
-    { className: "chart-shell" },
+    { className: isReady ? "chart-shell chart-ready" : "chart-shell chart-loading" },
     h(
       "svg",
       {
@@ -431,7 +502,9 @@ function CandleChart({ bars }) {
   const gridLines = 6;
   const [hoverIndex, setHoverIndex] = useState(null);
   const [pinnedIndex, setPinnedIndex] = useState(null);
+  const [isReady, setIsReady] = useState(false);
   const items = Array.isArray(bars) ? bars : [];
+  const seriesKey = useMemo(() => seriesSignature(items, ["time"]), [items]);
   const prices = items.flatMap((bar) => [Number(bar.low) || 0, Number(bar.high) || 0]);
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
@@ -451,6 +524,19 @@ function CandleChart({ bars }) {
   const activeBar = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
   const activeX = activeIndex != null ? activeIndex * slot + slot * 0.5 : null;
 
+  useEffect(() => {
+    setHoverIndex(null);
+    setPinnedIndex(null);
+  }, [seriesKey]);
+
+  useEffect(() => {
+    setIsReady(false);
+    const frameId = window.requestAnimationFrame(() => setIsReady(true));
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [seriesKey]);
+
   const handleMove = (event) => {
     const index = pointerIndex(event, items.length);
     if (index == null || pinnedIndex != null) {
@@ -469,7 +555,7 @@ function CandleChart({ bars }) {
 
   return h(
     "div",
-    { className: "chart-shell" },
+    { className: isReady ? "chart-shell chart-ready" : "chart-shell chart-loading" },
     h(
       "svg",
       {
@@ -649,6 +735,7 @@ function StatusView({ token }) {
   const [pipelineHealth, setPipelineHealth] = useState(null);
   const [llmRuntime, setLlmRuntime] = useState(null);
   const [klineNotice, setKlineNotice] = useState("");
+  const [klineLoading, setKlineLoading] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -679,6 +766,7 @@ function StatusView({ token }) {
 
         setRiskStatus(risk || null);
         setKlineSourceItems(Array.isArray(klines && klines.items) ? klines.items : []);
+        setKlineLoading(false);
         setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
         setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
         setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
@@ -694,6 +782,7 @@ function StatusView({ token }) {
         setRecentTrades([]);
         setPipelineHealth(null);
         setLlmRuntime(null);
+        setKlineLoading(false);
       }
     } catch (exc) {
       setError(String(exc.message || exc));
@@ -702,6 +791,7 @@ function StatusView({ token }) {
       setPipelineHealth(null);
       setLlmRuntime(null);
       setKlineNotice("");
+      setKlineLoading(false);
     } finally {
       setLoading(false);
     }
@@ -728,10 +818,24 @@ function StatusView({ token }) {
     [pipelineHealth]
   );
   const klineItems = useMemo(() => aggregateKlines(klineSourceItems, klineInterval), [klineSourceItems, klineInterval]);
+  const candleChartKey = useMemo(() => `${klineInterval}:${seriesSignature(klineItems, ["time"])}`, [klineInterval, klineItems]);
 
   useEffect(() => {
     setKlineNotice(klineDataNotice(klineInterval, klineSourceItems.length, klineItems.length));
   }, [klineInterval, klineSourceItems.length, klineItems.length]);
+
+  const handleKlineIntervalChange = useCallback(
+    (interval) => {
+      if (interval === klineInterval) {
+        return;
+      }
+      setKlineLoading(true);
+      setKlineSourceItems([]);
+      setKlineNotice(`Loading ${interval} candles...`);
+      setKlineInterval(interval);
+    },
+    [klineInterval]
+  );
 
   return h(
     "div",
@@ -805,13 +909,17 @@ function StatusView({ token }) {
               key: interval,
               type: "button",
               className: interval === klineInterval ? "timeframe-pill active" : "timeframe-pill",
-              onClick: () => setKlineInterval(interval),
+              onClick: () => handleKlineIntervalChange(interval),
             },
             interval
           )
         )
       ),
-      klineItems.length === 0 ? h("p", { className: "muted" }, "No one-minute kline data available.") : h(CandleChart, { bars: klineItems }),
+      klineLoading
+        ? h("p", { className: "muted" }, `Loading ${klineInterval} candles...`)
+        : klineItems.length === 0
+          ? h("p", { className: "muted" }, "No one-minute kline data available.")
+          : h(CandleChart, { key: candleChartKey, bars: klineItems }),
       klineNotice ? h("p", { className: "warning" }, klineNotice) : null,
       h(
         "div",
