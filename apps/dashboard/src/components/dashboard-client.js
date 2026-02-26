@@ -562,10 +562,60 @@ function CandleChart({ bars }) {
   );
 }
 
-function HomeView() {
+function HomeView({
+  token,
+  tokenInput,
+  setTokenInput,
+  tokenMessage,
+  tokenPanelOpen,
+  setTokenPanelOpen,
+  setStoredToken,
+  clearStoredToken,
+}) {
   return h(
     "div",
     { className: "view-grid" },
+    h(
+      SectionCard,
+      {
+        title: "Session Token Tool",
+        subtitle: "Token configuration is available only on Home via the tool icon.",
+      },
+      h(
+        "div",
+        { className: "button-row" },
+        h(
+          "button",
+          {
+            type: "button",
+            className: tokenPanelOpen ? "button-secondary" : "",
+            onClick: () => setTokenPanelOpen((current) => !current),
+          },
+          tokenPanelOpen ? "Hide Token Tool" : "Open Token Tool"
+        )
+      ),
+      tokenPanelOpen
+        ? h(
+            "div",
+            { className: "panel-body" },
+            h(
+              "div",
+              { className: "filter-row" },
+              h("input", {
+                type: "password",
+                placeholder: "JWT token",
+                value: tokenInput,
+                onChange: (event) => setTokenInput(event.target.value),
+              }),
+              h("button", { type: "button", onClick: setStoredToken }, "Save Token"),
+              h("button", { type: "button", onClick: clearStoredToken }, "Clear")
+            ),
+            h("p", { className: "muted" }, token ? "Token is configured." : "No token configured."),
+            h("p", { className: "muted" }, `API base: ${API_BASE_URL}`),
+            tokenMessage ? h("p", { className: "muted" }, tokenMessage) : null
+          )
+        : h("p", { className: "muted" }, "Click the tool icon to manage session token.")
+    ),
     h(
       SectionCard,
       {
@@ -932,7 +982,7 @@ function StatusView({ token }) {
 function GovernanceView({ token }) {
   const [strategyInput, setStrategyInput] = useState("");
   const [agentInput, setAgentInput] = useState("");
-  const [filters, setFilters] = useState({ strategy_id: "", agent_name: "" });
+  const [callFilters, setCallFilters] = useState({ strategy_id: "", agent_name: "" });
   const [usageItems, setUsageItems] = useState([]);
   const [breachItems, setBreachItems] = useState([]);
   const [callItems, setCallItems] = useState([]);
@@ -953,14 +1003,13 @@ function GovernanceView({ token }) {
       return;
     }
 
-    const query = buildQuery(filters);
     setLoading(true);
     setError("");
     try {
       const [usagePayload, breachPayload, callPayload, runtimePayload] = await Promise.all([
-        apiFetchJson(`/governance/llm/usage${query}`, { token }),
-        apiFetchJson(`/governance/llm/breaches${query}`, { token }),
-        apiFetchJson(`/governance/llm/calls${buildQuery({ ...filters, limit: 300 })}`, { token }),
+        apiFetchJson("/governance/llm/usage", { token }),
+        apiFetchJson("/governance/llm/breaches?include_failures=true&limit=300", { token }),
+        apiFetchJson(`/governance/llm/calls${buildQuery({ ...callFilters, limit: 300 })}`, { token }),
         apiFetchJson("/ops/llm/runtime", { token }),
       ]);
       setUsageItems(Array.isArray(usagePayload.items) ? usagePayload.items : []);
@@ -976,7 +1025,7 @@ function GovernanceView({ token }) {
     } finally {
       setLoading(false);
     }
-  }, [token, filters]);
+  }, [token, callFilters]);
 
   useEffect(() => {
     void load();
@@ -984,7 +1033,7 @@ function GovernanceView({ token }) {
 
   const applyFilters = () => {
     startTransition(() => {
-      setFilters({ strategy_id: strategyInput.trim(), agent_name: agentInput.trim() });
+      setCallFilters({ strategy_id: strategyInput.trim(), agent_name: agentInput.trim() });
       setRefreshSeed((value) => value + 1);
     });
   };
@@ -1001,24 +1050,24 @@ function GovernanceView({ token }) {
       SectionCard,
       {
         title: "Token Usage Dashboard",
-        subtitle: "Per strategy/agent token, cost, and quota utilization.",
+        subtitle: "Global token/cost utilization across all strategies and agents.",
       },
       h(
         "div",
         { className: "filter-row" },
         h("input", {
           type: "text",
-          placeholder: "strategy_id (optional)",
+          placeholder: "Filter logs: strategy_id (optional)",
           value: strategyInput,
           onChange: (event) => setStrategyInput(event.target.value),
         }),
         h("input", {
           type: "text",
-          placeholder: "agent_name (optional)",
+          placeholder: "Filter logs: agent_name (optional)",
           value: agentInput,
           onChange: (event) => setAgentInput(event.target.value),
         }),
-        h("button", { type: "button", onClick: applyFilters, disabled: loading || isPending }, "Apply"),
+        h("button", { type: "button", onClick: applyFilters, disabled: loading || isPending }, "Filter Logs"),
         h(
           "button",
           {
@@ -1098,48 +1147,50 @@ function GovernanceView({ token }) {
       h(
         "div",
         { className: "table-wrap" },
-        h(
-          "table",
-          null,
-          h(
-            "thead",
-            null,
-            h(
-              "tr",
+        breachItems.length === 0
+          ? h("p", { className: "muted" }, "No recent breaches or failed LLM calls.")
+          : h(
+              "table",
               null,
-              h("th", null, "Created At"),
-              h("th", null, "Strategy"),
-              h("th", null, "Agent"),
-              h("th", null, "Reason"),
-              h("th", null, "Decision"),
-              h("th", null, "Copy")
-            )
-          ),
-          h(
-            "tbody",
-            null,
-            breachItems.map((item) =>
               h(
-                "tr",
-                { key: item.llm_call_id, className: "virtual-row" },
-                h("td", null, item.created_at),
-                h("td", null, item.strategy_id),
-                h("td", null, item.agent_name),
-                h("td", null, item.reason),
-                h("td", null, h("code", { className: "copy-id" }, item.decision_id)),
+                "thead",
+                null,
                 h(
-                  "td",
+                  "tr",
                   null,
+                  h("th", null, "Created At"),
+                  h("th", null, "Strategy"),
+                  h("th", null, "Agent"),
+                  h("th", null, "Reason"),
+                  h("th", null, "Decision"),
+                  h("th", null, "Copy")
+                )
+              ),
+              h(
+                "tbody",
+                null,
+                breachItems.map((item) =>
                   h(
-                    "button",
-                    { type: "button", className: "button-secondary", onClick: () => void copyId(item.decision_id, "decision_id") },
-                    "Copy"
+                    "tr",
+                    { key: item.llm_call_id, className: "virtual-row" },
+                    h("td", null, item.created_at),
+                    h("td", null, item.strategy_id),
+                    h("td", null, item.agent_name),
+                    h("td", null, item.reason),
+                    h("td", null, h("code", { className: "copy-id" }, item.decision_id)),
+                    h(
+                      "td",
+                      null,
+                      h(
+                        "button",
+                        { type: "button", className: "button-secondary", onClick: () => void copyId(item.decision_id, "decision_id") },
+                        "Copy"
+                      )
+                    )
                   )
                 )
               )
             )
-          )
-        )
       ),
       h("h3", null, "LLM Invocation Logs"),
       callItems.length === 0
@@ -2030,8 +2081,17 @@ function App({ initialView }) {
     if (initialView === "status") {
       return h(StatusView, { token });
     }
-    return h(HomeView);
-  }, [initialView, token]);
+    return h(HomeView, {
+      token,
+      tokenInput,
+      setTokenInput,
+      tokenMessage,
+      tokenPanelOpen,
+      setTokenPanelOpen,
+      setStoredToken,
+      clearStoredToken,
+    });
+  }, [initialView, token, tokenInput, tokenMessage, tokenPanelOpen]);
 
   const viewMeta = useMemo(() => {
     if (initialView === "notifications") {
@@ -2132,32 +2192,6 @@ function App({ initialView }) {
       h(
         "div",
         { className: "app-shell" },
-        isHomeView && tokenPanelOpen
-          ? h(
-              "section",
-              { className: "panel-card token-card" },
-              h("header", { className: "panel-header" }, h("h2", null, "Session Token"), h("p", null, "Paste JWT bearer token for authenticated API calls.")),
-              h(
-                "div",
-                { className: "panel-body" },
-                h(
-                  "div",
-                  { className: "filter-row" },
-                  h("input", {
-                    type: "password",
-                    placeholder: "JWT token",
-                    value: tokenInput,
-                    onChange: (event) => setTokenInput(event.target.value),
-                  }),
-                  h("button", { type: "button", onClick: setStoredToken }, "Save Token"),
-                  h("button", { type: "button", onClick: clearStoredToken }, "Clear")
-                ),
-                h("p", { className: "muted" }, token ? "Token is configured." : "No token configured."),
-                h("p", { className: "muted" }, `API base: ${API_BASE_URL}`),
-                tokenMessage ? h("p", { className: "muted" }, tokenMessage) : null
-              )
-            )
-          : null,
         body
       )
     )

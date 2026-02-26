@@ -35,9 +35,15 @@ def list_llm_breaches(
     state: ControlPlaneState = Depends(get_control_plane_state),
     strategy_id: str | None = Query(default=None),
     agent_name: str | None = Query(default=None),
+    include_failures: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=500),
 ) -> LLMBreachListResponse:
-    items = state.list_llm_breaches(strategy_id=strategy_id, agent_name=agent_name, limit=limit)
+    items = state.list_llm_breaches(
+        strategy_id=strategy_id,
+        agent_name=agent_name,
+        include_failures=include_failures,
+        limit=limit,
+    )
     return LLMBreachListResponse(items=[_breach_model(item) for item in items])
 
 

@@ -200,6 +200,45 @@ def test_governance_usage_and_breach_history_endpoints() -> None:
     assert call_items[1]["status"] == "succeeded"
 
 
+def test_governance_breaches_can_include_failed_calls() -> None:
+    settings = _settings()
+    state = build_default_state(default_mode=settings.default_mode)
+    state.llm_call_records.append(
+        LLMCallRecord(
+            llm_call_id="call-failed-1",
+            trace_id="d4f5dcab-6263-44ec-b923-1229f6901060",
+            decision_id="e5938b40-f2c6-4299-b4fa-56f1cf187dd2",
+            strategy_id="btc-momentum",
+            agent_name="planner",
+            provider="litellm",
+            model="deepseek-chat",
+            prompt_payload={"messages": [{"role": "user", "content": "test"}]},
+            response_payload={"status": "failed", "provider_errors": ["timeout"]},
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            latency_ms=0.0,
+            estimated_cost=0.0,
+            created_at="2026-02-14T18:15:00Z",
+        )
+    )
+
+    app = create_app(settings=settings, state=state)
+    client = TestClient(app)
+    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+
+    response = client.get(
+        "/governance/llm/breaches",
+        headers=_auth_headers(viewer_token),
+        params={"include_failures": "true"},
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["reason"] == "timeout"
+    assert items[0]["decision_id"] == "e5938b40-f2c6-4299-b4fa-56f1cf187dd2"
+
+
 def test_replay_request_and_retrieval_endpoints() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)

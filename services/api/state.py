@@ -419,22 +419,31 @@ class ControlPlaneState:
         *,
         strategy_id: str | None = None,
         agent_name: str | None = None,
+        include_failures: bool = False,
         limit: int = 50,
     ) -> tuple[LLMBreachRecord, ...]:
         safe_limit = max(1, int(limit))
         items: list[LLMBreachRecord] = []
         for record in self.llm_call_records:
             status = str(record.response_payload.get("status", "")).strip().lower()
-            if status != "quota_blocked":
+            if status == "quota_blocked":
+                reason = str(record.response_payload.get("reason", "unknown_quota_block"))
+                projected_tokens = _optional_int(record.response_payload.get("projected_tokens"))
+                projected_cost = _optional_float(record.response_payload.get("projected_cost"))
+            elif include_failures and status == "failed":
+                provider_errors = record.response_payload.get("provider_errors")
+                reason = "provider_failure"
+                if isinstance(provider_errors, list) and provider_errors:
+                    reason = str(provider_errors[0]).strip() or reason
+                projected_tokens = None
+                projected_cost = None
+            else:
                 continue
             if strategy_id is not None and record.strategy_id != strategy_id:
                 continue
             if agent_name is not None and record.agent_name != agent_name:
                 continue
 
-            reason = str(record.response_payload.get("reason", "unknown_quota_block"))
-            projected_tokens = _optional_int(record.response_payload.get("projected_tokens"))
-            projected_cost = _optional_float(record.response_payload.get("projected_cost"))
             items.append(
                 LLMBreachRecord(
                     llm_call_id=record.llm_call_id,
