@@ -260,7 +260,7 @@ def _fetch_one(*, engine: Engine, query: Any, params: dict[str, Any]) -> dict[st
         row = connection.execute(query, dict(params)).mappings().first()
     if row is None:
         return None
-    return dict(row)
+    return {str(key): _json_safe(value) for key, value in dict(row).items()}
 
 
 def _scalar_int(*, engine: Engine, query: Any, params: dict[str, Any]) -> int:
@@ -300,6 +300,14 @@ def _rewrite_local_database_url(database_url: str) -> str:
 
 def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _json_safe(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
 
 
 if __name__ == "__main__":
