@@ -263,6 +263,19 @@ class PipelineHealthResponse(BaseModel):
     stages: list[PipelineStageStatusResponse]
 
 
+class LLMRuntimeStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    runtime_enabled: bool
+    litellm_base_url_configured: bool
+    quick_provider_order: list[str]
+    deep_provider_order: list[str]
+    total_calls: int
+    succeeded_calls: int
+    failed_calls: int
+    latest_call_at: str | None = None
+
+
 class SignalRecordResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

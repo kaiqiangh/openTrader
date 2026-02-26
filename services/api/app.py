@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from pathlib import Path
 from time import perf_counter
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from services.api.routers import (
     control_router,
@@ -166,9 +164,6 @@ def create_app(
         response.headers["traceparent"] = trace_context.traceparent
         response.headers["x-trace-id"] = trace_context.trace_id
         return response
-
-    static_dir = Path(__file__).resolve().parent / "static"
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(system_router)
     app.include_router(control_router)

@@ -198,7 +198,7 @@ flowchart TB
    - Dashboard URL: `http://localhost:3000`
    - API URL: `http://localhost:8000`
    - Dashboard API calls require a JWT bearer token; paste a viewer/operator/admin token into the "Session Token" field shown in the UI.
-   - Legacy fallback shell remains available at `http://localhost:8000/dashboard` during cutover.
+   - Legacy API paths under `http://localhost:8000/dashboard` now show migration notices and link to the Next dashboard.
 
 Use this sequence from the project root:
 
@@ -358,7 +358,7 @@ Useful service URLs:
 
 - Dashboard (Next.js): `http://127.0.0.1:3000`
 - API: `http://127.0.0.1:8000`
-- API legacy dashboard shell: `http://127.0.0.1:8000/dashboard`
+- API legacy dashboard notice route: `http://127.0.0.1:8000/dashboard`
 - RabbitMQ management: `http://127.0.0.1:15672`
 - Grafana (full profile): `http://127.0.0.1:3001`
 
@@ -482,6 +482,22 @@ Use these when running workers manually outside Docker compose:
 - `oms`: maintains order lifecycle + portfolio projections from execution events.
 - `news`: ingests/summarizes news and publishes signal context.
 - `execution_lifecycle`: tracks REAL intents with private-stream primary and REST fallback.
+
+### LLM workflow enablement
+
+LLM calls are opt-in at runtime. If you do not enable this path, the orchestrator runs heuristic-only decisions and `llm_calls` stays empty.
+
+1. Set these in `.env`:
+   - `LLM_RUNTIME_ENABLED=true`
+   - `LITELLM_BASE_URL=<reachable LiteLLM/OpenAI-compatible endpoint>`
+   - `LITELLM_API_KEY=<token>`
+   - Optional model routing: `LLM_OPENAI_MODEL`, `LLM_ANTHROPIC_MODEL`, `LLM_QUICK_PROVIDER_ORDER`, `LLM_DEEP_PROVIDER_ORDER`
+2. Restart the orchestrator worker:
+   - `docker compose restart runtime_worker_orchestrator`
+3. Verify runtime status and call persistence:
+   - `curl -s -H "Authorization: Bearer <JWT>" http://127.0.0.1:8000/ops/llm/runtime`
+   - `curl -s -H "Authorization: Bearer <JWT>" http://127.0.0.1:8000/governance/llm/usage`
+4. In dashboard, open `http://127.0.0.1:3000/status` and check the `LLM Runtime` panel.
 
 ### Stop and reset
 
@@ -686,14 +702,14 @@ API control-plane baseline (`P7-001`..`P7-012`):
 - `services/api/routers/replay.py` (`P7-005` replay request lifecycle and decision replay endpoints)
 - `services/api/routers/internal.py` (`P10` validated exchange dispatch bridge for spot MARKET/LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET)
 - `services/api/internal_execution/adapters.py` (exchange-specific internal execution adapter routing layer)
-- `services/api/routers/dashboard.py` (`P7-006` HTML dashboard shell for status/governance/replay pages)
+- `services/api/routers/dashboard.py` (`P7-006`) legacy `/dashboard/*` migration notices that point to the standalone web app
 - `services/api/routers/control.py` (`P7-009` mode history API: `GET /control/mode/history`)
 - `services/api/routers/ops.py` (`P7-010` news panel APIs: `/ops/news/items`, `/ops/news/summaries`, `/ops/news/impact`)
 - `services/api/routers/ops.py` (`P7-014` notification preference APIs: `/ops/notifications/preferences`, `/ops/notifications/preferences/{user_id}`)
 - `services/api/routers/ops.py` (`P7-016` notification observability APIs: `/ops/notifications/metrics`, `/ops/notifications/deliveries`, `/ops/notifications/traces`)
-- `services/api/routers/dashboard.py` (`P7-010`/`P7-016` dashboard routes: `/dashboard/news`, `/dashboard/notifications`)
-- `services/api/static/dashboard_app.js` (`P7-007`..`P7-010`/`P7-016` React UI module for governance/replay/mode/news/notification views)
-- `services/api/static/dashboard.css` (`P7-007`..`P7-010`/`P7-016` dashboard styling and list rendering performance hints)
+- `services/api/routers/dashboard.py` (`P7-010`/`P7-016`) legacy notice routes: `/dashboard/news`, `/dashboard/notifications`
+- `apps/dashboard/src/components/dashboard-client.js` (standalone Next dashboard client covering status/governance/replay/mode/news/notifications)
+- `apps/dashboard/app/globals.css` (standalone dashboard styling, chart visuals, and responsive behavior)
 
 Notification runtime baseline (`P7-011`..`P7-016`):
 
@@ -789,10 +805,10 @@ Core runtime env categories:
   - Binance: `BINANCE_BASE_URL`, `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `BINANCE_RECV_WINDOW_MS`
   - Bitget: `BITGET_BASE_URL`, `BITGET_API_KEY`, `BITGET_API_SECRET`, `BITGET_API_PASSPHRASE`
 - Market ingestion: `EXCHANGE_DEFAULT`, `MARKET_DATA_FETCH_MODE`, `MARKET_DATA_REST_POLL_SECONDS`, `MARKET_DATA_HTTP_TIMEOUT_SECONDS`
-- LLM: `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`
+- LLM: `LLM_RUNTIME_ENABLED`, `LITELLM_BASE_URL`, `LITELLM_API_KEY`, `LITELLM_TIMEOUT_SECONDS`, `LITELLM_MODEL`, `LLM_QUICK_PROVIDER_ORDER`, `LLM_DEEP_PROVIDER_ORDER`
 - Notification: `NOTIFY_*`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEFAULT_CHAT_ID`
 - Security/Auth: `ENCRYPTION_KEY_BASE64`, `JWT_SECRET_KEY`, `JWT_ISSUER`, `JWT_AUDIENCE`
-- Frontend: `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`)
+- Frontend: `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`), `NEXT_DASHBOARD_URL` (legacy notice link target)
 - Observability host ports: `GRAFANA_HOST_PORT` (default `3001`)
 
 Use `make env-validate` to validate required contracts.
@@ -813,6 +829,7 @@ Base domains:
 - Ops: `/ops/orders`, `/ops/positions`, `/ops/portfolio/latest`, `/ops/risk/status`
 - Market polling: `/ops/market/klines`, `/ops/market/orderbook/latest`
 - Portfolio/signal polling: `/ops/portfolio/history`, `/ops/signals/latest`
+- LLM runtime status: `/ops/llm/runtime`
 - Risk controls: `/ops/risk/circuit-breaker/trip`, `/ops/risk/circuit-breaker/reset`, `/ops/risk/kill-switch/enable`, `/ops/risk/kill-switch/disable`
 - Governance: `/governance/llm/usage`, `/governance/llm/breaches`
 - Replay: `/replay/requests`, `/replay/requests/{request_id}`, `/replay/decisions/{decision_id}`

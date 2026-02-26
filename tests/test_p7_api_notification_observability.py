@@ -65,4 +65,3 @@ def test_notification_observability_ops_endpoints_expose_metrics_deliveries_and_
     assert metrics.json()["totals"]["received_total"] >= 1
     assert len(deliveries.json()["items"]) >= 1
     assert len(traces.json()["items"]) >= 1
-    assert "/ops/notifications/metrics" in client.get("/static/dashboard_app.js").text

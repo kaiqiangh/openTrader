@@ -5,10 +5,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from services.api.auth import require_admin, require_operator, require_viewer
-from services.api.dependencies import get_control_plane_repository, get_control_plane_state
+from services.api.dependencies import get_api_settings, get_control_plane_repository, get_control_plane_state
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
+    LLMRuntimeStatusResponse,
     MarketKlineListResponse,
     MarketKlineRecordResponse,
     NotificationDeliveryListResponse,
@@ -45,6 +46,7 @@ from services.api.models import (
     TradeListResponse,
     TradeRecordResponse,
 )
+from services.api.settings import APISettings
 from services.api.state import (
     ControlPlaneState,
     NewsImpactRecord,
@@ -273,6 +275,39 @@ def get_pipeline_health(
         overall_healthy=bool(payload.get("overall_healthy", False)),
         mode_filter=(str(payload.get("mode_filter")) if payload.get("mode_filter") is not None else None),
         stages=stages,
+    )
+
+
+@router.get("/llm/runtime", response_model=LLMRuntimeStatusResponse)
+def get_llm_runtime_status(
+    _: AuthPrincipal = Depends(require_viewer),
+    settings: APISettings = Depends(get_api_settings),
+    repository: Any | None = Depends(get_control_plane_repository),
+) -> LLMRuntimeStatusResponse:
+    snapshot = {
+        "total_calls": 0,
+        "succeeded_calls": 0,
+        "failed_calls": 0,
+        "latest_call_at": None,
+    }
+    if repository is not None:
+        try:
+            snapshot = repository.llm_runtime_status_snapshot()
+        except Exception:
+            pass
+    return LLMRuntimeStatusResponse(
+        runtime_enabled=settings.llm_runtime_enabled,
+        litellm_base_url_configured=bool(settings.litellm_base_url),
+        quick_provider_order=list(settings.llm_quick_provider_order),
+        deep_provider_order=list(settings.llm_deep_provider_order),
+        total_calls=int(snapshot.get("total_calls", 0) or 0),
+        succeeded_calls=int(snapshot.get("succeeded_calls", 0) or 0),
+        failed_calls=int(snapshot.get("failed_calls", 0) or 0),
+        latest_call_at=(
+            str(snapshot.get("latest_call_at"))
+            if snapshot.get("latest_call_at") is not None
+            else None
+        ),
     )
 
 

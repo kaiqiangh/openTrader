@@ -251,11 +251,11 @@ def test_dashboard_shell_routes_render_navigation_and_live_sections() -> None:
     replay_page = client.get("/dashboard/replay", headers=_auth_headers(viewer_token))
 
     assert dashboard.status_code == 200
-    assert "Operations Dashboard" in dashboard.text
-    assert "/dashboard/status" in dashboard.text
+    assert "legacy API-served dashboard has been removed" in dashboard.text
+    assert "http://localhost:3000/" in dashboard.text
     assert status_page.status_code == 200
-    assert "Live Status" in status_page.text
+    assert "http://localhost:3000/status" in status_page.text
     assert governance_page.status_code == 200
-    assert "LLM Governance" in governance_page.text
+    assert "http://localhost:3000/governance" in governance_page.text
     assert replay_page.status_code == 200
-    assert "Replay" in replay_page.text
+    assert "http://localhost:3000/replay" in replay_page.text

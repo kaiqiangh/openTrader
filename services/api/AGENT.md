@@ -40,16 +40,13 @@ Hosts control-plane APIs for strategy, risk, replay, governance, and operations.
 - `routers/ops.py` exposes notification observability APIs for metrics, delivery logs, and trace spans.
 - `routers/governance.py` exposes LLM usage/quota/breach history endpoints.
 - `routers/replay.py` exposes replay request submission and decision replay retrieval endpoints.
-- `routers/dashboard.py` exposes lightweight operator dashboard pages (`/dashboard/*`) including `/dashboard/news`.
-- `routers/dashboard.py` also exposes `/dashboard/notifications` notification telemetry view shell.
-- `static/dashboard_app.js` hosts React UI logic for governance/replay/mode/news/notification operator panels.
-- `static/dashboard.css` defines shared dashboard styles and rendering-performance hints (`content-visibility` for long rows).
+- `routers/dashboard.py` now serves migration notices for legacy `/dashboard/*` paths and points operators to the standalone Next dashboard at `:3000`.
 
 ## Testing Expectations
 
 - Contract tests, RBAC tests, and error-path coverage are mandatory.
 - Validate role boundaries (`viewer`, `operator`, `admin`) for every mutating endpoint.
-- Validate replay/governance not-found and filtering behaviors, dashboard HTML route availability, notification preference RBAC/validation paths, and notification observability endpoint contracts.
+- Validate replay/governance not-found and filtering behaviors, legacy dashboard migration-route availability, notification preference RBAC/validation paths, and notification observability endpoint contracts.
 
 ## Operational Notes
 

@@ -566,13 +566,24 @@ class AgentOrchestrator:
     ) -> Any:
         if self.llm_runtime is None:
             return plan
-        suggestion = await self.llm_runtime.suggest_plan(
-            trace_id=trace_id,
-            decision_id=decision_id,
-            market_context=market_context,
-            strategy=strategy,
-            heuristic_plan=plan,
-        )
+        try:
+            suggestion = await self.llm_runtime.suggest_plan(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                market_context=market_context,
+                strategy=strategy,
+                heuristic_plan=plan,
+            )
+        except Exception as exc:  # noqa: BLE001 - planner fallback must not break execution pipeline
+            rationale = list(plan.rationale)
+            rationale.append(f"llm_planner_fallback={exc.__class__.__name__}")
+            return type(plan)(
+                action=plan.action,
+                confidence=plan.confidence,
+                target_quantity=plan.target_quantity,
+                rationale=tuple(rationale),
+                metrics=dict(plan.metrics),
+            )
         action = suggestion.action if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"} else plan.action
         confidence = plan.confidence if suggestion.confidence is None else max(0.0, min(1.0, suggestion.confidence))
         target_quantity = (
@@ -606,14 +617,26 @@ class AgentOrchestrator:
     ) -> Any:
         if self.llm_runtime is None:
             return risk
-        suggestion = await self.llm_runtime.suggest_risk(
-            trace_id=trace_id,
-            decision_id=decision_id,
-            market_context=market_context,
-            strategy=strategy,
-            heuristic_risk=risk,
-            heuristic_plan=plan,
-        )
+        try:
+            suggestion = await self.llm_runtime.suggest_risk(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                market_context=market_context,
+                strategy=strategy,
+                heuristic_risk=risk,
+                heuristic_plan=plan,
+            )
+        except Exception as exc:  # noqa: BLE001 - risk fallback must not break execution pipeline
+            rationale = list(risk.rationale)
+            rationale.append(f"llm_risk_fallback={exc.__class__.__name__}")
+            return type(risk)(
+                approved=risk.approved,
+                approved_quantity=risk.approved_quantity,
+                signals=risk.signals,
+                blocked_by=risk.blocked_by,
+                risk_score=risk.risk_score,
+                rationale=tuple(rationale),
+            )
         approved = risk.approved if suggestion.approved is None else bool(suggestion.approved)
         approved_quantity = (
             risk.approved_quantity
@@ -650,15 +673,26 @@ class AgentOrchestrator:
     ) -> Any:
         if self.llm_runtime is None:
             return execution_decision
-        suggestion = await self.llm_runtime.suggest_execution(
-            trace_id=trace_id,
-            decision_id=decision_id,
-            market_context=market_context,
-            strategy=strategy,
-            heuristic_execution=execution_decision,
-            heuristic_plan=plan,
-            heuristic_risk=risk,
-        )
+        try:
+            suggestion = await self.llm_runtime.suggest_execution(
+                trace_id=trace_id,
+                decision_id=decision_id,
+                market_context=market_context,
+                strategy=strategy,
+                heuristic_execution=execution_decision,
+                heuristic_plan=plan,
+                heuristic_risk=risk,
+            )
+        except Exception as exc:  # noqa: BLE001 - execution fallback must not break execution pipeline
+            rationale = list(execution_decision.rationale)
+            rationale.append(f"llm_execution_fallback={exc.__class__.__name__}")
+            return type(execution_decision)(
+                action=execution_decision.action,
+                quantity=execution_decision.quantity,
+                confidence=execution_decision.confidence,
+                rationale=tuple(rationale),
+                constraints=dict(execution_decision.constraints),
+            )
         action = (
             suggestion.action
             if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"}

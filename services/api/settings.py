@@ -15,6 +15,10 @@ class APISettings:
     jwt_issuer: str
     jwt_audience: str
     cors_allowed_origins: tuple[str, ...] = ()
+    llm_runtime_enabled: bool = False
+    litellm_base_url: str = ""
+    llm_quick_provider_order: tuple[str, ...] = ()
+    llm_deep_provider_order: tuple[str, ...] = ()
     read_only_mode: bool = False
     strict_database_mode: bool = True
 
@@ -42,6 +46,13 @@ def load_api_settings() -> APISettings:
                 "http://localhost:3000,http://127.0.0.1:3000",
             )
         ),
+        llm_runtime_enabled=_parse_bool(
+            os.getenv("LLM_RUNTIME_ENABLED", "false"),
+            setting_name="LLM_RUNTIME_ENABLED",
+        ),
+        litellm_base_url=os.getenv("LITELLM_BASE_URL", "").strip(),
+        llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "openai,anthropic")),
+        llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "anthropic,openai")),
         read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"),
         strict_database_mode=_parse_bool(
             os.getenv("API_STRICT_DATABASE_MODE", "true"),

@@ -6,6 +6,7 @@ const h = React.createElement;
 const requestCache = new Map();
 const TOKEN_STORAGE_KEY = "openTraderJWT";
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+const KLINE_INTERVAL_OPTIONS = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"];
 
 function safeReadToken() {
   try {
@@ -156,8 +157,9 @@ function pointerIndex(event, count) {
 }
 
 function EquityLineChart({ snapshots }) {
-  const width = 520;
-  const height = 140;
+  const width = 760;
+  const height = 180;
+  const gridLines = 5;
   const [hoverIndex, setHoverIndex] = useState(null);
   const [pinnedIndex, setPinnedIndex] = useState(null);
   const items = Array.isArray(snapshots) ? snapshots : [];
@@ -166,9 +168,17 @@ function EquityLineChart({ snapshots }) {
     [items]
   );
   const path = useMemo(() => linePath(values, width, height), [values]);
+  const areaPath = useMemo(() => {
+    if (!path) {
+      return "";
+    }
+    return `${path} L ${width} ${height} L 0 ${height} Z`;
+  }, [path, width, height]);
   const min = values.length > 0 ? Math.min(...values) : 0;
   const max = values.length > 0 ? Math.max(...values) : 1;
   const span = max - min || 1;
+  const delta = values.length > 1 ? values[values.length - 1] - values[0] : 0;
+  const deltaPct = values.length > 1 && values[0] !== 0 ? (delta / values[0]) * 100.0 : 0;
 
   const activeIndex = pinnedIndex != null ? pinnedIndex : hoverIndex;
   const activePoint = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
@@ -210,15 +220,45 @@ function EquityLineChart({ snapshots }) {
         },
         onClick: handleClick,
       },
+      h(
+        "defs",
+        null,
+        h(
+          "linearGradient",
+          { id: "equityAreaGradient", x1: "0", x2: "0", y1: "0", y2: "1" },
+          h("stop", { offset: "0%", stopColor: "rgba(32, 226, 181, 0.4)" }),
+          h("stop", { offset: "100%", stopColor: "rgba(32, 226, 181, 0.04)" })
+        )
+      ),
+      Array.from({ length: gridLines }, (_, index) => {
+        const ratio = index / Math.max(1, gridLines - 1);
+        const y = ratio * height;
+        const value = max - ratio * span;
+        return h(
+          "g",
+          { key: `equity-grid-${index}` },
+          h("line", { x1: 0, x2: width, y1: y, y2: y, className: "chart-grid-line" }),
+          h("text", { x: width - 4, y: Math.max(10, y - 2), className: "chart-grid-label", textAnchor: "end" }, value.toFixed(0))
+        );
+      }),
+      areaPath ? h("path", { d: areaPath, className: "line-chart-area" }) : null,
       h("path", { d: path, className: "line-chart-path" }),
       activePoint && activeY != null
         ? h(
             "g",
             null,
             h("line", { x1: activeX, x2: activeX, y1: 0, y2: height, className: "chart-crosshair" }),
+            h("line", { x1: 0, x2: width, y1: activeY, y2: activeY, className: "chart-crosshair" }),
             h("circle", { cx: activeX, cy: activeY, r: 3.4, className: "line-chart-point" })
           )
         : null
+    ),
+    h(
+      "div",
+      { className: "chart-metrics" },
+      h("span", null, `Min $${min.toFixed(2)}`),
+      h("span", null, `Max $${max.toFixed(2)}`),
+      h("span", { className: delta >= 0 ? "metric-positive" : "metric-negative" }, `Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(2)} (${deltaPct.toFixed(2)}%)`)
     ),
     activePoint
       ? h(
@@ -233,8 +273,13 @@ function EquityLineChart({ snapshots }) {
 }
 
 function CandleChart({ bars }) {
-  const width = 520;
-  const height = 160;
+  const width = 760;
+  const height = 260;
+  const volumeZone = 54;
+  const plotHeight = height - volumeZone;
+  const rightAxisWidth = 56;
+  const chartWidth = width - rightAxisWidth;
+  const gridLines = 6;
   const [hoverIndex, setHoverIndex] = useState(null);
   const [pinnedIndex, setPinnedIndex] = useState(null);
   const items = Array.isArray(bars) ? bars : [];
@@ -242,12 +287,16 @@ function CandleChart({ bars }) {
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
   const span = maxPrice - minPrice || 1;
-  const slot = items.length > 0 ? width / items.length : width;
+  const slot = items.length > 0 ? chartWidth / items.length : chartWidth;
   const candleWidth = Math.max(3, Math.min(8, slot * 0.55));
+  const maxVolume = Math.max(
+    1,
+    ...items.map((bar) => Number(bar.volume) || 0),
+  );
 
   const toY = (value) => {
     const numeric = Number(value) || 0;
-    return height - ((numeric - minPrice) / span) * height;
+    return plotHeight - ((numeric - minPrice) / span) * plotHeight;
   };
   const activeIndex = pinnedIndex != null ? pinnedIndex : hoverIndex;
   const activeBar = activeIndex != null && activeIndex >= 0 && activeIndex < items.length ? items[activeIndex] : null;
@@ -287,6 +336,18 @@ function CandleChart({ bars }) {
         },
         onClick: handleClick,
       },
+      Array.from({ length: gridLines }, (_, index) => {
+        const ratio = index / Math.max(1, gridLines - 1);
+        const y = ratio * plotHeight;
+        const price = maxPrice - ratio * span;
+        return h(
+          "g",
+          { key: `k-grid-${index}` },
+          h("line", { x1: 0, x2: chartWidth, y1: y, y2: y, className: "chart-grid-line" }),
+          h("text", { x: width - 4, y: Math.max(10, y - 2), className: "chart-grid-label", textAnchor: "end" }, price.toFixed(2))
+        );
+      }),
+      h("line", { x1: chartWidth, x2: chartWidth, y1: 0, y2: height, className: "chart-axis-separator" }),
       items.map((bar, index) => {
           const open = Number(bar.open) || 0;
           const close = Number(bar.close) || 0;
@@ -300,6 +361,9 @@ function CandleChart({ bars }) {
           const top = Math.min(yOpen, yClose);
           const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
           const bullish = close >= open;
+          const volume = Number(bar.volume) || 0;
+          const volHeight = Math.max(1, (volume / maxVolume) * (volumeZone - 8));
+          const volY = height - volHeight;
           return h(
             "g",
             { key: `${bar.time || index}` },
@@ -310,10 +374,31 @@ function CandleChart({ bars }) {
               width: candleWidth,
               height: bodyHeight,
               className: bullish ? "candle-body up" : "candle-body down",
+            }),
+            h("rect", {
+              x: x - candleWidth / 2,
+              y: volY,
+              width: candleWidth,
+              height: volHeight,
+              className: bullish ? "volume-bar up" : "volume-bar down",
             })
           );
         }),
-      activeBar && activeX != null ? h("line", { x1: activeX, x2: activeX, y1: 0, y2: height, className: "chart-crosshair" }) : null
+      activeBar && activeX != null
+        ? h(
+            "g",
+            null,
+            h("line", { x1: activeX, x2: activeX, y1: 0, y2: height, className: "chart-crosshair" }),
+            h("line", { x1: 0, x2: chartWidth, y1: toY(activeBar.close), y2: toY(activeBar.close), className: "chart-crosshair" })
+          )
+        : null
+    ),
+    h(
+      "div",
+      { className: "chart-metrics" },
+      h("span", null, `High ${maxPrice.toFixed(2)}`),
+      h("span", null, `Low ${minPrice.toFixed(2)}`),
+      h("span", null, `Bars ${items.length}`)
     ),
     activeBar
       ? h(
@@ -354,6 +439,7 @@ function HomeView() {
 function StatusView({ token }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [klineInterval, setKlineInterval] = useState("1m");
   const [readiness, setReadiness] = useState(null);
   const [riskStatus, setRiskStatus] = useState(null);
   const [klineItems, setKlineItems] = useState([]);
@@ -362,6 +448,7 @@ function StatusView({ token }) {
   const [orderbookSnapshot, setOrderbookSnapshot] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
   const [pipelineHealth, setPipelineHealth] = useState(null);
+  const [llmRuntime, setLlmRuntime] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -370,14 +457,15 @@ function StatusView({ token }) {
       const ready = await apiFetchJson("/health/readiness");
       setReadiness(ready);
       if (token) {
-        const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult, pipelineResult] = await Promise.allSettled([
+        const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult, pipelineResult, llmResult] = await Promise.allSettled([
           apiFetchJson("/ops/risk/status", { token }),
-          apiFetchJson("/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=50", { token }),
+          apiFetchJson(`/ops/market/klines?symbol=BTC/USDT&interval=${encodeURIComponent(klineInterval)}&limit=120`, { token }),
           apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
           apiFetchJson("/ops/signals/latest?limit=1", { token }),
           apiFetchJson("/ops/market/orderbook/latest?symbol=BTC/USDT", { token }),
           apiFetchJson("/ops/trades/latest?mode=MOCK&symbol=BTC/USDT&limit=20", { token }),
           apiFetchJson("/ops/pipeline/health?mode=MOCK", { token }),
+          apiFetchJson("/ops/llm/runtime", { token }),
         ]);
         const risk = settledValue(riskResult, null);
         const klines = settledValue(klineResult, { items: [] });
@@ -386,6 +474,7 @@ function StatusView({ token }) {
         const orderbook = settledValue(orderbookResult, null);
         const trades = settledValue(tradesResult, { items: [] });
         const pipeline = settledValue(pipelineResult, null);
+        const llm = settledValue(llmResult, null);
 
         setRiskStatus(risk || null);
         setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
@@ -394,6 +483,7 @@ function StatusView({ token }) {
         setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
         setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
         setPipelineHealth(pipeline && Array.isArray(pipeline.stages) ? pipeline : null);
+        setLlmRuntime(llm && typeof llm === "object" ? llm : null);
       } else {
         setRiskStatus(null);
         setKlineItems([]);
@@ -402,16 +492,18 @@ function StatusView({ token }) {
         setOrderbookSnapshot(null);
         setRecentTrades([]);
         setPipelineHealth(null);
+        setLlmRuntime(null);
       }
     } catch (exc) {
       setError(String(exc.message || exc));
       setOrderbookSnapshot(null);
       setRecentTrades([]);
       setPipelineHealth(null);
+      setLlmRuntime(null);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, klineInterval]);
 
   useEffect(() => {
     void reload();
@@ -495,7 +587,23 @@ function StatusView({ token }) {
     ),
     h(
       SectionCard,
-      { title: "BTC/USDT Candles", subtitle: "Auto-refresh every 2 seconds from /ops/market/klines." },
+      { title: "BTC/USDT Candles", subtitle: `Interval ${klineInterval} (auto-refresh every 2 seconds).` },
+      h(
+        "div",
+        { className: "timeframe-switch" },
+        KLINE_INTERVAL_OPTIONS.map((interval) =>
+          h(
+            "button",
+            {
+              key: interval,
+              type: "button",
+              className: interval === klineInterval ? "timeframe-pill active" : "timeframe-pill",
+              onClick: () => setKlineInterval(interval),
+            },
+            interval
+          )
+        )
+      ),
       klineItems.length === 0 ? h("p", { className: "muted" }, "No kline data available.") : h(CandleChart, { bars: klineItems }),
       h(
         "div",
@@ -503,6 +611,35 @@ function StatusView({ token }) {
         h("a", { href: "/governance" }, "LLM Governance"),
         h("a", { href: "/replay" }, "Replay Inspector")
       )
+    ),
+    h(
+      SectionCard,
+      { title: "LLM Runtime", subtitle: "Runtime switch, provider order, and recent call persistence status." },
+      llmRuntime
+        ? h(
+            "div",
+            { className: "stats-grid" },
+            h(KeyStat, { label: "Enabled", value: String(Boolean(llmRuntime.runtime_enabled)) }),
+            h(KeyStat, { label: "LiteLLM URL", value: llmRuntime.litellm_base_url_configured ? "configured" : "missing" }),
+            h(KeyStat, { label: "Calls", value: String(llmRuntime.total_calls || 0) }),
+            h(KeyStat, { label: "Succeeded", value: String(llmRuntime.succeeded_calls || 0) }),
+            h(KeyStat, { label: "Failed", value: String(llmRuntime.failed_calls || 0) }),
+            h(KeyStat, { label: "Latest Call", value: String(llmRuntime.latest_call_at || "n/a") })
+          )
+        : h("p", { className: "muted" }, "No LLM runtime snapshot available."),
+      llmRuntime && !llmRuntime.runtime_enabled
+        ? h("p", { className: "muted" }, "Set LLM_RUNTIME_ENABLED=true and restart runtime_worker_orchestrator to activate LLM calls.")
+        : null,
+      llmRuntime && llmRuntime.runtime_enabled && !llmRuntime.litellm_base_url_configured
+        ? h("p", { className: "error" }, "LITELLM_BASE_URL is missing. Configure it and restart runtime_worker_orchestrator.")
+        : null,
+      llmRuntime
+        ? h(
+            "p",
+            { className: "muted" },
+            `quick=${Array.isArray(llmRuntime.quick_provider_order) ? llmRuntime.quick_provider_order.join(" -> ") : "n/a"} | deep=${Array.isArray(llmRuntime.deep_provider_order) ? llmRuntime.deep_provider_order.join(" -> ") : "n/a"}`
+          )
+        : null
     ),
     h(
       SectionCard,

@@ -48,7 +48,7 @@ def _settings() -> APISettings:
     )
 
 
-def test_dashboard_shell_pages_include_react_assets_and_view_markers() -> None:
+def test_dashboard_routes_show_migration_notice() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
@@ -61,22 +61,21 @@ def test_dashboard_shell_pages_include_react_assets_and_view_markers() -> None:
     notifications = client.get("/dashboard/notifications", headers=_auth_headers(token))
 
     assert governance.status_code == 200
-    assert "data-view='governance'" in governance.text
-    assert "/static/dashboard_app.js" in governance.text
-    assert "/static/dashboard.css" in governance.text
+    assert "legacy API-served dashboard has been removed" in governance.text
+    assert "http://localhost:3000/governance" in governance.text
 
     assert replay.status_code == 200
-    assert "data-view='replay'" in replay.text
+    assert "http://localhost:3000/replay" in replay.text
 
     assert mode.status_code == 200
-    assert "data-view='mode'" in mode.text
+    assert "http://localhost:3000/mode" in mode.text
     assert news.status_code == 200
-    assert "data-view='news'" in news.text
+    assert "http://localhost:3000/news" in news.text
     assert notifications.status_code == 200
-    assert "data-view='notifications'" in notifications.text
+    assert "http://localhost:3000/notifications" in notifications.text
 
 
-def test_dashboard_static_assets_are_served() -> None:
+def test_legacy_dashboard_static_assets_are_not_served() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
@@ -84,10 +83,5 @@ def test_dashboard_static_assets_are_served() -> None:
     js = client.get("/static/dashboard_app.js")
     css = client.get("/static/dashboard.css")
 
-    assert js.status_code == 200
-    assert "createRoot" in js.text
-    assert "/ops/market/orderbook/latest" in js.text
-    assert "/ops/trades/latest" in js.text
-    assert "/ops/pipeline/health" in js.text
-    assert css.status_code == 200
-    assert ":root" in css.text
+    assert js.status_code == 404
+    assert css.status_code == 404

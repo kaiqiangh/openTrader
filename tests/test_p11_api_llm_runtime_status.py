@@ -45,36 +45,27 @@ def _settings() -> APISettings:
         jwt_secret_key="test-secret-key",
         jwt_issuer="open-trader-tests",
         jwt_audience="open-trader-api",
+        llm_runtime_enabled=True,
+        litellm_base_url="http://litellm:4000",
+        llm_quick_provider_order=("openai", "anthropic"),
+        llm_deep_provider_order=("anthropic", "openai"),
     )
 
 
-def test_news_ops_endpoints_expose_items_summaries_and_impact() -> None:
+def test_llm_runtime_status_endpoint_reflects_runtime_settings() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
     token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
 
-    items = client.get("/ops/news/items", headers=_auth_headers(token))
-    summaries = client.get("/ops/news/summaries", headers=_auth_headers(token))
-    impact = client.get("/ops/news/impact", headers=_auth_headers(token))
-
-    assert items.status_code == 200
-    assert summaries.status_code == 200
-    assert impact.status_code == 200
-
-    assert len(items.json()["items"]) >= 1
-    assert len(summaries.json()["items"]) >= 1
-    assert len(impact.json()["items"]) >= 1
-
-
-def test_dashboard_news_route_points_to_next_dashboard() -> None:
-    settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
-    client = TestClient(app)
-    token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
-
-    response = client.get("/dashboard/news", headers=_auth_headers(token))
+    response = client.get("/ops/llm/runtime", headers=_auth_headers(token))
 
     assert response.status_code == 200
-    assert "legacy API-served dashboard has been removed" in response.text
-    assert "http://localhost:3000/news" in response.text
+    payload = response.json()
+    assert payload["runtime_enabled"] is True
+    assert payload["litellm_base_url_configured"] is True
+    assert payload["quick_provider_order"] == ["openai", "anthropic"]
+    assert payload["deep_provider_order"] == ["anthropic", "openai"]
+    assert payload["total_calls"] >= 0
+    assert payload["succeeded_calls"] >= 0
+    assert payload["failed_calls"] >= 0

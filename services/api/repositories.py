@@ -543,6 +543,32 @@ class ControlPlaneRepository:
             "stages": tuple(stages),
         }
 
+    def llm_runtime_status_snapshot(self) -> dict[str, Any]:
+        row = self._fetchone(
+            """
+            SELECT
+                COUNT(*) AS total_calls,
+                MAX(created_at) AS latest_call_at,
+                SUM(CASE WHEN COALESCE(response_payload->>'status', '') = 'succeeded' THEN 1 ELSE 0 END) AS succeeded_calls,
+                SUM(CASE WHEN COALESCE(response_payload->>'status', '') = 'failed' THEN 1 ELSE 0 END) AS failed_calls
+            FROM llm_calls
+            """,
+            {},
+        )
+        if row is None:
+            return {
+                "total_calls": 0,
+                "succeeded_calls": 0,
+                "failed_calls": 0,
+                "latest_call_at": None,
+            }
+        return {
+            "total_calls": int(row.get("total_calls", 0) or 0),
+            "succeeded_calls": int(row.get("succeeded_calls", 0) or 0),
+            "failed_calls": int(row.get("failed_calls", 0) or 0),
+            "latest_call_at": _datetime_to_iso(row.get("latest_call_at")),
+        }
+
     def _pipeline_stage_snapshot(
         self,
         *,

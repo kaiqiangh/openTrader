@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from html import escape
 
 from fastapi import APIRouter
@@ -10,88 +11,63 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("", response_class=HTMLResponse)
 def dashboard_home() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="Operations Dashboard",
-        heading="Operations Dashboard",
-        description="Operator control plane with governance, replay, and mode controls.",
-        view="home",
+        route="/",
     )
 
 
 @router.get("/status", response_class=HTMLResponse)
 def dashboard_status() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="Live Status",
-        heading="Live Status",
-        description="Runtime readiness and risk control status.",
-        view="status",
+        route="/status",
     )
 
 
 @router.get("/governance", response_class=HTMLResponse)
 def dashboard_governance() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="LLM Governance",
-        heading="LLM Governance",
-        description="Token usage, cost utilization, and breach history by strategy and agent.",
-        view="governance",
+        route="/governance",
     )
 
 
 @router.get("/replay", response_class=HTMLResponse)
 def dashboard_replay() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="Replay",
-        heading="Replay",
-        description="Replay requests and prompt/response inspection by decision.",
-        view="replay",
+        route="/replay",
     )
 
 
 @router.get("/mode", response_class=HTMLResponse)
 def dashboard_mode() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="Trading Mode Panel",
-        heading="Trading Mode Panel",
-        description="Current mode, controlled mode switch, and audit-facing change history.",
-        view="mode",
+        route="/mode",
     )
 
 
 @router.get("/news", response_class=HTMLResponse)
 def dashboard_news() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="News Intelligence Panel",
-        heading="News Intelligence Panel",
-        description="News stream, rolling summaries, and symbol impact insights.",
-        view="news",
+        route="/news",
     )
 
 
 @router.get("/notifications", response_class=HTMLResponse)
 def dashboard_notifications() -> HTMLResponse:
-    return _render_shell(
+    return _render_notice(
         title="Notification Observability",
-        heading="Notification Observability",
-        description="Delivery metrics, failure logs, and trace spans across notification gateways.",
-        view="notifications",
+        route="/notifications",
     )
 
 
-def _render_shell(*, title: str, heading: str, description: str, view: str) -> HTMLResponse:
-    nav_cards = [
-        ("Dashboard Home", "/dashboard"),
-        ("Live Status", "/dashboard/status"),
-        ("LLM Governance", "/dashboard/governance"),
-        ("Replay Inspector", "/dashboard/replay"),
-        ("Mode Panel", "/dashboard/mode"),
-        ("News Panel", "/dashboard/news"),
-        ("Notifications", "/dashboard/notifications"),
-    ]
-    nav_html = "".join(
-        f"<li><a href='{escape(path)}'>{escape(label)}</a></li>"
-        for label, path in nav_cards
-    )
+def _render_notice(*, title: str, route: str) -> HTMLResponse:
+    dashboard_base = os.getenv("NEXT_DASHBOARD_URL", "http://localhost:3000").rstrip("/")
+    target = f"{dashboard_base}{route}"
     html = (
         "<!doctype html>"
         "<html lang='en'>"
@@ -99,23 +75,20 @@ def _render_shell(*, title: str, heading: str, description: str, view: str) -> H
         "<meta charset='utf-8' />"
         "<meta name='viewport' content='width=device-width, initial-scale=1' />"
         f"<title>{escape(title)}</title>"
-        "<link rel='stylesheet' href='/static/dashboard.css' />"
+        "<style>"
+        "body{margin:0;background:#08111b;color:#dbe8ff;font-family:'Space Grotesk',sans-serif;}"
+        ".card{max-width:720px;margin:9vh auto;padding:24px;border-radius:16px;border:1px solid #1e3349;background:#0f1d2c;box-shadow:0 20px 50px rgba(0,0,0,.35);}"
+        "h1{margin:0 0 8px 0;font-size:1.4rem}"
+        "p{margin:0 0 14px 0;color:#a9bdd4;line-height:1.5}"
+        "a{display:inline-block;padding:10px 14px;border-radius:10px;background:#17d6a5;color:#03271d;text-decoration:none;font-weight:700}"
+        "</style>"
         "</head>"
         "<body>"
-        "<header class='dashboard-header'>"
-        f"<h1>{escape(heading)}</h1>"
-        f"<p>{escape(description)}</p>"
-        "<nav aria-label='dashboard-navigation'>"
-        "<ul class='dashboard-nav'>"
-        f"{nav_html}"
-        "</ul>"
-        "</nav>"
-        "</header>"
-        f"<main id='dashboard-root' data-view='{escape(view)}' class='dashboard-root'></main>"
-        "<noscript>"
-        "<p class='noscript-note'>Dashboard interactivity requires JavaScript.</p>"
-        "</noscript>"
-        "<script type='module' src='/static/dashboard_app.js'></script>"
+        "<main class='card'>"
+        f"<h1>{escape(title)} Moved</h1>"
+        "<p>The legacy API-served dashboard has been removed. Use the standalone Next dashboard instead.</p>"
+        f"<a href='{escape(target)}' target='_blank' rel='noreferrer'>Open Dashboard</a>"
+        "</main>"
         "</body>"
         "</html>"
     )

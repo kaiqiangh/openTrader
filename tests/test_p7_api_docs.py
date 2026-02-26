@@ -14,8 +14,8 @@ def test_api_control_plane_files_exist() -> None:
     assert Path("services/api/routers/governance.py").exists()
     assert Path("services/api/routers/replay.py").exists()
     assert Path("services/api/routers/dashboard.py").exists()
-    assert Path("services/api/static/dashboard_app.js").exists()
-    assert Path("services/api/static/dashboard.css").exists()
+    assert Path("apps/dashboard/src/components/dashboard-client.js").exists()
+    assert Path("apps/dashboard/app/globals.css").exists()
     assert Path("services/notification_service/models.py").exists()
     assert Path("services/notification_service/event_intake.py").exists()
     assert Path("services/notification_service/policy_router.py").exists()
@@ -37,8 +37,8 @@ def test_readme_mentions_api_control_plane_baseline() -> None:
     assert "services/api/routers/governance.py" in content
     assert "services/api/routers/replay.py" in content
     assert "services/api/routers/dashboard.py" in content
-    assert "services/api/static/dashboard_app.js" in content
-    assert "services/api/static/dashboard.css" in content
+    assert "apps/dashboard/src/components/dashboard-client.js" in content
+    assert "apps/dashboard/app/globals.css" in content
     assert "services/notification_service/models.py" in content
     assert "services/notification_service/publishers.py" in content
     assert "services/notification_service/telegram_gateway.py" in content
