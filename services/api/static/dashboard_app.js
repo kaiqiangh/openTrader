@@ -91,6 +91,13 @@ async function apiFetchJson(path, { token, method = "GET", body, dedupe = method
   }
 }
 
+function settledValue(result, fallback) {
+  if (result && result.status === "fulfilled") {
+    return result.value;
+  }
+  return fallback;
+}
+
 function SectionCard({ title, subtitle, children }) {
   return h(
     "section",
@@ -231,25 +238,38 @@ function StatusView({ token }) {
     setLoading(true);
     setError("");
     try {
-      const tasks = [apiFetchJson("/health/readiness")];
+      const ready = await apiFetchJson("/health/readiness");
+      setReadiness(ready);
       if (token) {
-        tasks.push(apiFetchJson("/ops/risk/status", { token }));
-        tasks.push(
+        const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult] = await Promise.allSettled([
+          apiFetchJson("/ops/risk/status", { token }),
           apiFetchJson("/ops/market/klines?symbol=BTC/USDT&interval=1m&limit=50", { token }),
           apiFetchJson("/ops/portfolio/history?mode=MOCK&limit=80", { token }),
           apiFetchJson("/ops/signals/latest?limit=1", { token }),
           apiFetchJson("/ops/market/orderbook/latest?symbol=BTC/USDT", { token }),
-          apiFetchJson("/ops/trades/latest?mode=MOCK&symbol=BTC/USDT&limit=20", { token })
-        );
+          apiFetchJson("/ops/trades/latest?mode=MOCK&symbol=BTC/USDT&limit=20", { token }),
+        ]);
+        const risk = settledValue(riskResult, null);
+        const klines = settledValue(klineResult, { items: [] });
+        const portfolio = settledValue(portfolioResult, { items: [] });
+        const signals = settledValue(signalResult, { items: [] });
+        const orderbook = settledValue(orderbookResult, null);
+        const trades = settledValue(tradesResult, { items: [] });
+
+        setRiskStatus(risk || null);
+        setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
+        setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
+        setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
+        setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
+        setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
+      } else {
+        setRiskStatus(null);
+        setKlineItems([]);
+        setEquityHistory([]);
+        setLatestSignal(null);
+        setOrderbookSnapshot(null);
+        setRecentTrades([]);
       }
-      const [ready, risk, klines, portfolio, signals, orderbook, trades] = await Promise.all(tasks);
-      setReadiness(ready);
-      setRiskStatus(risk || null);
-      setKlineItems(Array.isArray(klines && klines.items) ? klines.items : []);
-      setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
-      setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
-      setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
-      setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
     } catch (exc) {
       setError(String(exc.message || exc));
       setOrderbookSnapshot(null);
