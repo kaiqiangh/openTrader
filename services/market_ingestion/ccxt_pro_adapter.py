@@ -100,7 +100,7 @@ class CCXTProOrderBookClient:
         try:
             await close_fn()
         except Exception:
-            return
+            _logger.warning("ccxt_pro_close_failed", exc_info=True)
 
 
 def _normalize_ohlcv_row(row: Any) -> dict[str, Any] | None:

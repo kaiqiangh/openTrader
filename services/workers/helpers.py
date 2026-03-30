@@ -9,7 +9,7 @@ from typing import Any
 import hashlib
 import httpx
 import os
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from urllib.parse import urlparse
 
 
