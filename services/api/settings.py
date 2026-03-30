@@ -21,6 +21,7 @@ class APISettings:
     llm_deep_provider_order: tuple[str, ...] = ()
     read_only_mode: bool = False
     strict_database_mode: bool = True
+    jwt_max_lifetime_hours: int = 24
 
 
 def load_api_settings() -> APISettings:
@@ -58,6 +59,7 @@ def load_api_settings() -> APISettings:
             os.getenv("API_STRICT_DATABASE_MODE", "true"),
             setting_name="API_STRICT_DATABASE_MODE",
         ),
+        jwt_max_lifetime_hours=int(os.getenv("JWT_MAX_LIFETIME_HOURS", "24")),
     )
 
 

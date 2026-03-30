@@ -56,6 +56,12 @@ def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrin
     except (ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid JWT encoding") from exc
 
+    # NOTE: JWT Algorithm — HS256 (HMAC-SHA256)
+    # HS256 is used because the current codebase signs and verifies JWTs with a single shared secret.
+    # Trade-off: symmetric signing means any holder of the secret can forge tokens. For production
+    # deployments with multiple services, RS256 (asymmetric) or ES256 (ECDSA) would provide better
+    # separation of concerns — signing keys stay with the issuer, verification keys are public.
+    # TODO: migrate to RS256/ES256 when multi-service token issuance is needed.
     algorithm = str(header.get("alg", ""))
     if algorithm != "HS256":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unsupported JWT algorithm")
@@ -92,6 +98,20 @@ def _validate_registered_claims(*, payload: dict[str, object], settings: APISett
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT exp claim must be numeric")
     if int(exp) <= now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT expired")
+
+    # Enforce maximum token lifetime to limit the blast radius of a leaked token.
+    # Uses `iat` (issued-at) if present, otherwise falls back to `nbf` (not-before).
+    iat = payload.get("iat")
+    not_before = payload.get("nbf")
+    issued_at = iat if isinstance(iat, (int, float)) else not_before if isinstance(not_before, (int, float)) else None
+    if issued_at is not None:
+        lifetime_seconds = int(exp) - int(issued_at)
+        max_lifetime_seconds = settings.jwt_max_lifetime_hours * 3600
+        if lifetime_seconds > max_lifetime_seconds:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="JWT lifetime exceeds maximum allowed",
+            )
 
     nbf = payload.get("nbf")
     if nbf is not None and isinstance(nbf, (int, float)) and int(nbf) > now:
