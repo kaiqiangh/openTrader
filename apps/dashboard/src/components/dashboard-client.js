@@ -131,6 +131,15 @@ function settledValue(result, fallback) {
   return fallback;
 }
 
+function updateIfChanged(setter, newValue) {
+  setter((prev) => {
+    if (JSON.stringify(prev) === JSON.stringify(newValue)) {
+      return prev;  // Same data, skip re-render
+    }
+    return newValue;
+  });
+}
+
 function intervalBucketStart(timeMs, interval) {
   const date = new Date(timeMs);
   if (interval === "1w") {
@@ -784,15 +793,15 @@ function StatusView({ token }) {
         const pipeline = settledValue(pipelineResult, null);
         const llm = settledValue(llmResult, null);
 
-        setRiskStatus(risk || null);
-        setKlineSourceItems(Array.isArray(klines && klines.items) ? klines.items : []);
+        updateIfChanged(setRiskStatus, risk || null);
+        updateIfChanged(setKlineSourceItems, Array.isArray(klines && klines.items) ? klines.items : []);
         setKlineLoading(false);
-        setEquityHistory(Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
-        setLatestSignal(Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
-        setOrderbookSnapshot(orderbook && orderbook.symbol ? orderbook : null);
-        setRecentTrades(Array.isArray(trades && trades.items) ? trades.items : []);
-        setPipelineHealth(pipeline && Array.isArray(pipeline.stages) ? pipeline : null);
-        setLlmRuntime(llm && typeof llm === "object" ? llm : null);
+        updateIfChanged(setEquityHistory, Array.isArray(portfolio && portfolio.items) ? portfolio.items : []);
+        updateIfChanged(setLatestSignal, Array.isArray(signals && signals.items) && signals.items.length > 0 ? signals.items[0] : null);
+        updateIfChanged(setOrderbookSnapshot, orderbook && orderbook.symbol ? orderbook : null);
+        updateIfChanged(setRecentTrades, Array.isArray(trades && trades.items) ? trades.items : []);
+        updateIfChanged(setPipelineHealth, pipeline && Array.isArray(pipeline.stages) ? pipeline : null);
+        updateIfChanged(setLlmRuntime, llm && typeof llm === "object" ? llm : null);
       } else {
         setRiskStatus(null);
         setKlineSourceItems([]);
@@ -826,7 +835,7 @@ function StatusView({ token }) {
     void reload();
     const poll = window.setInterval(() => {
       void reload();
-    }, 2000);
+    }, 5000);
     return () => window.clearInterval(poll);
   }, [reload]);
 
