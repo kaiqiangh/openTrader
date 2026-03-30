@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -86,9 +87,9 @@ func (h *Handler) toBridgeCommand(envelope Envelope) (bridge.Command, string, er
 
 	switch action {
 	case string(bridge.ActionBuy), string(bridge.ActionSell), string(bridge.ActionClose):
-		quantity := envelope.Payload.Quantity
-		if quantity <= 0 {
-			quantity = -quantity
+		quantity := math.Abs(envelope.Payload.Quantity)
+		if quantity == 0 {
+			return bridge.Command{}, "", fmt.Errorf("quantity must be non-zero for %s action", action)
 		}
 		if action == string(bridge.ActionClose) {
 			reduceOnly = true
@@ -172,10 +173,7 @@ func (h *Handler) publishLifecycleEvent(
 		strings.TrimSpace(command.ClientOrderID),
 		fmt.Sprintf("order-%s", envelope.DecisionID),
 	)
-	quantity := command.Quantity
-	if quantity < 0 {
-		quantity = -quantity
-	}
+	quantity := math.Abs(command.Quantity)
 	eventPayload := map[string]any{
 		"strategy_id":       envelope.Payload.StrategyID,
 		"order_id":          orderID,

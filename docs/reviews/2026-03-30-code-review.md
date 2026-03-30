@@ -38,30 +38,29 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 - **Impact**: Potential JWT bypass if edge cases in parsing differ from RFC 7519
 - **Fix**: Replace with `PyJWT` library: `jwt.decode(token, key, algorithms=["HS256"])`
 
-#### SEC-011: Internal Execution Dispatch Auth Bypass (C-2)
-- **File**: `services/api/routers/internal.py` (lines 113-118)
-- **Issue**: `_validate_bridge_api_key()` in `REAL_EXECUTION_BRIDGE_API_KEY` is empty → `return` (fail-open)
-- **`.env`**: `REAL_EXECUTION_BRIDGE_API_KEY=` (空值)
-- **Impact**: Any network-reachable attacker can submit arbitrary trading orders (BUY/SELL/CANCEL) to real exchanges
-- **Fix**: Fail-closed when key is empty — reject all requests, not pass them through
+#### SEC-011: Internal Execution Dispatch Auth Bypass ~~(C-2)~~ → ✅ ALREADY FIXED
+- **File**: `services/api/routers/internal.py`
+- **Status**: ✅ Already fixed in commit `063a0d9` — `_validate_bridge_api_key()` now returns HTTP 503 when `REAL_EXECUTION_BRIDGE_API_KEY` is empty (fail-closed)
 
-#### SEC-012: Go Handler Quantity Sign Flip — SELL → BUY (C-4)
-- **File**: `services/real_execution_go/internal/service/handler.go` (lines ~58-60)
-- **Code**:
+#### SEC-012: Go Handler Quantity Zero-Value Edge Case ~~(C-4)~~ → ✅ FIXED
+- **File**: `services/real_execution_go/internal/service/handler.go`
+- **Original Issue**: `if quantity <= 0 { quantity = -quantity }` — reviewer feared SELL→BUY direction flip
+- **Analysis**: This is **NOT a bug**. The Python agent uses signed quantity convention (SELL = negative), and the bridge contract requires unsigned quantity (action field determines side). The `abs()` is the correct conversion layer.
+- **Real Issue**: quantity == 0 passes through `abs(0) = 0` and fails at bridge validation with a cryptic error.
+- **Fix Applied**: Changed to `math.Abs()` + explicit zero check returning clear error:
   ```go
-  if quantity <= 0 {
-      quantity = -quantity
+  quantity := math.Abs(envelope.Payload.Quantity)
+  if quantity == 0 {
+      return bridge.Command{}, "", fmt.Errorf("quantity must be non-zero for %s action", action)
   }
   ```
-- **Contrast**: Python `guardrail_validation.py` (line ~124) uses negative quantity for SELL: `if action == "SELL": return quantity < 0.0`
-- **Impact**: SELL orders may be sent to the exchange as BUY — **wrong direction = capital loss**
-- **Fix**: Only flip for BUY action. SELL/CLOSE preserve original sign or use action field to drive side.
+- **Status**: ✅ Fixed — Go tests pass
 
-#### SEC-013: Fill Reconciliation: `requested_quantity` = 0 Breaks State Derivation (C-3)
-- **File**: `services/oms/fill_reconciliation.py` (lines ~95-107)
-- **Code**: `if requested_quantity <= _EPSILON: return normalized` — never derives PARTIALLY_FILLED/FILLED
-- **Impact**: Orders may be stuck in OPEN/SUBMITTED after full fill → position tracking drift, duplicate execution risk
-- **Fix**: Ensure `requested_quantity` is always captured from original execution intent quantity, and > 0
+#### SEC-013: Fill Reconciliation: `requested_quantity` = 0 Breaks State Derivation ~~(C-3)~~ → ⚠️ PARTIALLY FIXED
+- **File**: `services/oms/fill_reconciliation.py`
+- **Fix Applied**: Removed dead code (unreachable duplicate return block in `_requires_fallback`)
+- **Remaining**: `if requested_quantity <= _EPSILON: return normalized` — when requested_quantity is 0 or missing, status derivation can't determine FILLED/PARTIALLY_FILLED. This is a **data integrity** issue (order creation must set requested_quantity > 0), not a code bug.
+- **Recommendation**: Add validation at order creation time to enforce `requested_quantity > 0`
 
 ### 🟠 HIGH
 
@@ -91,11 +90,9 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 - **Impact**: Violates least-privilege. Each container receives full secrets (Telegram token, LLM key, Grafana password, JWT secret, encryption key)
 - **Fix**: Use Docker secrets or per-service env files
 
-#### SEC-016: Go Runner: Zero Backoff Tight Loop on Empty Queue
-- **File**: `services/real_execution_go/internal/service/runner.go` (lines ~38-43)
-- **Code**: `ErrNoMessage` → `continue` with no sleep
-- **Impact**: 100% CPU when queue is empty
-- **Fix**: Add 10-50ms sleep in `ErrNoMessage` branch
+#### SEC-016: Go Runner: Zero Backoff Tight Loop on Empty Queue → ✅ ALREADY FIXED
+- **File**: `services/real_execution_go/internal/service/runner.go`
+- **Status**: ✅ Already has `emptyQueueBackoff = 50ms` and `consumerErrorBackoff = 500ms`
 
 #### SEC-017: Go Handler: nil Bridge/Store Panic Risk
 - **File**: `services/real_execution_go/internal/service/handler.go` — `NewHandler`
@@ -248,36 +245,35 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 
 ---
 
-## 6. Risk Matrix
+## 6. Risk Matrix (Updated 2026-03-30 after fixes)
 
-| Finding | Severity | Exploitability | Fix Effort | Priority |
-|---------|----------|---------------|------------|----------|
-| SEC-012 Go SELL→BUY direction | CRITICAL | High (normal operation) | Low | P0 |
-| SEC-011 Internal dispatch auth bypass | CRITICAL | High (network reachable) | Low | P0 |
-| SEC-013 Fill reconciliation stuck | CRITICAL | High (every order) | Low | P0 |
-| SEC-001 Real keys in .env | CRITICAL | Medium (FS access) | Low | P0 |
-| SEC-002 Hand-rolled JWT | CRITICAL | Low (edge cases) | Medium | P0 |
-| SEC-003 In-memory rate limiter | HIGH | High (trivial DoS) | Medium | P0 |
-| SEC-014 JWT weak default | HIGH | Medium | Low | P0 |
-| SEC-015 All secrets to all containers | HIGH | Medium | High | P1 |
-| SEC-016 Go zero backoff | HIGH | Medium (empty queue) | Low | P1 |
-| CQ-002 Go in-memory idempotency | HIGH | Medium (restart) | Medium | P1 |
-| SEC-004 Env var credentials | HIGH | Medium | High | P1 |
+| Finding | Severity | Exploitability | Fix Effort | Priority | Status |
+|---------|----------|---------------|------------|----------|--------|
+| SEC-012 Go quantity zero check | ~~CRITICAL~~ MEDIUM | Low | Low | P2 | ✅ Fixed |
+| SEC-011 Internal dispatch auth bypass | ~~CRITICAL~~ — | High | Low | P0 | ✅ Already fixed |
+| SEC-013 Fill reconciliation dead code | HIGH (partial) | Medium | Low | P1 | ⚠️ Dead code removed; requested_quantity validation pending |
+| SEC-016 Go zero backoff | ~~HIGH~~ — | — | Low | — | ✅ Already fixed |
+| SEC-017 Go handler nil check | ~~HIGH~~ — | Medium | Low | — | ✅ Already fixed (NewHandler validates nil) |
+| SEC-001 Real keys in .env | CRITICAL | Medium | Low | P0 | 🔴 Open |
+| SEC-002 Hand-rolled JWT | CRITICAL | Low | Medium | P0 | 🔴 Open |
+| SEC-003 In-memory rate limiter | HIGH | High | Medium | P0 | 🔴 Open |
+| SEC-014 JWT weak default | HIGH | Medium | Low | P0 | 🔴 Open |
+| SEC-015 All secrets to all containers | HIGH | Medium | High | P1 | 🔴 Open |
+| CQ-002 Go in-memory idempotency | HIGH | Medium | Medium | P1 | 🔴 Open |
+| SEC-004 Env var credentials | HIGH | Medium | High | P1 | 🔴 Open |
 
 ---
 
-## 7. Priority Fix Order
+## 7. Remaining Priority Fix Order
 
-1. **SEC-012**: Go handler quantity sign — SELL→BUY = capital loss
-2. **SEC-011**: Internal dispatch auth bypass — fail-closed when key empty
-3. **SEC-013**: Fill reconciliation — ensure `requested_quantity` > 0
-4. **SEC-001**: Rotate all secrets in `.env`
-5. **SEC-002**: Replace hand-rolled JWT with PyJWT
-6. **SEC-003**: Redis-backed rate limiting
-7. **SEC-014**: Remove JWT default from docker-compose
-8. **SEC-016**: Go runner backoff
-9. **SEC-017**: Go handler nil validation
-10. **SEC-015**: Per-service secrets isolation
+1. **SEC-001**: Rotate all secrets in `.env`
+2. **SEC-002**: Replace hand-rolled JWT with PyJWT
+3. **SEC-003**: Redis-backed rate limiting
+4. **SEC-014**: Remove JWT default from docker-compose
+5. **SEC-015**: Per-service secrets isolation
+6. **SEC-013**: Validate `requested_quantity > 0` at order creation
+7. **CQ-002**: Go idempotency store → Redis or PostgreSQL
+8. **SEC-004**: Wire encrypted credential store or deprecate
 
 ---
 

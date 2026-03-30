@@ -193,9 +193,6 @@ def _requires_fallback(
     if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
         return True
     return snapshot_filled > (queue_filled + _EPSILON)
-    if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
-        return True
-    return snapshot_filled > (queue_filled + _EPSILON)
 
 
 def _derive_status(*, base_status: str, requested_quantity: float, filled_quantity: float) -> str:
