@@ -58,7 +58,7 @@ class WorkerHealthServer:
                 pass  # Suppress per-request logs
 
         try:
-            self._server = _ReuseHTTPServer(("0.0.0.0", self.port), Handler)
+            self._server = _ReuseHTTPServer(("127.0.0.1", self.port), Handler)
         except OSError:
             logger.warning("health_server_bind_failed port=%d — continuing without health endpoint", self.port)
             return
