@@ -36,6 +36,14 @@ class PortfolioSnapshotEngine:
         realized_pnl_today: float | None = None,
         snapshot_time: str | None = None,
     ) -> PortfolioSnapshot:
+        """Build a portfolio snapshot from balances and marked positions.
+
+        Args:
+            realized_pnl_today: Cumulative realized PNL across all positions (not
+                restricted to today's trades). Despite the parameter name, this
+                receives the total realized PNL sum. When None, falls back to
+                summing position-level realized PNL values.
+        """
         unrealized_pnl = 0.0
         realized_from_positions = 0.0
         normalized_mode = mode.strip().upper()

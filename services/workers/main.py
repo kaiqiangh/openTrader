@@ -393,6 +393,8 @@ class OMSLifecycleWorkerRunner:
             locked_balance_usd=0.0,
             positions=positions,
             mark_prices=mark_prices,
+            # realized_pnl_today receives cumulative realized PNL (sum of all positions),
+            # not just today's trades — see PortfolioSnapshotEngine.build_snapshot docstring.
             realized_pnl_today=sum(position.realized_pnl for position in positions),
         )
         if self.state_store is not None:

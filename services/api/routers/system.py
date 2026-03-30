@@ -26,7 +26,10 @@ def health_liveness() -> HealthResponse:
 
 
 @router.get("/health/readiness", response_model=ReadinessResponse)
-def health_readiness(state: ControlPlaneState = Depends(get_control_plane_state)) -> ReadinessResponse:
+def health_readiness(
+    _: AuthPrincipal = Depends(require_viewer),
+    state: ControlPlaneState = Depends(get_control_plane_state),
+) -> ReadinessResponse:
     return ReadinessResponse(
         status="ready",
         service="api",

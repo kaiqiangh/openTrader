@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 import importlib
+
+_logger = logging.getLogger(__name__)
 
 
 class CCXTProAdapterError(RuntimeError):
@@ -60,7 +63,7 @@ class CCXTProOrderBookClient:
             try:
                 return await self._client.fetch_order_book(symbol, limit)
             except Exception:
-                pass
+                _logger.warning("ccxt_pro_fetch_order_book_fallback", exc_info=True)
         return await self.fallback_rest_client.fetch_order_book(symbol, limit=limit)
 
     async def watch_order_book(self, symbol: str, limit: int | None = None) -> Mapping[str, Any]:
@@ -68,7 +71,7 @@ class CCXTProOrderBookClient:
             try:
                 return await self._client.watch_order_book(symbol, limit)
             except Exception:
-                pass
+                _logger.warning("ccxt_pro_watch_order_book_fallback", exc_info=True)
         return await self.fallback_ws_client.watch_order_book(symbol, limit=limit)
 
     async def fetch_klines(
@@ -84,7 +87,7 @@ class CCXTProOrderBookClient:
                 if isinstance(rows, list):
                     return tuple(_normalize_ohlcv_row(item) for item in rows)
             except Exception:
-                pass
+                _logger.warning("ccxt_pro_fetch_ohlcv_fallback", exc_info=True)
         fallback = await self.fallback_rest_client.fetch_klines(symbol, interval=interval, limit=limit)
         return tuple(dict(item) for item in fallback)
 

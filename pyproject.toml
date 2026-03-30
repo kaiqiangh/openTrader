@@ -4,20 +4,20 @@ version = "0.1.0"
 description = "LLM-based multi-exchange crypto trading platform"
 requires-python = ">=3.13"
 dependencies = [
-    "alembic>=1.13.2",
-    "cryptography>=44.0.0",
-    "fastapi>=0.116.0",
-    "psycopg[binary]>=3.2.1",
-    "sqlalchemy>=2.0.36",
-    "uvicorn>=0.35.0",
+    "alembic>=1.13.2,<2.0.0",
+    "cryptography>=44.0.0,<45.0.0",
+    "fastapi>=0.116.0,<1.0.0",
+    "psycopg[binary]>=3.2.1,<4.0.0",
+    "sqlalchemy>=2.0.36,<3.0.0",
+    "uvicorn>=0.35.0,<1.0.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
-    "pytest>=9.0.2",
-    "pytest-asyncio>=1.2.0",
-    "ruff>=0.13.0",
+    "httpx>=0.28.1,<1.0.0",
+    "pytest>=9.0.2,<10.0.0",
+    "pytest-asyncio>=1.2.0,<2.0.0",
+    "ruff>=0.13.0,<1.0.0",
 ]
 
 [tool.pytest.ini_options]

@@ -12,6 +12,7 @@ from services.api.models import (
     LLMBreachRecordResponse,
     LLMUsageListResponse,
     LLMUsageRecordResponse,
+    UserRole,
 )
 from services.api.state import ControlPlaneState, LLMCallLogRecord, LLMBreachRecord, LLMUsageRecord
 
@@ -49,7 +50,7 @@ def list_llm_breaches(
 
 @router.get("/llm/calls", response_model=LLMCallLogListResponse)
 def list_llm_calls(
-    _: AuthPrincipal = Depends(require_viewer),
+    principal: AuthPrincipal = Depends(require_viewer),
     state: ControlPlaneState = Depends(get_control_plane_state),
     strategy_id: str | None = Query(default=None),
     agent_name: str | None = Query(default=None),
@@ -62,7 +63,8 @@ def list_llm_calls(
         status=status_filter,
         limit=limit,
     )
-    return LLMCallLogListResponse(items=[_call_model(item) for item in items])
+    is_admin = principal.role == UserRole.ADMIN
+    return LLMCallLogListResponse(items=[_call_model(item, include_previews=is_admin) for item in items])
 
 
 def _usage_model(item: LLMUsageRecord) -> LLMUsageRecordResponse:
@@ -97,7 +99,7 @@ def _breach_model(item: LLMBreachRecord) -> LLMBreachRecordResponse:
     )
 
 
-def _call_model(item: LLMCallLogRecord) -> LLMCallLogRecordResponse:
+def _call_model(item: LLMCallLogRecord, *, include_previews: bool = False) -> LLMCallLogRecordResponse:
     return LLMCallLogRecordResponse(
         llm_call_id=item.llm_call_id,
         trace_id=item.trace_id,
@@ -115,6 +117,6 @@ def _call_model(item: LLMCallLogRecord) -> LLMCallLogRecordResponse:
         latency_ms=item.latency_ms,
         estimated_cost=item.estimated_cost,
         created_at=item.created_at,
-        prompt_preview=item.prompt_preview,
-        response_preview=item.response_preview,
+        prompt_preview=item.prompt_preview if include_previews else None,
+        response_preview=item.response_preview if include_previews else None,
     )
