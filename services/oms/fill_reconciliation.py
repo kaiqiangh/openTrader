@@ -6,6 +6,7 @@ from typing import Iterable, Final
 from services.oms.state_machine import TERMINAL_STATES, normalize_state
 
 _EPSILON: Final[float] = 1e-9
+_MIN_FILL_GAP: Final[float] = 1e-6  # Minimum fill quantity gap to trigger exchange fallback
 _EVENT_STATUS_MAP: Final[dict[str, str]] = {
     "oms.order.created": "OPEN",
     "oms.order.submitted": "SUBMITTED",
@@ -186,13 +187,13 @@ def _requires_fallback(
     if current_status not in TERMINAL_STATES:
         if normalized_snapshot_status in TERMINAL_STATES:
             return True
-        if snapshot_filled > (queue_filled + _EPSILON):
+        if snapshot_filled > (queue_filled + _MIN_FILL_GAP):
             return True
         return False
 
     if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
         return True
-    return snapshot_filled > (queue_filled + _EPSILON)
+    return snapshot_filled > (queue_filled + _MIN_FILL_GAP)
 
 
 def _derive_status(*, base_status: str, requested_quantity: float, filled_quantity: float) -> str:

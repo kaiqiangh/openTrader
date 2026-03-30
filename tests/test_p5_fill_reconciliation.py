@@ -149,3 +149,44 @@ def test_reconcile_marks_unchanged_when_order_snapshot_matches() -> None:
     assert result.filled_quantity == 0.2
     assert result.average_price == 2000.0
     assert result.changed is False
+
+
+def test_requires_fallback_ignores_tiny_fill_gap() -> None:
+    """Small fill gaps due to float noise should NOT trigger fallback."""
+    from services.oms.fill_reconciliation import _requires_fallback
+
+    snapshot = ExchangeOrderSnapshot(
+        status="OPEN",
+        filled_quantity=1.0,
+        average_price=100.0,
+        fills=(),
+    )
+
+    # No queue fills, snapshot has 1.0 filled — this SHOULD trigger fallback (not a noise gap)
+    result = _requires_fallback(
+        current_status="OPEN",
+        queue_fills=[],
+        exchange_snapshot=snapshot,
+    )
+    assert result is True, "Significant gap should trigger fallback"
+
+
+def test_requires_fallback_ignores_rounding_noise() -> None:
+    """Fill gap below threshold should NOT trigger fallback."""
+    from services.oms.fill_reconciliation import _requires_fallback
+
+    snapshot = ExchangeOrderSnapshot(
+        status="OPEN",
+        filled_quantity=1.00000001,  # tiny noise
+        average_price=100.0,
+        fills=(),
+    )
+
+    queue_fill = ReconciliationFill(fill_id="f1", order_id="o1", quantity=1.0, price=100.0)
+
+    result = _requires_fallback(
+        current_status="OPEN",
+        queue_fills=[queue_fill],
+        exchange_snapshot=snapshot,
+    )
+    assert result is False, "Rounding noise should NOT trigger fallback"
