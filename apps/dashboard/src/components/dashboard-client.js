@@ -761,14 +761,14 @@ function StatusView({ token }) {
   const reload = useCallback(async () => {
     const sequence = reloadSequenceRef.current + 1;
     reloadSequenceRef.current = sequence;
-    setLoading(true);
+
     setError("");
     try {
       const ready = await apiFetchJson("/health/readiness", { token });
       if (reloadSequenceRef.current !== sequence) {
         return;
       }
-      setReadiness(ready);
+      updateIfChanged(setReadiness, ready);
       if (token) {
         const baseLimit = baseKlineLimitForInterval(klineInterval);
         const [riskResult, klineResult, portfolioResult, signalResult, orderbookResult, tradesResult, pipelineResult, llmResult] = await Promise.allSettled([
@@ -826,7 +826,7 @@ function StatusView({ token }) {
       setKlineLoading(false);
     } finally {
       if (reloadSequenceRef.current === sequence) {
-        setLoading(false);
+
       }
     }
   }, [token, klineInterval]);
@@ -877,22 +877,20 @@ function StatusView({ token }) {
     h(
       SectionCard,
       { title: "System Status", subtitle: "FastAPI readiness and risk-control summary." },
-      loading
-        ? h("p", { className: "muted" }, "Loading status...")
-        : h(
-            "div",
-            { className: "stats-grid" },
-            h(KeyStat, { label: "Readiness", value: readiness ? readiness.status : "unknown" }),
-            h(KeyStat, { label: "Mode", value: readiness ? readiness.mode : "unknown" }),
-            h(KeyStat, {
-              label: "Kill Switch",
-              value: riskStatus ? String(riskStatus.kill_switch_enabled) : "n/a",
-            }),
-            h(KeyStat, {
-              label: "Circuit Breaker",
-              value: riskStatus ? String(riskStatus.circuit_breaker_open) : "n/a",
-            })
-          ),
+      h(
+        "div",
+        { className: "stats-grid" },
+        h(KeyStat, { label: "Readiness", value: readiness ? readiness.status : "unknown" }),
+        h(KeyStat, { label: "Mode", value: readiness ? readiness.mode : "unknown" }),
+        h(KeyStat, {
+          label: "Kill Switch",
+          value: riskStatus ? String(riskStatus.kill_switch_enabled) : "n/a",
+        }),
+        h(KeyStat, {
+          label: "Circuit Breaker",
+          value: riskStatus ? String(riskStatus.circuit_breaker_open) : "n/a",
+        })
+      ),
       h("div", { className: "button-row" }, h("button", { type: "button", onClick: () => void reload() }, "Refresh")),
       error ? h("p", { className: "error" }, error) : null
     ),
@@ -1145,7 +1143,7 @@ function GovernanceView({ token }) {
       return;
     }
 
-    setLoading(true);
+
     setError("");
     try {
       const [usagePayload, breachPayload, callPayload, runtimePayload] = await Promise.all([
@@ -1439,7 +1437,7 @@ function ReplayView({ token }) {
       setError("Provide JWT token and decision_id.");
       return;
     }
-    setLoading(true);
+
     setError("");
     try {
       const payload = await apiFetchJson(`/replay/decisions/${encodeURIComponent(decisionIdInput.trim())}`, { token });
@@ -1457,7 +1455,7 @@ function ReplayView({ token }) {
       setError("Provide JWT token and request_id.");
       return;
     }
-    setLoading(true);
+
     setError("");
     try {
       const payload = await apiFetchJson(`/replay/requests/${encodeURIComponent(requestIdInput.trim())}`, { token });
@@ -1475,7 +1473,7 @@ function ReplayView({ token }) {
       setError("Provide JWT token and decision_id.");
       return;
     }
-    setLoading(true);
+
     setError("");
     try {
       const payload = await apiFetchJson("/replay/requests", {
@@ -1719,7 +1717,7 @@ function ModeView({ token }) {
       return;
     }
 
-    setLoading(true);
+
     setError("");
     try {
       const [currentMode, modeHistory, strategyList] = await Promise.all([
@@ -1755,7 +1753,7 @@ function ModeView({ token }) {
       return;
     }
 
-    setLoading(true);
+
     setError("");
     try {
       await apiFetchJson("/control/mode", {
@@ -1868,7 +1866,7 @@ function NewsView({ token }) {
     const summariesQuery = buildQuery({ symbol_scope: symbolFilter, limit: 20 });
     const impactQuery = buildQuery({ limit: 12 });
 
-    setLoading(true);
+
     setError("");
     try {
       const [itemsPayload, summaryPayload, impactPayload] = await Promise.all([
@@ -2013,7 +2011,7 @@ function NotificationsView({ token }) {
       return;
     }
 
-    setLoading(true);
+
     setError("");
     try {
       const [metricsPayload, deliveriesPayload, tracesPayload] = await Promise.all([
