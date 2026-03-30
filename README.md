@@ -246,7 +246,119 @@ GitHub Actions on every push/PR:
 - [ADR](docs/adr/) — Architecture Decision Records
 - [Plans](docs/plans/) — Implementation plans
 - [Runbooks](docs/runbooks/) — Incident response guides
+  - `docs/runbooks/exchange-outage.md`
+  - `docs/runbooks/llm-quota-breach.md`
+  - `docs/runbooks/risk-incident.md`
 - [Reviews](docs/reviews/) — Code review reports
+- `docs/market_ingestion_foundation.md` — Ingestion architecture doc
+- `docs/agent_runtime_baseline.md` — Agent runtime architecture doc
+- `docs/llm_gateway_baseline.md` — LLM gateway architecture doc
+
+## Key Module References
+
+### Market Ingestion
+- `services/market_ingestion/persistence_writers.py` — TimescaleDB kline/orderbook writers
+- `services/market_ingestion/pipeline_metrics.py` — Prometheus ingestion metrics
+- `services/market_ingestion/integration_harness.py` — Replay fixture test harness
+- `services/market_ingestion/canonical_pipeline.py` — Exchange normalization pipeline
+- `services/market_ingestion/gap_detection.py` — Sequence gap detection
+- `services/market_ingestion/kline_validator.py` — Kline completeness validation
+- `services/news_ingestion/source_connectors.py` — Pluggable RSS/API source connectors
+- `services/news_ingestion/ingestion_service.py` — News pull/normalize/dedupe
+- `services/news_ingestion/tagging_relevance.py` — Symbol/topic tagging
+- `services/news_ingestion/quality_metrics.py` — News coverage/freshness metrics
+- `services/news_summarizer/summarizer_service.py` — Rolling summary generation
+- `services/news_summarizer/context_injection_bridge.py` — Summary to agent context
+- `services/news_summarizer/resilience.py` — News module fallback behavior
+
+### Integrity Service
+- `services/integrity_service/gap_detection.py` — Sequence gap detection
+- `services/integrity_service/kline_validator.py` — K-line reconstruction validation
+
+### Agent Runtime
+- `services/agent_orchestrator/orchestrator.py` — Multi-agent decision orchestration
+- `services/agent_orchestrator/planner_agent.py` — Dynamic plan generation
+- `services/agent_orchestrator/risk_agent.py` — Pre-trade risk signals
+- `services/agent_orchestrator/execution_decision_agent.py` — Final action proposal
+- `services/agent_orchestrator/market_context_agent.py` — Market microstructure enrichment
+- `services/agent_orchestrator/guardrail_validation.py` — Pre-publish intent validation
+- `services/agent_orchestrator/memory_layer.py` — Redis/Postgres shared memory
+- `services/agent_orchestrator/replay_service.py` — Deterministic decision replay
+- `services/agent_orchestrator/metrics_tracing.py` — Agent latency/token metrics
+
+### LLM Gateway
+- `services/llm_gateway/contracts.py` — Gateway provider contracts
+- `services/llm_gateway/gateway.py` — Centralized model access layer
+- `services/llm_gateway/persistence.py` — LLMCallRecord and prompt/response storage
+- `services/llm_gateway/quota.py` — Token/cost quota enforcement (QuotaLimits, LLMQuotaStore)
+- `docs/learning/2026-02-14-p3-llm-persistence-instincts.md`
+- `docs/learning/2026-02-14-p3-llm-quota-instincts.md`
+
+### OMS + Risk
+- `services/oms/fill_reconciliation.py` — Queue/exchange fill reconciliation
+- `services/oms/position_engine.py` — Position tracking from fills
+- `services/oms/portfolio_snapshot.py` — NAV/PnL snapshot engine
+- `services/oms/risk_rules.py` — Position limits, leverage, drawdown, daily loss checks
+- `services/oms/risk_guards.py` — Drawdown/daily loss guards
+- `services/oms/risk_controls.py` — Circuit breaker/kill switch
+- `services/oms/risk_policy.py` — Composed risk policy engine
+- `services/oms/risk_observability.py` — Risk telemetry
+
+### API Control Plane
+- `services/api/app.py` — FastAPI application factory
+- `services/api/auth.py` — JWT RS256 verification, token pair generation, refresh rotation
+- `services/api/rate_limiter.py` — Redis-backed + in-memory rate limiters
+- `services/api/routers/ops.py` — Operations/governance endpoints
+- `services/api/routers/governance.py` — LLM governance APIs
+- `services/api/routers/replay.py` — Decision replay endpoints
+- `services/api/routers/system.py` — Health, metadata, auth/token, auth/refresh endpoints
+- `services/api/routers/control.py` — Mode/strategy control endpoints
+- `services/api/routers/dashboard.py` — Dashboard UI routes
+- `apps/dashboard/src/components/dashboard-client.js` — Dashboard React client
+- `apps/dashboard/app/globals.css` — Dashboard styles
+
+### Observability
+- `services/shared/runtime/structured_logging.py` — JSON structured logger
+- `services/shared/runtime/prometheus.py` — Prometheus metrics registry
+- `services/shared/runtime/trace_context.py` — OpenTelemetry trace propagation
+- `services/shared/runtime/key_encryption.py` — AES-256-GCM credential encryption
+- `config/observability/prometheus.yml` — Prometheus scrape config
+- `config/observability/alerts.yml` — Alert rule catalog
+
+### Notification
+- `services/notification_service/models.py` — Notification data models
+- `services/notification_service/publishers.py` — Event publisher integrations
+- `services/notification_service/telegram_gateway.py` — Telegram bot delivery
+- `services/notification_service/email_gateway.py` — SMTP email delivery
+- `services/notification_service/webhook_gateway.py` — HTTP POST webhook delivery
+- `services/notification_service/observability.py` — Notification metrics/traces
+- `services/notification_service/settings.py` — Worker configuration
+- `services/notification_service/worker.py` — Notification worker loop
+
+### Migrations
+- `migrations/versions/20260214_0003_agent_trace_schema.py` — decision_traces, agent_runs, agent_messages tables
+- `migrations/versions/20260214_0004_llm_governance_schema.py` — llm_calls, llm_usage tables
+- `migrations/versions/20260214_0005_news_schema.py` — news_items, news_tags, news_summaries tables
+- `migrations/versions/20260219_0007_control_plane_notification_state.py` — strategy_runtime_state, mode_audit_events tables
+
+### Tests
+- `tests/test_p9_e2e_mock_flow.py` — E2E mock flow validation
+- `tests/test_p9_e2e_real_flow.py` — E2E real flow validation
+- `tests/test_p9_mode_isolation.py` — Mode separation verification
+- `tests/test_p9_replay_determinism.py` — Replay determinism tests
+- `tests/test_p9_performance_benchmarks.py` — Performance benchmarks
+- `tests/test_p9_chaos_resilience.py` — Chaos/resilience drills
+- `tests/test_p9_data_integrity_audits.py` — Data integrity audit tests
+- `tests/test_p9_security_acceptance.py` — Security acceptance tests
+- `docs/runtime/p9-validation-2026-02-14.md` — Validation evidence
+- `docs/runtime/p9-replay-determinism-2026-02-15.md` — Replay evidence
+- `docs/runtime/p9-performance-benchmark-2026-02-15.md` — Benchmark evidence
+- `docs/runtime/p9-resilience-drills-2026-02-15.md` — Resilience drill evidence
+- `docs/runtime/p9-data-integrity-audit-2026-02-15.md` — Data integrity evidence
+- `docs/runtime/p9-security-acceptance-2026-02-15.md` — Security acceptance evidence
+- `docs/release/p9-release-checklist-2026-02-15.md` — Release checklist
+- `docs/release/p9-cutover-and-rollback-2026-02-15.md` — Cutover/rollback plan
+- `docs/release/p9-post-phase-handoff-pack-2026-02-15.md` — Post-phase handoff pack
 
 ## License
 
