@@ -755,7 +755,7 @@ function StatusView({ token }) {
     setLoading(true);
     setError("");
     try {
-      const ready = await apiFetchJson("/health/readiness");
+      const ready = await apiFetchJson("/health/readiness", { token });
       if (reloadSequenceRef.current !== sequence) {
         return;
       }
