@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -10,6 +10,9 @@ from services.notification_service.gateway_dispatch import GatewayDispatcher
 from services.notification_service.observability import NotificationObservabilityCollector, utc_now_iso
 from services.notification_service.models import NotificationProcessingResult
 from services.notification_service.policy_router import NotificationPolicyRouter
+
+
+_PersistFn = Callable[[NotificationProcessingResult], None]
 
 
 class NotificationService:
@@ -22,11 +25,13 @@ class NotificationService:
         policy_router: NotificationPolicyRouter,
         dispatcher: GatewayDispatcher,
         observability: NotificationObservabilityCollector | None = None,
+        persist_fn: _PersistFn | None = None,
     ) -> None:
         self.intake = intake
         self.policy_router = policy_router
         self.dispatcher = dispatcher
         self.observability = observability
+        self._persist_fn = persist_fn
 
     async def process_envelope(
         self,
@@ -75,7 +80,15 @@ class NotificationService:
                 completed_at=dispatch_completed_at,
             )
 
-        return NotificationProcessingResult(event=event, messages=messages, results=results)
+        processing_result = NotificationProcessingResult(event=event, messages=messages, results=results)
+
+        if self._persist_fn is not None:
+            try:
+                self._persist_fn(processing_result)
+            except Exception:
+                pass  # persistence failure must not break the notification pipeline
+
+        return processing_result
 
 
 def _utc_now_seconds() -> float:

@@ -19,6 +19,7 @@ from services.api.models import (
     StrategyStateUpdateRequest,
 )
 from services.api.state import ControlPlaneState, ModeAuditRecord, StrategyRuntimeRecord
+from services.shared.runtime.sync_publish import publish_event
 
 _logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ def update_mode(
     state: ControlPlaneState = Depends(get_control_plane_state),
     repository: Any | None = Depends(get_control_plane_repository),
 ) -> ModeResponse:
+    old_mode = state.mode
     changed, changed_at = state.set_mode(mode=body.mode.value, actor=principal.user_id, reason=body.reason)
     if changed and repository is not None:
         try:
@@ -62,6 +64,19 @@ def update_mode(
             )
         except Exception:
             _logger.warning("persist_mode_change_failed", exc_info=True)
+    if changed:
+        for record in state.list_strategies():
+            try:
+                publish_event(
+                    event_type="strategy.state.changed",
+                    payload={
+                        "strategy_id": record.strategy_id,
+                        "old_state": old_mode,
+                        "new_state": state.mode,
+                    },
+                )
+            except Exception:
+                _logger.warning("strategy_state_changed_event_failed", exc_info=True)
     return ModeResponse(
         mode=ExecutionMode(state.mode),
         updated_at=changed_at,
@@ -86,6 +101,8 @@ def update_strategy_state(
     state: ControlPlaneState = Depends(get_control_plane_state),
     repository: Any | None = Depends(get_control_plane_repository),
 ) -> StrategyRecordResponse:
+    existing = state.strategies.get(strategy_id)
+    old_state = existing.state if existing else "unknown"
     updated = state.set_strategy_state(
         strategy_id=strategy_id,
         state=body.state.value,
@@ -97,6 +114,17 @@ def update_strategy_state(
             repository.upsert_strategy_state(updated)
         except Exception:
             _logger.warning("upsert_strategy_state_failed", exc_info=True)
+    try:
+        publish_event(
+            event_type="strategy.state.changed",
+            payload={
+                "strategy_id": strategy_id,
+                "old_state": old_state,
+                "new_state": updated.state,
+            },
+        )
+    except Exception:
+        _logger.warning("strategy_state_changed_event_failed", exc_info=True)
     return _strategy_model(updated)
 
 
