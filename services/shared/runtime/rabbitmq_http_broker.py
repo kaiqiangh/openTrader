@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
-from urllib import error, parse, request
+from urllib import parse
+import httpx
 import asyncio
 import base64
 import json
@@ -413,26 +414,23 @@ def _request_json(
 ) -> str:
     auth_raw = f"{username}:{password}".encode("utf-8")
     auth_header = base64.b64encode(auth_raw).decode("utf-8")
-    req = request.Request(
-        url,
-        data=payload,
-        method=method,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {auth_header}",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {auth_header}",
+    }
     try:
-        with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310
-            return response.read().decode("utf-8")
-    except error.HTTPError as exc:
-        body = exc.read().decode("utf-8")
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.request(method, url, content=payload, headers=headers)
+            response.raise_for_status()
+            return response.text
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text
         raise RabbitMQHTTPBrokerError(
             message="RabbitMQ HTTP request failed",
-            status_code=int(exc.code),
+            status_code=int(exc.response.status_code),
             body=body,
         ) from exc
-    except OSError as exc:
+    except httpx.HTTPError as exc:
         raise RabbitMQHTTPBrokerError(message=f"RabbitMQ HTTP request failed: {exc}") from exc
 
 

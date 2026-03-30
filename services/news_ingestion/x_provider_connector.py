@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+import httpx
 import json
 
 
@@ -105,15 +104,16 @@ def _short_title(text_value: str) -> str:
 
 
 def _default_fetch_json(url: str, headers: Mapping[str, str], timeout_seconds: float) -> Mapping[str, Any]:
-    request = Request(url=url, headers=dict(headers), method="GET")
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
-            raw = response.read().decode("utf-8")
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
-        raise XProviderConnectorError(f"X provider HTTP {exc.code}: {detail}") from exc
-    except URLError as exc:
-        raise XProviderConnectorError(f"X provider connection error: {exc.reason}") from exc
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.get(url, headers=dict(headers))
+            response.raise_for_status()
+            raw = response.text
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.text
+        raise XProviderConnectorError(f"X provider HTTP {exc.response.status_code}: {detail}") from exc
+    except httpx.HTTPError as exc:
+        raise XProviderConnectorError(f"X provider connection error: {exc}") from exc
 
     try:
         parsed = json.loads(raw)

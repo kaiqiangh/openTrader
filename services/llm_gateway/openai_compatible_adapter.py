@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+import httpx
 import asyncio
 import json
 
@@ -62,15 +61,16 @@ class OpenAICompatibleClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        request = Request(url=url, data=body, headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310 - explicit target URL
-                raw = response.read().decode("utf-8")
-        except HTTPError as exc:  # pragma: no cover - exercised through monkeypatch tests
-            detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
-            raise LLMProviderError(f"LLM provider HTTP {exc.code}: {detail}") from exc
-        except URLError as exc:  # pragma: no cover - exercised through monkeypatch tests
-            raise LLMProviderError(f"LLM provider connection error: {exc.reason}") from exc
+            with httpx.Client(timeout=self.timeout_seconds, verify=True) as client:
+                response = client.post(url, content=body, headers=headers)
+                response.raise_for_status()
+                raw = response.text
+        except httpx.HTTPStatusError as exc:  # pragma: no cover - exercised through monkeypatch tests
+            detail = exc.response.text
+            raise LLMProviderError(f"LLM provider HTTP {exc.response.status_code}: {detail}") from exc
+        except httpx.HTTPError as exc:  # pragma: no cover - exercised through monkeypatch tests
+            raise LLMProviderError(f"LLM provider connection error: {exc}") from exc
 
         try:
             parsed = json.loads(raw)

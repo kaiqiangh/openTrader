@@ -6,7 +6,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Protocol
-from urllib import error, parse, request
+from urllib import parse
+import httpx
 import asyncio
 import base64
 import json
@@ -396,22 +397,19 @@ def _default_rabbitmq_http_fetch(
     ).encode("utf-8")
     auth_raw = f"{username}:{password}".encode("utf-8")
     auth_header = base64.b64encode(auth_raw).decode("utf-8")
-    req = request.Request(
-        url,
-        data=payload,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {auth_header}",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {auth_header}",
+    }
     try:
-        with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310
-            raw = response.read().decode("utf-8")
-    except error.HTTPError as exc:
-        body = exc.read().decode("utf-8")
-        raise RabbitMQHTTPPollingError(status_code=int(exc.code), body=body) from exc
-    except OSError as exc:
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.post(url, content=payload, headers=headers)
+            response.raise_for_status()
+            raw = response.text
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text
+        raise RabbitMQHTTPPollingError(status_code=int(exc.response.status_code), body=body) from exc
+    except httpx.HTTPError as exc:
         raise NotificationSettingsError(f"RabbitMQ HTTP polling failed: {exc}") from exc
 
     parsed = json.loads(raw) if raw else []
@@ -439,22 +437,19 @@ def _default_rabbitmq_http_declare_queue(
     ).encode("utf-8")
     auth_raw = f"{username}:{password}".encode("utf-8")
     auth_header = base64.b64encode(auth_raw).decode("utf-8")
-    req = request.Request(
-        url,
-        data=payload,
-        method="PUT",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {auth_header}",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {auth_header}",
+    }
     try:
-        with request.urlopen(req, timeout=timeout_seconds):  # noqa: S310
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.put(url, content=payload, headers=headers)
+            response.raise_for_status()
             return
-    except error.HTTPError as exc:
-        body = exc.read().decode("utf-8")
-        raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc.code} {body}") from exc
-    except OSError as exc:
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text
+        raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc.response.status_code} {body}") from exc
+    except httpx.HTTPError as exc:
         raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc}") from exc
 
 
