@@ -6,10 +6,10 @@ from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.workers.main import _build_llm_runtime
 
 
-def test_build_llm_runtime_defaults_to_litellm_alias_with_deepseek_normalization(monkeypatch) -> None:
+def test_build_llm_runtime_defaults_to_default_alias_with_deepseek_normalization(monkeypatch) -> None:
     monkeypatch.setenv("LLM_RUNTIME_ENABLED", "true")
-    monkeypatch.setenv("LITELLM_BASE_URL", "https://api.deepseek.com")
-    monkeypatch.setenv("LITELLM_MODEL", "deepseek/deepseek-chat")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setenv("LLM_MODEL", "deepseek-chat")
     monkeypatch.delenv("LLM_QUICK_PROVIDER_ORDER", raising=False)
     monkeypatch.delenv("LLM_DEEP_PROVIDER_ORDER", raising=False)
 
@@ -19,16 +19,16 @@ def test_build_llm_runtime_defaults_to_litellm_alias_with_deepseek_normalization
     )
 
     assert runtime is not None
-    assert runtime.quick_provider_order == ("litellm",)
-    assert runtime.deep_provider_order == ("litellm",)
-    provider = runtime.gateway.settings.providers["litellm"]
+    assert runtime.quick_provider_order == ("default",)
+    assert runtime.deep_provider_order == ("default",)
+    provider = runtime.gateway.settings.providers["default"]
     assert provider.model == "deepseek-chat"
 
 
 def test_build_llm_runtime_supports_explicit_openai_anthropic_alias_orders(monkeypatch) -> None:
     monkeypatch.setenv("LLM_RUNTIME_ENABLED", "true")
-    monkeypatch.setenv("LITELLM_BASE_URL", "http://litellm:4000")
-    monkeypatch.setenv("LITELLM_MODEL", "deepseek/deepseek-chat")
+    monkeypatch.setenv("LLM_BASE_URL", "http://llm-proxy:4000")
+    monkeypatch.setenv("LLM_MODEL", "deepseek-chat")
     monkeypatch.setenv("LLM_QUICK_PROVIDER_ORDER", "openai,anthropic")
     monkeypatch.setenv("LLM_DEEP_PROVIDER_ORDER", "anthropic,openai")
     monkeypatch.setenv("LLM_OPENAI_MODEL", "openai/gpt-4o-mini")

@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPError, LiteLLMHTTPProviderClient
+from services.llm_gateway.openai_compatible_adapter import LLMProviderError, OpenAICompatibleClient
 
 
 class _FakeHTTPResponse:
@@ -45,9 +45,9 @@ async def test_litellm_http_adapter_posts_json_and_returns_payload(monkeypatch) 
             }
         )
 
-    monkeypatch.setattr("services.llm_gateway.litellm_http_adapter.urlopen", _fake_urlopen)
+    monkeypatch.setattr("services.llm_gateway.openai_compatible_adapter.urlopen", _fake_urlopen)
 
-    client = LiteLLMHTTPProviderClient(
+    client = OpenAICompatibleClient(
         base_url="http://litellm:4000",
         api_key="secret-token",
         timeout_seconds=7.5,
@@ -74,10 +74,10 @@ async def test_litellm_http_adapter_raises_on_error_payload(monkeypatch) -> None
         _ = request, timeout
         return _FakeHTTPResponse({"error": {"message": "provider failed"}})
 
-    monkeypatch.setattr("services.llm_gateway.litellm_http_adapter.urlopen", _fake_urlopen)
+    monkeypatch.setattr("services.llm_gateway.openai_compatible_adapter.urlopen", _fake_urlopen)
 
-    client = LiteLLMHTTPProviderClient(base_url="http://litellm:4000")
-    with pytest.raises(LiteLLMHTTPError):
+    client = OpenAICompatibleClient(base_url="http://litellm:4000")
+    with pytest.raises(LLMProviderError):
         await client.complete(
             model="gpt-4o-mini",
             messages=({"role": "user", "content": "hello"},),
@@ -87,9 +87,9 @@ async def test_litellm_http_adapter_raises_on_error_payload(monkeypatch) -> None
 
 def test_litellm_http_adapter_rejects_non_positive_timeout() -> None:
     with pytest.raises(ValueError):
-        LiteLLMHTTPProviderClient(base_url="http://litellm:4000", timeout_seconds=0.0)
+        OpenAICompatibleClient(base_url="http://litellm:4000", timeout_seconds=0.0)
 
 
 def test_litellm_http_adapter_rejects_empty_endpoint_path() -> None:
     with pytest.raises(ValueError):
-        LiteLLMHTTPProviderClient(base_url="http://litellm:4000", endpoint_path="  ")
+        OpenAICompatibleClient(base_url="http://litellm:4000", endpoint_path="  ")
