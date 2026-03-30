@@ -10,3 +10,6 @@ COPY pyproject.toml uv.lock /app/
 RUN uv sync --frozen --all-groups
 
 COPY . /app
+
+RUN useradd --disabled-password --no-create-home appuser
+USER appuser

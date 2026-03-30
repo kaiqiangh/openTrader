@@ -74,7 +74,7 @@ services:
       - ./:/app
     environment:
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -161,7 +161,7 @@ services:
       API_READ_ONLY_MODE: ${API_READ_ONLY_MODE:-true}
       API_STRICT_DATABASE_MODE: ${API_STRICT_DATABASE_MODE:-true}
       API_CORS_ALLOWED_ORIGINS: ${API_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -239,7 +239,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -296,7 +296,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -346,7 +346,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -390,7 +390,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -436,7 +436,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
@@ -483,7 +483,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}?sslmode=prefer
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}

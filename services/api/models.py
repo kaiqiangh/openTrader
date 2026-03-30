@@ -579,6 +579,7 @@ class ReplayDecisionResultResponse(BaseModel):
     graph_nodes: list[dict[str, Any]]
     graph_edges: list[dict[str, Any]]
     deterministic_digest: str
+    diff: dict[str, Any] | None = None
 
 
 class ReplayRequestResponse(BaseModel):

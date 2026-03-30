@@ -71,6 +71,7 @@ class DecisionReplayResult:
     graph_nodes: tuple[ReplayGraphNode, ...]
     graph_edges: tuple[ReplayGraphEdge, ...]
     deterministic_digest: str
+    diff: Mapping[str, Any] | None = None
 
 
 class ReplayTraceStore(Protocol):
@@ -237,6 +238,14 @@ class DecisionReplayService:
         }
         digest = _stable_digest(replay_payload)
 
+        # Compare original trace with reconstructed replay
+        diff = _compute_replay_diff(
+            original_status=trace.status,
+            original_summary=_ensure_mapping(summary),
+            replay_runs=runs_payload,
+            replay_llm_calls=llm_payload,
+        )
+
         return DecisionReplayResult(
             decision_id=trace.decision_id,
             trace_id=trace.trace_id,
@@ -250,6 +259,7 @@ class DecisionReplayService:
             graph_nodes=tuple(graph_nodes),
             graph_edges=tuple(graph_edges),
             deterministic_digest=digest,
+            diff=diff,
         )
 
 
@@ -257,6 +267,48 @@ def _stable_digest(value: Mapping[str, Any]) -> str:
     normalized = _normalize(value)
     encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return sha256(encoded.encode("ascii")).hexdigest()
+
+
+def _compute_replay_diff(
+    *,
+    original_status: str,
+    original_summary: Mapping[str, Any],
+    replay_runs: list[Mapping[str, Any]],
+    replay_llm_calls: list[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    """Compare original trace with reconstructed replay. Returns diff or None if identical."""
+    issues: list[str] = []
+
+    # Check for failed agent runs
+    failed_runs = [r for r in replay_runs if r.get("status") == "failed"]
+    if failed_runs:
+        issues.append(f"{len(failed_runs)} agent run(s) failed during replay")
+
+    # Check for missing agent runs
+    if not replay_runs:
+        issues.append("No agent runs found in replay trace")
+
+    # Check for LLM calls with errors
+    error_calls = [c for c in replay_llm_calls if c.get("status") == "error"]
+    if error_calls:
+        issues.append(f"{len(error_calls)} LLM call(s) errored during original execution")
+
+    # Check decision status consistency
+    if original_status == "failed" and not failed_runs and not error_calls:
+        issues.append("Original decision failed but replay found no failures")
+
+    if not issues:
+        return None
+
+    return {
+        "has_differences": True,
+        "issues": issues,
+        "original_status": original_status,
+        "replay_run_count": len(replay_runs),
+        "replay_llm_call_count": len(replay_llm_calls),
+        "failed_run_count": len(failed_runs),
+        "error_call_count": len(error_calls),
+    }
 
 
 def _run_sort_key(record: AgentRunRecord) -> tuple[str, str, str]:

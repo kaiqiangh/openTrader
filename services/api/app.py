@@ -78,7 +78,7 @@ def create_app(
             allow_origins=list(resolved_settings.cors_allowed_origins),
             allow_credentials=False,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],
+            allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Trace-ID"],
             expose_headers=["traceparent", "x-trace-id"],
         )
     app.state.settings = resolved_settings
