@@ -29,6 +29,7 @@ from services.workers.helpers import (
     _correlation_from_activity,
     _worker_activity_snapshot,
 )
+from services.shared.runtime.prometheus import PrometheusRegistry
 from services.workers.health import WorkerHealthServer
 from services.workers.settings import (
     RuntimeWorkerBuildResult,
@@ -78,11 +79,22 @@ def _resolve_health_port(worker_name: str) -> int:
 async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult) -> int:
     logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     heartbeat_every = _worker_idle_heartbeat_cycles()
+    registry = PrometheusRegistry()
 
-    health_server = WorkerHealthServer(port=_resolve_health_port(settings.worker))
+    health_server = WorkerHealthServer(
+        port=_resolve_health_port(settings.worker),
+        metrics_render=registry.render,
+    )
     health_server.start()
     try:
-        return await _run_worker_core(settings=settings, build=build, health_server=health_server, logger=logger, heartbeat_every=heartbeat_every)
+        return await _run_worker_core(
+            settings=settings,
+            build=build,
+            health_server=health_server,
+            logger=logger,
+            heartbeat_every=heartbeat_every,
+            registry=registry,
+        )
     finally:
         health_server.stop()
 
@@ -94,6 +106,7 @@ async def _run_worker_core(
     health_server: WorkerHealthServer,
     logger: StructuredLogger,
     heartbeat_every: int,
+    registry: PrometheusRegistry,
 ) -> int:
     if settings.bootstrap_topology and hasattr(build.broker, "bootstrap_topology"):
         await build.broker.bootstrap_topology()
@@ -108,6 +121,13 @@ async def _run_worker_core(
             context={"worker": settings.worker, "broker_backend": settings.broker_backend},
         )
         return 0
+
+    worker_labels = {"service": "runtime_worker", "worker": settings.worker}
+    registry.inc_counter(
+        name="open_trader_worker_starts_total",
+        help_text="Total worker starts",
+        label_values=worker_labels,
+    )
 
     health_server.set_healthy(True)
     logger.info(
@@ -135,6 +155,17 @@ async def _run_worker_core(
         except Exception as exc:  # noqa: BLE001 - runtime loops must survive transient dependency failures
             cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
             activity = _worker_activity_snapshot(build.worker)
+            registry.inc_counter(
+                name="open_trader_worker_cycles_total",
+                help_text="Total worker cycles by outcome",
+                label_values={**worker_labels, "outcome": "error"},
+            )
+            registry.observe_histogram(
+                name="open_trader_worker_cycle_duration_seconds",
+                help_text="Worker cycle latency in seconds",
+                value=cycle_latency_ms / 1000.0,
+                label_values=worker_labels,
+            )
             context = {
                 "worker": settings.worker,
                 "cycle": total_cycles,
@@ -173,7 +204,18 @@ async def _run_worker_core(
 
         cycle_latency_ms = max(0.0, (time.monotonic() - cycle_started) * 1000.0)
         activity = _worker_activity_snapshot(build.worker)
+        registry.observe_histogram(
+            name="open_trader_worker_cycle_duration_seconds",
+            help_text="Worker cycle latency in seconds",
+            value=cycle_latency_ms / 1000.0,
+            label_values=worker_labels,
+        )
         if did_work:
+            registry.inc_counter(
+                name="open_trader_worker_cycles_total",
+                help_text="Total worker cycles by outcome",
+                label_values={**worker_labels, "outcome": "success"},
+            )
             work_cycles += 1
             context = {
                 "worker": settings.worker,
