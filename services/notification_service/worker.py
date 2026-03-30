@@ -266,7 +266,7 @@ def _build_persist_fn() -> Callable[[NotificationProcessingResult], None] | None
                 emitted_at=event.emitted_at,
             )
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("notification_persist_failed", exc_info=True)
 
         # Persist delivery results
         for delivery in result.results:
@@ -286,7 +286,7 @@ def _build_persist_fn() -> Callable[[NotificationProcessingResult], None] | None
                     )
                 )
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("notification_persist_failed", exc_info=True)
 
         # Persist DLQ entries for failed deliveries
         for delivery in result.results:
@@ -301,7 +301,7 @@ def _build_persist_fn() -> Callable[[NotificationProcessingResult], None] | None
                         moved_at=now,
                     )
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).warning("notification_persist_failed", exc_info=True)
 
     return _persist
 

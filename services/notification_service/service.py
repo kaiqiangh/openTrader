@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from time import perf_counter
@@ -86,7 +87,7 @@ class NotificationService:
             try:
                 self._persist_fn(processing_result)
             except Exception:
-                pass  # persistence failure must not break the notification pipeline
+                logging.getLogger(__name__).warning("notification_persist_failed", exc_info=True)
 
         return processing_result
 

@@ -15,15 +15,15 @@ class ProposedOrder:
     mode: str
     symbol: str
     side: str
-    quantity: float
-    price: float
+    quantity: Decimal | float
+    price: Decimal | float
 
 
 @dataclass(frozen=True, slots=True)
 class CoreRiskConfig:
-    max_position_abs: float
-    max_symbol_notional_usd: float
-    max_leverage: float
+    max_position_abs: Decimal | float
+    max_symbol_notional_usd: Decimal | float
+    max_leverage: Decimal | float
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,8 +62,8 @@ class CoreRiskRuleEngine:
         *,
         order: ProposedOrder,
         current_position: PositionState | None,
-        account_equity_usd: float,
-        current_total_exposure_usd: float,
+        account_equity_usd: Decimal | float,
+        current_total_exposure_usd: Decimal | float,
     ) -> CoreRiskEvaluation:
         normalized_order = _validate_order(order)
         _validate_position(order=normalized_order, position=current_position)
@@ -75,17 +75,17 @@ class CoreRiskRuleEngine:
         current_quantity = Decimal(str(current_position.quantity)) if current_position is not None else _ZERO
         projected_quantity = current_quantity + signed_quantity
 
-        order_price = Decimal(str(normalized_order.price))
+        order_price = _to_decimal(normalized_order.price)
         current_symbol_notional = abs(current_quantity) * order_price
         projected_symbol_notional = abs(projected_quantity) * order_price
 
-        base_total_exposure = max(_ZERO, Decimal(str(current_total_exposure_usd)))
+        base_total_exposure = max(_ZERO, _to_decimal(current_total_exposure_usd))
         projected_total_exposure = max(
             _ZERO,
             base_total_exposure - current_symbol_notional + projected_symbol_notional,
         )
 
-        equity = Decimal(str(account_equity_usd))
+        equity = _to_decimal(account_equity_usd)
         if equity <= _EPSILON:
             projected_leverage = Decimal("Infinity") if projected_total_exposure > _EPSILON else _ZERO
         else:
@@ -127,12 +127,17 @@ class CoreRiskRuleEngine:
         )
 
 
+def _to_decimal(value: Decimal | float) -> Decimal:
+    """Convert to Decimal, preserving precision for Decimal and using str() roundtrip for float."""
+    return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
 def _validate_config(config: CoreRiskConfig) -> CoreRiskConfig:
-    if Decimal(str(config.max_position_abs)) <= _ZERO:
+    if _to_decimal(config.max_position_abs) <= _ZERO:
         raise CoreRiskRuleError("max_position_abs must be positive")
-    if Decimal(str(config.max_symbol_notional_usd)) <= _ZERO:
+    if _to_decimal(config.max_symbol_notional_usd) <= _ZERO:
         raise CoreRiskRuleError("max_symbol_notional_usd must be positive")
-    if Decimal(str(config.max_leverage)) <= _ZERO:
+    if _to_decimal(config.max_leverage) <= _ZERO:
         raise CoreRiskRuleError("max_leverage must be positive")
     return config
 
@@ -141,8 +146,8 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
     mode = order.mode.strip().upper()
     symbol = order.symbol.strip().upper()
     side = order.side.strip().upper()
-    quantity = abs(float(order.quantity))
-    price = float(order.price)
+    quantity = abs(float(_to_decimal(order.quantity)))
+    price = float(_to_decimal(order.price))
 
     if not mode:
         raise CoreRiskRuleError("order.mode must be set")
@@ -150,9 +155,9 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
         raise CoreRiskRuleError("order.symbol must be set")
     if side not in {"BUY", "SELL"}:
         raise CoreRiskRuleError(f"unsupported order side: {order.side}")
-    if Decimal(str(quantity)) <= _EPSILON:
+    if _to_decimal(quantity) <= _EPSILON:
         raise CoreRiskRuleError("order.quantity must be positive")
-    if Decimal(str(price)) <= _EPSILON:
+    if _to_decimal(price) <= _EPSILON:
         raise CoreRiskRuleError("order.price must be positive")
 
     return ProposedOrder(mode=mode, symbol=symbol, side=side, quantity=quantity, price=price)
@@ -173,6 +178,6 @@ def _validate_position(*, order: ProposedOrder, position: PositionState | None) 
         )
 
 
-def _signed_quantity(*, side: str, quantity: float) -> Decimal:
-    qty = Decimal(str(quantity))
+def _signed_quantity(*, side: str, quantity: Decimal | float) -> Decimal:
+    qty = _to_decimal(quantity)
     return qty if side == "BUY" else -qty

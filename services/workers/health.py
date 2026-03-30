@@ -41,6 +41,10 @@ class WorkerHealthServer:
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802 — http.server protocol
+                if self.path != "/health":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
                 if healthy_ref.healthy:
                     self.send_response(200)
                     self.end_headers()

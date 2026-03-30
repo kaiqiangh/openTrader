@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
 from time import perf_counter, time
@@ -88,6 +89,7 @@ def create_app(
     app.state.structured_logger = StructuredLogger(service="api")
     app.state._rate_limit_windows: dict[str, deque[float]] = {}
     app.state._rate_limit_request_count: int = 0
+    app.state._rate_limit_lock = asyncio.Lock()
 
     _RATE_LIMIT_MAX_BUCKETS = 10_000  # Max unique IP:route combinations tracked
     _RATE_LIMIT_CLEANUP_INTERVAL = 1_000  # Cleanup stale buckets every N requests
@@ -121,39 +123,43 @@ def create_app(
         key = f"{client_ip}:{'internal' if path.startswith('/internal/') else 'general'}"
         windows: dict[str, deque[float]] = request.app.state._rate_limit_windows
 
+        lock: asyncio.Lock = request.app.state._rate_limit_lock
+
         # Periodic cleanup of stale buckets to prevent memory leak
         request_count = request.app.state._rate_limit_request_count + 1
         request.app.state._rate_limit_request_count = request_count
-        if request_count % _RATE_LIMIT_CLEANUP_INTERVAL == 0:
-            stale_cutoff = now - window_seconds * 2
-            stale_keys = [k for k, v in windows.items() if not v or v[-1] < stale_cutoff]
-            for k in stale_keys:
-                del windows[k]
+        async with lock:
+            if request_count % _RATE_LIMIT_CLEANUP_INTERVAL == 0:
+                stale_cutoff = now - window_seconds * 2
+                stale_keys = [k for k, v in windows.items() if not v or v[-1] < stale_cutoff]
+                for k in stale_keys:
+                    del windows[k]
 
-        # Reject if bucket limit reached (prevents memory exhaustion via IP spoofing)
-        if key not in windows and len(windows) >= _RATE_LIMIT_MAX_BUCKETS:
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "rate limit exceeded"},
-                headers={"Retry-After": str(window_seconds)},
-            )
+        async with lock:
+            # Reject if bucket limit reached (prevents memory exhaustion via IP spoofing)
+            if key not in windows and len(windows) >= _RATE_LIMIT_MAX_BUCKETS:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "rate limit exceeded"},
+                    headers={"Retry-After": str(window_seconds)},
+                )
 
-        bucket = windows.get(key)
-        if bucket is None:
-            bucket = deque()
-            windows[key] = bucket
+            bucket = windows.get(key)
+            if bucket is None:
+                bucket = deque()
+                windows[key] = bucket
 
-        cutoff = now - window_seconds
-        while bucket and bucket[0] < cutoff:
-            bucket.popleft()
+            cutoff = now - window_seconds
+            while bucket and bucket[0] < cutoff:
+                bucket.popleft()
 
-        if len(bucket) >= max_requests:
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "rate limit exceeded"},
-                headers={"Retry-After": str(window_seconds)},
-            )
-        bucket.append(now)
+            if len(bucket) >= max_requests:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "rate limit exceeded"},
+                    headers={"Retry-After": str(window_seconds)},
+                )
+            bucket.append(now)
 
         return await call_next(request)
 

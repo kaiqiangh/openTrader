@@ -3,14 +3,17 @@ from __future__ import annotations
 import os
 from html import escape
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
+
+from services.api.auth import require_viewer
+from services.api.models import AuthPrincipal
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("", response_class=HTMLResponse)
-def dashboard_home() -> HTMLResponse:
+def dashboard_home(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="Operations Dashboard",
         route="/",
@@ -18,7 +21,7 @@ def dashboard_home() -> HTMLResponse:
 
 
 @router.get("/status", response_class=HTMLResponse)
-def dashboard_status() -> HTMLResponse:
+def dashboard_status(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="Live Status",
         route="/status",
@@ -26,7 +29,7 @@ def dashboard_status() -> HTMLResponse:
 
 
 @router.get("/governance", response_class=HTMLResponse)
-def dashboard_governance() -> HTMLResponse:
+def dashboard_governance(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="LLM Governance",
         route="/governance",
@@ -34,7 +37,7 @@ def dashboard_governance() -> HTMLResponse:
 
 
 @router.get("/replay", response_class=HTMLResponse)
-def dashboard_replay() -> HTMLResponse:
+def dashboard_replay(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="Replay",
         route="/replay",
@@ -42,7 +45,7 @@ def dashboard_replay() -> HTMLResponse:
 
 
 @router.get("/mode", response_class=HTMLResponse)
-def dashboard_mode() -> HTMLResponse:
+def dashboard_mode(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="Trading Mode Panel",
         route="/mode",
@@ -50,7 +53,7 @@ def dashboard_mode() -> HTMLResponse:
 
 
 @router.get("/news", response_class=HTMLResponse)
-def dashboard_news() -> HTMLResponse:
+def dashboard_news(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="News Intelligence Panel",
         route="/news",
@@ -58,7 +61,7 @@ def dashboard_news() -> HTMLResponse:
 
 
 @router.get("/notifications", response_class=HTMLResponse)
-def dashboard_notifications() -> HTMLResponse:
+def dashboard_notifications(_principal: AuthPrincipal = Depends(require_viewer)) -> HTMLResponse:
     return _render_notice(
         title="Notification Observability",
         route="/notifications",
