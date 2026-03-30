@@ -127,31 +127,31 @@ docker compose --profile pilot up -d
 docker compose --profile full up -d
 ```
 
-| Service | Core | Pilot | Full |
-|---------|------|-------|------|
-| postgres_timescaledb | ✅ | ✅ | ✅ |
-| rabbitmq | ✅ | ✅ | ✅ |
-| api | ✅ | ✅ | ✅ |
-| web_dashboard | ✅ | ✅ | ✅ |
-| runtime_worker_market | ✅ | ✅ | ✅ |
-| runtime_worker_orchestrator | ✅ | ✅ | ✅ |
-| runtime_worker_simulation | ✅ | ✅ | ✅ |
-| runtime_worker_oms | ✅ | ✅ | ✅ |
-| runtime_worker_news | ✅ | ✅ | ✅ |
-| redis | | ✅ | ✅ |
-| notification_worker | | ✅ | ✅ |
-| runtime_worker_execution_lifecycle | | ✅ | ✅ |
-| real_execution_go | | | ✅ |
-| prometheus/grafana/loki/tempo | | | ✅ |
+| Service                            | Core | Pilot | Full |
+| ---------------------------------- | ---- | ----- | ---- |
+| postgres_timescaledb               | ✅   | ✅    | ✅   |
+| rabbitmq                           | ✅   | ✅    | ✅   |
+| api                                | ✅   | ✅    | ✅   |
+| web_dashboard                      | ✅   | ✅    | ✅   |
+| runtime_worker_market              | ✅   | ✅    | ✅   |
+| runtime_worker_orchestrator        | ✅   | ✅    | ✅   |
+| runtime_worker_simulation          | ✅   | ✅    | ✅   |
+| runtime_worker_oms                 | ✅   | ✅    | ✅   |
+| runtime_worker_news                | ✅   | ✅    | ✅   |
+| redis                              |      | ✅    | ✅   |
+| notification_worker                |      | ✅    | ✅   |
+| runtime_worker_execution_lifecycle |      | ✅    | ✅   |
+| real_execution_go                  |      |       | ✅   |
+| prometheus/grafana/loki/tempo      |      |       | ✅   |
 
 ## URLs
 
-| Service | URL |
-|---------|-----|
-| Dashboard | http://localhost:3000 |
-| API | http://localhost:8000 |
-| RabbitMQ Management | http://localhost:15672 |
-| Grafana (full profile) | http://localhost:3001 |
+| Service                | URL                    |
+| ---------------------- | ---------------------- |
+| Dashboard              | http://localhost:3000  |
+| API                    | http://localhost:8000  |
+| RabbitMQ Management    | http://localhost:15672 |
+| Grafana (full profile) | http://localhost:3001  |
 
 ## Development
 
@@ -191,18 +191,18 @@ Exchanges → Market Ingestion → RabbitMQ → Agent Orchestrator
 
 ## Services
 
-| Service | Purpose |
-|---------|---------|
-| `market_ingestion` | Exchange adapters, normalization, integrity |
-| `agent_orchestrator` | Multi-agent decision orchestration, guardrails, replay |
-| `llm_gateway` | Provider abstraction, quotas, prompt/response persistence |
-| `simulation_execution` | Mock execution engine with slippage/fees |
-| `real_execution_go` | Low-latency Go order execution |
-| `oms` | Order lifecycle, fill reconciliation, positions, risk rules |
-| `news_ingestion` + `news_summarizer` | Crypto news pipeline |
-| `notification_service` | Policy routing, Telegram/Email/Webhook gateways |
-| `api` | FastAPI control plane, auth, ops/governance/replay routes |
-| `tasks` | Celery: portfolio rollup, news backfill, data retention, digest |
+| Service                              | Purpose                                                         |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `market_ingestion`                   | Exchange adapters, normalization, integrity                     |
+| `agent_orchestrator`                 | Multi-agent decision orchestration, guardrails, replay          |
+| `llm_gateway`                        | Provider abstraction, quotas, prompt/response persistence       |
+| `simulation_execution`               | Mock execution engine with slippage/fees                        |
+| `real_execution_go`                  | Low-latency Go order execution                                  |
+| `oms`                                | Order lifecycle, fill reconciliation, positions, risk rules     |
+| `news_ingestion` + `news_summarizer` | Crypto news pipeline                                            |
+| `notification_service`               | Policy routing, Telegram/Email/Webhook gateways                 |
+| `api`                                | FastAPI control plane, auth, ops/governance/replay routes       |
+| `tasks`                              | Celery: portfolio rollup, news backfill, data retention, digest |
 
 ## Observability
 
@@ -214,6 +214,7 @@ Exchanges → Market Ingestion → RabbitMQ → Agent Orchestrator
 ## CI/CD
 
 GitHub Actions on every push/PR:
+
 - `ruff check` + `ruff format --check`
 - `pytest` with coverage gate (60% minimum, currently 81%)
 - Go tests
@@ -222,6 +223,7 @@ GitHub Actions on every push/PR:
 ## Roadmap
 
 **Completed:**
+
 - Core trading pipeline (ingestion → agents → execution → OMS)
 - RS256 auth, network isolation, rate limiting
 - Drawdown/daily loss limits, circuit breakers
@@ -231,6 +233,7 @@ GitHub Actions on every push/PR:
 - CI/CD pipeline with coverage gate
 
 **Next:**
+
 - Production deployment automation
 - Slack notification gateway
 - Additional exchange adapters

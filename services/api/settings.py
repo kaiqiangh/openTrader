@@ -35,6 +35,16 @@ def load_api_settings() -> APISettings:
     jwt_private_key = os.getenv("JWT_PRIVATE_KEY", "").strip()
     jwt_public_key = os.getenv("JWT_PUBLIC_KEY", "").strip()
 
+    # Read from file if env var points to a file path
+    if not jwt_private_key:
+        key_file = os.getenv("JWT_PRIVATE_KEY_FILE", "").strip()
+        if key_file and os.path.exists(key_file):
+            jwt_private_key = open(key_file).read().strip()
+    if not jwt_public_key:
+        key_file = os.getenv("JWT_PUBLIC_KEY_FILE", "").strip()
+        if key_file and os.path.exists(key_file):
+            jwt_public_key = open(key_file).read().strip()
+
     # RS256 keys should be configured for production.
     # Auth module returns 500 if no key is available at token decode time.
     # We don't fail here to allow test/dev environments to construct APISettings directly.

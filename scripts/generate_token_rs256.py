@@ -34,6 +34,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Auto-load .env if JWT_PRIVATE_KEY not in environment
+    if not os.environ.get("JWT_PRIVATE_KEY"):
+        try:
+            from services.shared.runtime.env_loader import load_dotenv_file
+            load_dotenv_file()
+        except ImportError:
+            # Manual .env loading as fallback
+            env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+            if os.path.exists(env_path):
+                with open(env_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        key, _, value = line.partition("=")
+                        key = key.strip()
+                        value = value.strip().strip("\"'")
+                        if key and key not in os.environ:
+                            os.environ[key] = value
+
     # Resolve private key
     private_key_pem: str | None = None
     if args.key_file:
@@ -41,6 +61,12 @@ def main() -> None:
             private_key_pem = fh.read()
     else:
         private_key_pem = os.environ.get("JWT_PRIVATE_KEY")
+        # Try file path if inline key not set
+        if not private_key_pem:
+            key_file = os.environ.get("JWT_PRIVATE_KEY_FILE", "").strip()
+            if key_file and os.path.exists(key_file):
+                with open(key_file, "r", encoding="utf-8") as fh:
+                    private_key_pem = fh.read()
 
     if not private_key_pem:
         print(
@@ -49,8 +75,8 @@ def main() -> None:
         )
         sys.exit(1)
 
-    issuer = os.environ.get("JWT_ISSUER", "opentrader")
-    audience = os.environ.get("JWT_AUDIENCE", "opentrader-api")
+    issuer = os.environ.get("JWT_ISSUER", "open-trader")
+    audience = os.environ.get("JWT_AUDIENCE", "open-trader-api")
 
     try:
         import jwt
