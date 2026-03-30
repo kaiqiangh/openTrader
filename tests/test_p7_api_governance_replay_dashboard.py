@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import base64
 from datetime import datetime, timedelta, timezone
-import hashlib
-import hmac
-import json
 
 from fastapi.testclient import TestClient
 
@@ -14,42 +10,13 @@ from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
 from services.llm_gateway.persistence import LLMCallRecord
-
-
-def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "sub": subject,
-        "role": role,
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
-    }
-    encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    encoded_payload = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    signature = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
-    return f"{encoded_header}.{encoded_payload}.{_b64url(signature)}"
-
-
-def _b64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
-
 def _settings() -> APISettings:
-    return APISettings(
-        app_name="open-trader",
-        app_version="0.1.0",
-        default_mode="MOCK",
-        jwt_secret_key="test-secret-key",
-        jwt_issuer="open-trader-tests",
-        jwt_audience="open-trader-api",
-    )
-
+    return make_test_settings()
 
 def _seed_replay_data(state) -> str:
     decision_id = "438f7b8d-9725-4af6-b57d-7a88221e22f3"
@@ -116,7 +83,6 @@ def _seed_replay_data(state) -> str:
     )
     return decision_id
 
-
 def test_governance_usage_and_breach_history_endpoints() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
@@ -172,7 +138,7 @@ def test_governance_usage_and_breach_history_endpoints() -> None:
 
     app = create_app(settings=settings, state=state)
     client = TestClient(app)
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     usage_response = client.get(
         "/governance/llm/usage",
@@ -199,7 +165,6 @@ def test_governance_usage_and_breach_history_endpoints() -> None:
     assert call_items[0]["status"] == "quota_blocked"
     assert call_items[1]["status"] == "succeeded"
 
-
 def test_governance_breaches_can_include_failed_calls() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
@@ -225,7 +190,7 @@ def test_governance_breaches_can_include_failed_calls() -> None:
 
     app = create_app(settings=settings, state=state)
     client = TestClient(app)
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     response = client.get(
         "/governance/llm/breaches",
@@ -238,7 +203,6 @@ def test_governance_breaches_can_include_failed_calls() -> None:
     assert items[0]["reason"] == "timeout"
     assert items[0]["decision_id"] == "e5938b40-f2c6-4299-b4fa-56f1cf187dd2"
 
-
 def test_replay_request_and_retrieval_endpoints() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
@@ -246,7 +210,7 @@ def test_replay_request_and_retrieval_endpoints() -> None:
 
     app = create_app(settings=settings, state=state)
     client = TestClient(app)
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     request_response = client.post(
         "/replay/requests",
@@ -275,12 +239,11 @@ def test_replay_request_and_retrieval_endpoints() -> None:
     assert catalog_payload["decisions"][0]["decision_id"] == decision_id
     assert catalog_payload["requests"][0]["request_id"] == request_id
 
-
 def test_replay_decision_not_found_returns_404() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     response = client.get(
         "/replay/decisions/0f09ef0f-6c7a-429f-a3cf-9dbff6a5979f",
@@ -288,14 +251,13 @@ def test_replay_decision_not_found_returns_404() -> None:
     )
     assert response.status_code == 404
 
-
 def test_dashboard_shell_routes_render_navigation_and_live_sections() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
     _seed_replay_data(state)
     app = create_app(settings=settings, state=state)
     client = TestClient(app)
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     dashboard = client.get("/dashboard", headers=_auth_headers(viewer_token))
     status_page = client.get("/dashboard/status", headers=_auth_headers(viewer_token))

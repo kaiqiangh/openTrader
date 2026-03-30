@@ -1,52 +1,19 @@
 from __future__ import annotations
 
-import base64
 from datetime import datetime, timedelta, timezone
-import hashlib
-import hmac
-import json
 
 from fastapi.testclient import TestClient
 
 from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
-
-
-def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "sub": subject,
-        "role": role,
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
-    }
-    encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    encoded_payload = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    signature = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
-    return f"{encoded_header}.{encoded_payload}.{_b64url(signature)}"
-
-
-def _b64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
-
 def _settings() -> APISettings:
-    return APISettings(
-        app_name="open-trader",
-        app_version="0.1.0",
-        default_mode="MOCK",
-        jwt_secret_key="test-secret-key",
-        jwt_issuer="open-trader-tests",
-        jwt_audience="open-trader-api",
-    )
-
+    return make_test_settings()
 
 def test_liveness_is_public_readiness_requires_auth() -> None:
     settings = _settings()
@@ -61,7 +28,6 @@ def test_liveness_is_public_readiness_requires_auth() -> None:
     # Readiness now requires authentication (security hardening)
     assert readiness.status_code == 401
 
-
 def test_metadata_requires_authentication() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
@@ -70,10 +36,9 @@ def test_metadata_requires_authentication() -> None:
     response = client.get("/metadata")
     assert response.status_code == 401
 
-
 def test_viewer_can_read_control_endpoints() -> None:
     settings = _settings()
-    token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 
@@ -88,11 +53,10 @@ def test_viewer_can_read_control_endpoints() -> None:
     assert strategies_response.status_code == 200
     assert isinstance(strategies_response.json()["items"], list)
 
-
 def test_viewer_cannot_update_mode_but_operator_can() -> None:
     settings = _settings()
-    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
-    operator_token = _encode_jwt(subject="operator-user", role="operator", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
+    operator_token = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 
@@ -117,10 +81,9 @@ def test_viewer_cannot_update_mode_but_operator_can() -> None:
     assert mode_history.json()["items"][0]["mode"] == "REAL"
     assert mode_history.json()["items"][0]["reason"] == "switch for validation"
 
-
 def test_operator_can_update_strategy_state() -> None:
     settings = _settings()
-    token = _encode_jwt(subject="operator-user", role="operator", settings=settings)
+    token = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 
