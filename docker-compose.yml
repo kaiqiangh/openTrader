@@ -31,7 +31,7 @@ services:
   redis:
     profiles: ["pilot", "full"]
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -167,7 +167,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}

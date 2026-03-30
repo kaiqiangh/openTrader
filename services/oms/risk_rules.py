@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import inf
+from decimal import Decimal
 from typing import Final
 
 from services.oms.position_engine import PositionState
 
-_EPSILON: Final[float] = 1e-9
+_EPSILON: Final[Decimal] = Decimal("1e-9")
+_ZERO: Final[Decimal] = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,21 +72,22 @@ class CoreRiskRuleEngine:
             side=normalized_order.side,
             quantity=normalized_order.quantity,
         )
-        current_quantity = float(current_position.quantity) if current_position is not None else 0.0
+        current_quantity = Decimal(str(current_position.quantity)) if current_position is not None else _ZERO
         projected_quantity = current_quantity + signed_quantity
 
-        current_symbol_notional = abs(current_quantity) * normalized_order.price
-        projected_symbol_notional = abs(projected_quantity) * normalized_order.price
+        order_price = Decimal(str(normalized_order.price))
+        current_symbol_notional = abs(current_quantity) * order_price
+        projected_symbol_notional = abs(projected_quantity) * order_price
 
-        base_total_exposure = max(0.0, float(current_total_exposure_usd))
+        base_total_exposure = max(_ZERO, Decimal(str(current_total_exposure_usd)))
         projected_total_exposure = max(
-            0.0,
+            _ZERO,
             base_total_exposure - current_symbol_notional + projected_symbol_notional,
         )
 
-        equity = float(account_equity_usd)
+        equity = Decimal(str(account_equity_usd))
         if equity <= _EPSILON:
-            projected_leverage = inf if projected_total_exposure > _EPSILON else 0.0
+            projected_leverage = Decimal("Infinity") if projected_total_exposure > _EPSILON else _ZERO
         else:
             projected_leverage = projected_total_exposure / equity
 
@@ -126,11 +128,11 @@ class CoreRiskRuleEngine:
 
 
 def _validate_config(config: CoreRiskConfig) -> CoreRiskConfig:
-    if config.max_position_abs <= 0.0:
+    if Decimal(str(config.max_position_abs)) <= _ZERO:
         raise CoreRiskRuleError("max_position_abs must be positive")
-    if config.max_symbol_notional_usd <= 0.0:
+    if Decimal(str(config.max_symbol_notional_usd)) <= _ZERO:
         raise CoreRiskRuleError("max_symbol_notional_usd must be positive")
-    if config.max_leverage <= 0.0:
+    if Decimal(str(config.max_leverage)) <= _ZERO:
         raise CoreRiskRuleError("max_leverage must be positive")
     return config
 
@@ -148,9 +150,9 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
         raise CoreRiskRuleError("order.symbol must be set")
     if side not in {"BUY", "SELL"}:
         raise CoreRiskRuleError(f"unsupported order side: {order.side}")
-    if quantity <= _EPSILON:
+    if Decimal(str(quantity)) <= _EPSILON:
         raise CoreRiskRuleError("order.quantity must be positive")
-    if price <= _EPSILON:
+    if Decimal(str(price)) <= _EPSILON:
         raise CoreRiskRuleError("order.price must be positive")
 
     return ProposedOrder(mode=mode, symbol=symbol, side=side, quantity=quantity, price=price)
@@ -171,5 +173,6 @@ def _validate_position(*, order: ProposedOrder, position: PositionState | None) 
         )
 
 
-def _signed_quantity(*, side: str, quantity: float) -> float:
-    return quantity if side == "BUY" else -quantity
+def _signed_quantity(*, side: str, quantity: float) -> Decimal:
+    qty = Decimal(str(quantity))
+    return qty if side == "BUY" else -qty
