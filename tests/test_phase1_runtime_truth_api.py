@@ -184,7 +184,7 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
                     available_balance_usd REAL NOT NULL,
                     locked_balance_usd REAL NOT NULL,
                     unrealized_pnl REAL NOT NULL,
-                    realized_pnl_today REAL NOT NULL
+                    realized_pnl_total REAL NOT NULL
                 )
                 """
             )
@@ -308,7 +308,7 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
         connection.execute(
             text(
                 """
-                INSERT INTO portfolio_snapshots(snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today)
+                INSERT INTO portfolio_snapshots(snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_total)
                 VALUES(:snapshot_time, :mode, :total, :available, :locked, :unrealized, :realized)
                 """
             ),

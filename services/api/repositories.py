@@ -344,7 +344,7 @@ class ControlPlaneRepository:
         limit: int = 200,
     ) -> tuple[PortfolioSnapshot, ...]:
         statement_lines = [
-            "SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today",
+            "SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_total",
             "FROM portfolio_snapshots",
             "WHERE 1=1",
         ]
@@ -362,7 +362,7 @@ class ControlPlaneRepository:
                 available_balance_usd=float(row.get("available_balance_usd", 0.0) or 0.0),
                 locked_balance_usd=float(row.get("locked_balance_usd", 0.0) or 0.0),
                 unrealized_pnl=float(row.get("unrealized_pnl", 0.0) or 0.0),
-                realized_pnl_today=float(row.get("realized_pnl_today", 0.0) or 0.0),
+                realized_pnl_total=float(row.get("realized_pnl_total", 0.0) or 0.0),
             )
             for row in reversed(rows)
         )
@@ -744,7 +744,7 @@ class ControlPlaneRepository:
     def _list_portfolio_snapshots(self, *, limit: int) -> list[PortfolioSnapshot]:
         rows = self._fetchall(
             """
-            SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today
+            SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_total
             FROM portfolio_snapshots
             ORDER BY snapshot_time DESC
             LIMIT :limit
@@ -759,7 +759,7 @@ class ControlPlaneRepository:
                 available_balance_usd=float(row.get("available_balance_usd", 0.0) or 0.0),
                 locked_balance_usd=float(row.get("locked_balance_usd", 0.0) or 0.0),
                 unrealized_pnl=float(row.get("unrealized_pnl", 0.0) or 0.0),
-                realized_pnl_today=float(row.get("realized_pnl_today", 0.0) or 0.0),
+                realized_pnl_total=float(row.get("realized_pnl_total", 0.0) or 0.0),
             )
             for row in rows
         ]

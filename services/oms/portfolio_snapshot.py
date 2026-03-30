@@ -15,7 +15,7 @@ class PortfolioSnapshot:
     available_balance_usd: float
     locked_balance_usd: float
     unrealized_pnl: float
-    realized_pnl_today: float
+    realized_pnl_total: float
 
 
 class PortfolioSnapshotEngineError(ValueError):
@@ -33,13 +33,13 @@ class PortfolioSnapshotEngine:
         locked_balance_usd: float,
         positions: tuple[PositionState, ...],
         mark_prices: Mapping[str, float],
-        realized_pnl_today: float | None = None,
+        realized_pnl_total: float | None = None,
         snapshot_time: str | None = None,
     ) -> PortfolioSnapshot:
         """Build a portfolio snapshot from balances and marked positions.
 
         Args:
-            realized_pnl_today: Cumulative realized PNL across all positions (not
+            realized_pnl_total: Cumulative realized PNL across all positions (not
                 restricted to today's trades). Despite the parameter name, this
                 receives the total realized PNL sum. When None, falls back to
                 summing position-level realized PNL values.
@@ -66,7 +66,7 @@ class PortfolioSnapshotEngine:
             unrealized_pnl += (float(mark_price) - float(position.average_entry_price)) * float(position.quantity)
 
         realized_value = (
-            float(realized_pnl_today) if realized_pnl_today is not None else float(realized_from_positions)
+            float(realized_pnl_total) if realized_pnl_total is not None else float(realized_from_positions)
         )
         available = float(available_balance_usd)
         locked = float(locked_balance_usd)
@@ -79,7 +79,7 @@ class PortfolioSnapshotEngine:
             available_balance_usd=available,
             locked_balance_usd=locked,
             unrealized_pnl=unrealized_pnl,
-            realized_pnl_today=realized_value,
+            realized_pnl_total=realized_value,
         )
 
 

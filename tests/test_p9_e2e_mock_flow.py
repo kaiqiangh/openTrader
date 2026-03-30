@@ -169,7 +169,7 @@ async def test_p9_e2e_mock_flow_market_to_portfolio_snapshot() -> None:
         locked_balance_usd=500.0,
         positions=(position_update.current,),
         mark_prices={"BTC/USDT": fill.price},
-        realized_pnl_today=position_update.current.realized_pnl,
+        realized_pnl_total=position_update.current.realized_pnl,
     )
     assert snapshot.mode == "MOCK"
     assert snapshot.unrealized_pnl == pytest.approx(0.0)

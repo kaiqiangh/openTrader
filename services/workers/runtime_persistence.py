@@ -463,9 +463,9 @@ class SQLAlchemyRuntimeOMSStateStore:
         self._db.execute(
             """
             INSERT INTO portfolio_snapshots
-                (snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_today, created_at)
+                (snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_total, created_at)
             VALUES
-                (:snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_today, :created_at)
+                (:snapshot_time, :mode, :total_balance_usd, :available_balance_usd, :locked_balance_usd, :unrealized_pnl, :realized_pnl_total, :created_at)
             """,
             {
                 "snapshot_time": snapshot.snapshot_time,
@@ -474,7 +474,7 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "available_balance_usd": float(snapshot.available_balance_usd),
                 "locked_balance_usd": float(snapshot.locked_balance_usd),
                 "unrealized_pnl": float(snapshot.unrealized_pnl),
-                "realized_pnl_today": float(snapshot.realized_pnl_today),
+                "realized_pnl_total": float(snapshot.realized_pnl_total),
                 "created_at": _utc_now_iso(),
             },
         )
@@ -636,7 +636,7 @@ class SQLAlchemyRuntimeOMSStateStore:
                 available_balance_usd REAL NOT NULL,
                 locked_balance_usd REAL NOT NULL,
                 unrealized_pnl REAL NOT NULL,
-                realized_pnl_today REAL NOT NULL,
+                realized_pnl_total REAL NOT NULL,
                 created_at TEXT NOT NULL
             )
             """,

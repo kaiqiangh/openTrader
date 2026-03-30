@@ -408,9 +408,9 @@ class OMSLifecycleWorkerRunner:
             locked_balance_usd=0.0,
             positions=positions,
             mark_prices=mark_prices,
-            # realized_pnl_today receives cumulative realized PNL (sum of all positions),
+            # realized_pnl_total receives cumulative realized PNL (sum of all positions),
             # not just today's trades — see PortfolioSnapshotEngine.build_snapshot docstring.
-            realized_pnl_today=sum(position.realized_pnl for position in positions),
+            realized_pnl_total=sum(position.realized_pnl for position in positions),
         )
         if self.state_store is not None:
             self.state_store.insert_portfolio_snapshot(snapshot)
@@ -427,7 +427,7 @@ class OMSLifecycleWorkerRunner:
             "positions_total": len(positions),
             "portfolio_total_balance_usd": snapshot.total_balance_usd,
             "portfolio_unrealized_pnl": snapshot.unrealized_pnl,
-            "portfolio_realized_pnl_today": snapshot.realized_pnl_today,
+            "portfolio_realized_pnl_total": snapshot.realized_pnl_total,
         }
         return True
 

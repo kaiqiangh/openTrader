@@ -23,7 +23,7 @@ def _position(*, quantity: float) -> PositionState:
     )
 
 
-def _snapshot(*, total_balance_usd: float, realized_pnl_today: float = 0.0) -> PortfolioSnapshot:
+def _snapshot(*, total_balance_usd: float, realized_pnl_total: float = 0.0) -> PortfolioSnapshot:
     return PortfolioSnapshot(
         snapshot_time="2026-02-14T17:00:00Z",
         mode="REAL",
@@ -31,7 +31,7 @@ def _snapshot(*, total_balance_usd: float, realized_pnl_today: float = 0.0) -> P
         available_balance_usd=total_balance_usd,
         locked_balance_usd=0.0,
         unrealized_pnl=0.0,
-        realized_pnl_today=realized_pnl_today,
+        realized_pnl_total=realized_pnl_total,
     )
 
 

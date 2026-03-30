@@ -22,7 +22,7 @@ def _position(*, quantity: float) -> PositionState:
     )
 
 
-def _snapshot(*, total_balance_usd: float, realized_pnl_today: float) -> PortfolioSnapshot:
+def _snapshot(*, total_balance_usd: float, realized_pnl_total: float) -> PortfolioSnapshot:
     return PortfolioSnapshot(
         snapshot_time="2026-02-14T16:20:00Z",
         mode="REAL",
@@ -30,7 +30,7 @@ def _snapshot(*, total_balance_usd: float, realized_pnl_today: float) -> Portfol
         available_balance_usd=total_balance_usd,
         locked_balance_usd=0.0,
         unrealized_pnl=0.0,
-        realized_pnl_today=realized_pnl_today,
+        realized_pnl_total=realized_pnl_total,
     )
 
 
@@ -55,7 +55,7 @@ def test_risk_policy_denies_when_core_rule_blocks() -> None:
     result = engine.evaluate(
         order=ProposedOrder(mode="REAL", symbol="BTC/USDT", side="BUY", quantity=3.0, price=100.0),
         current_position=_position(quantity=0.0),
-        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_today=0.0),
+        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_total=0.0),
         peak_equity_usd=1_000.0,
         current_total_exposure_usd=0.0,
     )
@@ -70,7 +70,7 @@ def test_risk_policy_denies_when_drawdown_guard_blocks() -> None:
     result = engine.evaluate(
         order=ProposedOrder(mode="REAL", symbol="BTC/USDT", side="BUY", quantity=0.1, price=100.0),
         current_position=_position(quantity=0.0),
-        snapshot=_snapshot(total_balance_usd=700.0, realized_pnl_today=0.0),
+        snapshot=_snapshot(total_balance_usd=700.0, realized_pnl_total=0.0),
         peak_equity_usd=1_000.0,
         current_total_exposure_usd=0.0,
     )
@@ -96,7 +96,7 @@ def test_risk_policy_denies_when_kill_switch_enabled() -> None:
     result = engine.evaluate(
         order=ProposedOrder(mode="REAL", symbol="BTC/USDT", side="BUY", quantity=0.1, price=100.0),
         current_position=_position(quantity=0.0),
-        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_today=0.0),
+        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_total=0.0),
         peak_equity_usd=1_000.0,
         current_total_exposure_usd=0.0,
         now=datetime(2026, 2, 14, 16, 41, tzinfo=timezone.utc),
@@ -112,7 +112,7 @@ def test_risk_policy_allows_when_all_checks_pass() -> None:
     result = engine.evaluate(
         order=ProposedOrder(mode="REAL", symbol="BTC/USDT", side="BUY", quantity=0.2, price=100.0),
         current_position=_position(quantity=0.1),
-        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_today=-50.0),
+        snapshot=_snapshot(total_balance_usd=1_000.0, realized_pnl_total=-50.0),
         peak_equity_usd=1_020.0,
         current_total_exposure_usd=10.0,
     )
