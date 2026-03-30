@@ -780,17 +780,23 @@ class ControlPlaneRepository:
             for row in rows
         ]
 
-    def _list_positions(self, *, limit: int) -> list[PositionState]:
+    def _list_positions(self, *, limit: int, mode: str | None = None) -> list[PositionState]:
+        where_clause = ""
+        params: dict[str, Any] = {"limit": max(1, int(limit))}
+        if mode:
+            where_clause = "WHERE p.mode = :mode"
+            params["mode"] = mode.strip().upper()
         rows = self._fetchall(
-            """
+            f"""
             SELECT p.mode AS mode, s.symbol AS symbol, p.quantity AS quantity, p.entry_price AS average_entry_price,
                    p.realized_pnl AS realized_pnl, p.status AS status, COALESCE(p.closed_at, p.opened_at) AS updated_at
             FROM positions p
             JOIN symbols s ON s.id = p.symbol_id
+            {where_clause}
             ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
             LIMIT :limit
             """,
-            {"limit": max(1, int(limit))},
+            params,
         )
         return [
             PositionState(
@@ -805,15 +811,21 @@ class ControlPlaneRepository:
             for row in rows
         ]
 
-    def _list_portfolio_snapshots(self, *, limit: int) -> list[PortfolioSnapshot]:
+    def _list_portfolio_snapshots(self, *, limit: int, mode: str | None = None) -> list[PortfolioSnapshot]:
+        where_clause = ""
+        params: dict[str, Any] = {"limit": max(1, int(limit))}
+        if mode:
+            where_clause = "WHERE mode = :mode"
+            params["mode"] = mode.strip().upper()
         rows = self._fetchall(
-            """
+            f"""
             SELECT snapshot_time, mode, total_balance_usd, available_balance_usd, locked_balance_usd, unrealized_pnl, realized_pnl_total
             FROM portfolio_snapshots
+            {where_clause}
             ORDER BY snapshot_time DESC
             LIMIT :limit
             """,
-            {"limit": max(1, int(limit))},
+            params,
         )
         return [
             PortfolioSnapshot(
