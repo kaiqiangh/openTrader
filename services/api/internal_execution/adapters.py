@@ -12,8 +12,11 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import time
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_EXCHANGES = {"binance", "bitget"}
 _ALLOWED_ORDER_TYPES = {"MARKET", "LIMIT", "STOP_MARKET", "TAKE_PROFIT_MARKET"}
@@ -210,7 +213,8 @@ class BinanceSignedSpotExecutionAdapter:
         if parsed.get("code") is not None and parsed.get("msg"):
             code = str(parsed.get("code"))
             if code.startswith("-"):
-                raise InternalDispatchUpstreamError(f"Binance error {code}: {parsed.get('msg')}")
+                logger.warning("Binance upstream error code=%s msg=%s", code, parsed.get("msg"))
+                raise InternalDispatchUpstreamError(f"Binance order rejected (code={code})")
         return parsed
 
 
@@ -442,7 +446,7 @@ def validate_create_order_fields(
     limit_price: float | None,
     trigger_price: float | None,
 ) -> None:
-    if quantity <= 0:
+    if quantity < 1e-9:
         raise InternalDispatchValidationError("quantity must be positive for create operation")
 
     if order_type == "MARKET":
