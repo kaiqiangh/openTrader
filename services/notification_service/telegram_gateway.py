@@ -12,7 +12,7 @@ from services.notification_service.models import DeliveryResult, NotificationMes
 from services.shared.runtime.env_loader import load_dotenv_file
 
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-_MARKDOWN_V2_RESERVED = r"_*[]()~`>#+-=|{}.!"
+_MARKDOWN_V2_RESERVED: set[str] = set("_*[]()~`>#+-=|{}.!")
 
 
 @dataclass(frozen=True, slots=True)

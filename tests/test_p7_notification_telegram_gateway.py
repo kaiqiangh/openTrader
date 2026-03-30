@@ -53,3 +53,9 @@ async def test_telegram_gateway_maps_retryable_and_terminal_statuses() -> None:
 
     assert retryable.status == "RETRYABLE_ERROR"
     assert terminal.status == "FAILED_TERMINAL"
+
+
+def test_markdown_v2_reserved_is_set():
+    """_MARKDOWN_V2_RESERVED should be a set for O(1) lookup."""
+    from services.notification_service.telegram_gateway import _MARKDOWN_V2_RESERVED
+    assert isinstance(_MARKDOWN_V2_RESERVED, set)
