@@ -45,7 +45,7 @@ def test_only_grafana_is_exposed_for_observability_surface() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     grafana = _service_block(compose, "grafana")
     assert "ports:" in grafana
-    assert '127.0.0.1:3000:3000' in grafana
+    assert '127.0.0.1:${GRAFANA_HOST_PORT:-3001}:3000' in grafana
 
 
 def _service_block(content: str, service_name: str) -> str:

@@ -65,13 +65,15 @@ def test_api_read_only_mode_blocks_non_internal_mutation_routes() -> None:
     assert "read-only mode" in response.json()["detail"]
 
 
-def test_api_read_only_mode_keeps_internal_bridge_mutation_routes_available() -> None:
+def test_api_read_only_mode_keeps_internal_bridge_mutation_routes_available(monkeypatch) -> None:
+    monkeypatch.setenv("REAL_EXECUTION_BRIDGE_API_KEY", "test-bridge-key")
     settings = _settings(read_only_mode=True)
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 
     response = client.post(
         "/internal/execution/dispatch",
+        headers={"Authorization": "Bearer test-bridge-key"},
         json={
             "command_id": "cmd-1",
             "operation": "CREATE_ORDER",

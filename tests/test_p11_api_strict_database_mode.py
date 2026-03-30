@@ -84,9 +84,11 @@ def test_create_app_falls_back_to_default_state_when_strict_mode_is_disabled(
 
     monkeypatch.setattr(api_app, "_build_repository_from_env", _raise)
 
-    app = api_app.create_app(settings=_settings(strict_database_mode=False))
+    settings = _settings(strict_database_mode=False)
+    app = api_app.create_app(settings=settings)
     client = TestClient(app)
-    payload = client.get("/health/readiness").json()
+    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    payload = client.get("/health/readiness", headers={"Authorization": f"Bearer {viewer_token}"}).json()
     assert payload["status"] == "ready"
     assert payload["mode"] == "MOCK"
 
@@ -100,7 +102,8 @@ def test_health_readiness_returns_503_when_repository_refresh_fails_in_strict_mo
     )
     client = TestClient(app)
 
-    response = client.get("/health/readiness")
+    viewer_token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    response = client.get("/health/readiness", headers={"Authorization": f"Bearer {viewer_token}"})
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Control-plane repository unavailable"

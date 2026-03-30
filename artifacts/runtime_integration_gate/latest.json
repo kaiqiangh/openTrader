@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-02-15T23:36:32.111527Z",
+  "overall_status": "passed",
+  "checks": [
+    {
+      "name": "smoke",
+      "status": "passed",
+      "command": [
+        "make",
+        "smoke"
+      ],
+      "cwd": "/Users/kai/Desktop/openTrader",
+      "exit_code": 0,
+      "duration_seconds": 10.311
+    },
+    {
+      "name": "runtime_pytests",
+      "status": "passed",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_p10_runtime_worker_entrypoints.py",
+        "tests/test_runtime_persistence_adapters.py",
+        "tests/test_p10_api_execution_bridge.py",
+        "tests/test_smoke_script.py",
+        "-q"
+      ],
+      "cwd": "/Users/kai/Desktop/openTrader",
+      "exit_code": 0,
+      "duration_seconds": 1.189
+    },
+    {
+      "name": "real_execution_go_tests",
+      "status": "passed",
+      "command": [
+        "go",
+        "test",
+        "./..."
+      ],
+      "cwd": "/Users/kai/Desktop/openTrader/services/real_execution_go",
+      "exit_code": 0,
+      "duration_seconds": 0.319
+    }
+  ]
+}

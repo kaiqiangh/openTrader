@@ -141,7 +141,7 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
 
     grafana_block = _service_block(compose, "grafana")
     assert "ports:" in grafana_block
-    assert "127.0.0.1:3000:3000" in grafana_block
+    assert "127.0.0.1:${GRAFANA_HOST_PORT:-3001}:3000" in grafana_block
 
     rabbitmq_block = _service_block(compose, "rabbitmq")
     assert "ports:" in rabbitmq_block

@@ -48,7 +48,7 @@ def _settings() -> APISettings:
     )
 
 
-def test_liveness_and_readiness_endpoints_are_public() -> None:
+def test_liveness_is_public_readiness_requires_auth() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
@@ -58,8 +58,8 @@ def test_liveness_and_readiness_endpoints_are_public() -> None:
 
     assert liveness.status_code == 200
     assert liveness.json()["status"] == "ok"
-    assert readiness.status_code == 200
-    assert readiness.json()["status"] == "ready"
+    # Readiness now requires authentication (security hardening)
+    assert readiness.status_code == 401
 
 
 def test_metadata_requires_authentication() -> None:
