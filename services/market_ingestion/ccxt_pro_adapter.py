@@ -46,6 +46,7 @@ class CCXTProOrderBookClient:
                 }
             )
         except Exception as exc:  # noqa: BLE001 - fallback mode captures all init failures
+            _logger.warning("ccxt_pro_init_fallback", exc_info=True)
             self._client = None
             self._init_error = f"{exc.__class__.__name__}: {exc}"
 
@@ -100,6 +101,7 @@ class CCXTProOrderBookClient:
         try:
             await close_fn()
         except Exception:
+            _logger.warning("ccxt_pro_close_failed", exc_info=True)
             return
 
 
