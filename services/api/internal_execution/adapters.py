@@ -405,7 +405,8 @@ class BitgetSignedSpotExecutionAdapter:
             raise InternalDispatchUpstreamError("Bitget response must be a JSON object")
         code = str(parsed.get("code", "")).strip()
         if code not in {"", "00000", "0"}:
-            raise InternalDispatchUpstreamError(f"Bitget error {code}: {parsed.get('msg', 'unknown error')}")
+            logger.warning("Bitget upstream error code=%s msg=%s", code, parsed.get("msg", "unknown error"))
+            raise InternalDispatchUpstreamError(f"Bitget order rejected (code={code})")
         return parsed
 
 
