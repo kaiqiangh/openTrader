@@ -69,6 +69,21 @@ from services.workers.runtime_persistence import (
 from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker, MarketIngestionRuntimeWorker
 from services.workers.runtime_pipeline import MultiExchangeMarketIngestionRuntimeWorker, MarketRuntimeWorker
 
+
+def _resolve_requested_quantity(raw_quantity: float | None) -> float:
+    """Resolve and validate requested_quantity from raw payload value.
+
+    Raises ValueError if quantity is zero, negative, or missing.
+    Returns absolute value (always positive).
+    """
+    if raw_quantity is None:
+        raise ValueError("requested_quantity must be positive (got None)")
+    quantity = abs(float(raw_quantity))
+    if quantity <= 0:
+        raise ValueError(f"requested_quantity must be positive (got {raw_quantity})")
+    return quantity
+
+
 _WORKER_SERVICE_NAME = "runtime_worker"
 _WORKER_CHOICES = ("market", "orchestrator", "simulation", "oms", "news", "execution_lifecycle")
 _NEWS_SOURCE_ITEM_ID_MAX_LEN = 128
@@ -308,7 +323,7 @@ class OMSLifecycleWorkerRunner:
         if not order_id or not symbol:
             return False
 
-        requested_quantity = abs(float(payload.get("quantity", 0.0) or 0.0))
+        requested_quantity = _resolve_requested_quantity(payload.get("quantity"))
         if self.state_store is None:
             existing_order = self._orders.get(
                 order_id,
