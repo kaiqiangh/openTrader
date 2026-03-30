@@ -223,9 +223,11 @@ async def test_p9_chaos_exchange_disconnect_emits_alert_then_recovers() -> None:
         notification_bridge=NotificationEventBridge(publisher=broker),
     )
 
-    with pytest.raises(TimeoutError):
-        await worker.run_once()
+    # First call: WS fails → worker falls back to REST (graceful degradation, no exception)
+    fallback_envelope = await worker.run_once()
+    assert fallback_envelope is not None
 
+    # Second call: WS recovers → uses WS again
     recovered_envelope = await worker.run_once()
     assert recovered_envelope["event_type"] == "market.canonical.orderbook_delta"
 

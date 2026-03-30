@@ -157,12 +157,21 @@ class MarketIngestionRuntimeWorker:
                 limit=self.depth,
                 source_override="websocket",
             )
-        except Exception:  # noqa: BLE001 - websocket errors are expected and trigger fallback.
+        except Exception as exc:  # noqa: BLE001 - websocket errors are expected and trigger fallback.
             if self._resilience is not None:
                 backoff = self._resilience.record_disconnect(now_seconds=time.monotonic())
                 self._next_ws_probe_monotonic = time.monotonic() + max(self.ws_probe_interval_seconds, backoff)
             if self._metrics is not None:
                 self._metrics.record_reconnect(now_seconds=time.time())
+            if self.notification_bridge is not None:
+                await self.notification_bridge.publish_system_health_event(
+                    trace_id=str(uuid.uuid4()),
+                    mode=self.mode,
+                    event_type="system.exchange.connectivity_issue",
+                    severity="WARNING",
+                    reason=exc.__class__.__name__,
+                    details={"symbol": self.symbol, "error": str(exc), "fallback": "rest"},
+                )
             return await self._fetch_rest_snapshot_delta(reason="websocket_error_fallback")
         self._last_delta_source = "websocket"
         self._last_fallback_reason = None
