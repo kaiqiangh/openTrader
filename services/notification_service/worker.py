@@ -20,7 +20,6 @@ from services.notification_service.observability import NotificationObservabilit
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.service import NotificationService
 from services.notification_service.settings import NotificationSettingsError, NotificationWorkerSettings, load_notification_worker_settings
-from services.notification_service.telegram_gateway import TelegramGateway, TelegramGatewayConfig
 from services.shared.runtime.broker import InMemoryTopicBroker
 from services.shared.runtime.prometheus import PrometheusRegistry
 from services.shared.runtime.structured_logging import StructuredLogger
@@ -421,20 +420,43 @@ def main(argv: list[str] | None = None) -> int:
     )
 
 
-def _build_gateway(*, settings: NotificationWorkerSettings) -> InMemoryGateway | TelegramGateway:
-    if settings.default_gateway != "telegram":
-        return InMemoryGateway(name=settings.default_gateway)
-
-    if not settings.telegram_bot_token or not settings.telegram_default_chat_id:
-        raise NotificationSettingsError("telegram gateway enabled but telegram secrets are missing")
-
-    return TelegramGateway(
-        config=TelegramGatewayConfig(
-            bot_token=settings.telegram_bot_token,
-            default_chat_id=settings.telegram_default_chat_id,
-            timeout_seconds=settings.gateway_timeout_seconds,
+def _build_gateway(*, settings: NotificationWorkerSettings) -> Any:
+    if settings.default_gateway == "telegram":
+        if not settings.telegram_bot_token or not settings.telegram_default_chat_id:
+            raise NotificationSettingsError("telegram gateway enabled but telegram secrets are missing")
+        from services.notification_service.telegram_gateway import TelegramGateway, TelegramGatewayConfig
+        return TelegramGateway(
+            config=TelegramGatewayConfig(
+                bot_token=settings.telegram_bot_token,
+                default_chat_id=settings.telegram_default_chat_id,
+                timeout_seconds=settings.gateway_timeout_seconds,
+            )
         )
-    )
+
+    if settings.default_gateway == "email":
+        from services.notification_service.email_gateway import load_email_gateway_from_env
+        gateway = load_email_gateway_from_env()
+        if gateway is None:
+            raise NotificationSettingsError("email gateway enabled but SMTP settings are missing")
+        return gateway
+
+    if settings.default_gateway == "webhook":
+        import os
+        webhook_url = os.getenv("WEBHOOK_URL", "").strip()
+        if not webhook_url:
+            raise NotificationSettingsError("webhook gateway enabled but WEBHOOK_URL is missing")
+        from services.notification_service.webhook_gateway import WebhookGateway, WebhookGatewayConfig
+        webhook_secret = os.getenv("WEBHOOK_SECRET", "").strip()
+        return WebhookGateway(
+            config=WebhookGatewayConfig(
+                url=webhook_url,
+                timeout_seconds=settings.gateway_timeout_seconds,
+                secret=webhook_secret,
+            )
+        )
+
+    # inmemory and unknown gateways fall back to in-memory test gateway
+    return InMemoryGateway(name=settings.default_gateway)
 
 
 def _parse_args(argv: list[str] | None) -> Namespace:
