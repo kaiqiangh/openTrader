@@ -2,18 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Final
 
-_EPSILON: Final[float] = 1e-9
+_EPSILON: Final[Decimal] = Decimal("1e-9")
 
 
 @dataclass(frozen=True, slots=True)
 class PositionState:
     mode: str
     symbol: str
-    quantity: float
-    average_entry_price: float
-    realized_pnl: float
+    quantity: Decimal
+    average_entry_price: Decimal
+    realized_pnl: Decimal
     status: str
     updated_at: str
 
@@ -24,9 +25,9 @@ class PositionFill:
     mode: str
     symbol: str
     side: str
-    quantity: float
-    price: float
-    fee: float = 0.0
+    quantity: Decimal
+    price: Decimal
+    fee: Decimal = Decimal("0")
     filled_at: str | None = None
 
 
@@ -34,7 +35,7 @@ class PositionFill:
 class PositionUpdate:
     previous: PositionState
     current: PositionState
-    realized_pnl_delta: float
+    realized_pnl_delta: Decimal
 
 
 class PositionEngineError(ValueError):
@@ -55,39 +56,39 @@ class PositionEngine:
 
         _validate_position_compatibility(position=previous, fill=fill)
 
-        previous_quantity = float(previous.quantity)
-        previous_average = float(previous.average_entry_price)
-        realized_delta = 0.0
+        previous_quantity = previous.quantity
+        previous_average = previous.average_entry_price
+        realized_delta = Decimal("0")
 
         if abs(previous_quantity) <= _EPSILON:
             new_quantity = signed_fill_quantity
-            new_average = float(fill.price) if abs(new_quantity) > _EPSILON else 0.0
+            new_average = fill.price if abs(new_quantity) > _EPSILON else Decimal("0")
         elif _same_direction(previous_quantity, signed_fill_quantity):
             new_quantity = previous_quantity + signed_fill_quantity
-            weighted_notional = (abs(previous_quantity) * previous_average) + (fill_quantity_abs * float(fill.price))
+            weighted_notional = (abs(previous_quantity) * previous_average) + (fill_quantity_abs * fill.price)
             new_average = weighted_notional / abs(new_quantity)
         else:
             closing_quantity = min(abs(previous_quantity), fill_quantity_abs)
             if previous_quantity > 0:
-                realized_delta += (float(fill.price) - previous_average) * closing_quantity
+                realized_delta += (fill.price - previous_average) * closing_quantity
             else:
-                realized_delta += (previous_average - float(fill.price)) * closing_quantity
+                realized_delta += (previous_average - fill.price) * closing_quantity
 
             remaining = fill_quantity_abs - closing_quantity
-            direction = 1.0 if signed_fill_quantity > 0 else -1.0
+            direction = Decimal("1") if signed_fill_quantity > 0 else Decimal("-1")
             if remaining > _EPSILON:
                 new_quantity = remaining * direction
-                new_average = float(fill.price)
+                new_average = fill.price
             else:
                 new_quantity = previous_quantity + signed_fill_quantity
                 if abs(new_quantity) <= _EPSILON:
-                    new_quantity = 0.0
-                    new_average = 0.0
+                    new_quantity = Decimal("0")
+                    new_average = Decimal("0")
                 else:
                     new_average = previous_average
 
-        realized_delta -= abs(float(fill.fee))
-        new_realized_pnl = float(previous.realized_pnl) + realized_delta
+        realized_delta -= abs(fill.fee)
+        new_realized_pnl = previous.realized_pnl + realized_delta
         new_status = "OPEN" if abs(new_quantity) > _EPSILON else "CLOSED"
         updated_at = fill.filled_at or _utc_now_iso()
 
@@ -103,9 +104,9 @@ class PositionEngine:
         return PositionUpdate(previous=previous, current=current, realized_pnl_delta=realized_delta)
 
 
-def _signed_quantity(fill: PositionFill) -> float:
+def _signed_quantity(fill: PositionFill) -> Decimal:
     side = fill.side.strip().upper()
-    quantity = abs(float(fill.quantity))
+    quantity = abs(fill.quantity)
     if quantity <= _EPSILON:
         raise PositionEngineError("fill.quantity must be positive")
     if side == "BUY":
@@ -115,7 +116,7 @@ def _signed_quantity(fill: PositionFill) -> float:
     raise PositionEngineError(f"unsupported fill side: {fill.side}")
 
 
-def _same_direction(left: float, right: float) -> bool:
+def _same_direction(left: Decimal, right: Decimal) -> bool:
     return (left > 0 and right > 0) or (left < 0 and right < 0)
 
 
@@ -123,9 +124,9 @@ def _empty_position(*, mode: str, symbol: str) -> PositionState:
     return PositionState(
         mode=mode,
         symbol=symbol,
-        quantity=0.0,
-        average_entry_price=0.0,
-        realized_pnl=0.0,
+        quantity=Decimal("0"),
+        average_entry_price=Decimal("0"),
+        realized_pnl=Decimal("0"),
         status="CLOSED",
         updated_at=_utc_now_iso(),
     )

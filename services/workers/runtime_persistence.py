@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 import json
 import sqlite3
@@ -127,10 +128,10 @@ class SQLAlchemyRuntimeOMSStateStore:
             order_id=str(row["order_id"]),
             symbol=str(row["symbol"]),
             mode=str(row["mode"]),
-            requested_quantity=float(row["requested_quantity"]),
+            requested_quantity=Decimal(str(row["requested_quantity"])),
             status=str(row["status"]),
-            filled_quantity=float(row["filled_quantity"]),
-            average_price=float(average_price) if average_price is not None else None,
+            filled_quantity=Decimal(str(row["filled_quantity"])),
+            average_price=Decimal(str(average_price)) if average_price is not None else None,
         )
 
     def upsert_order(self, order: ReconciliationOrder) -> None:
@@ -275,9 +276,9 @@ class SQLAlchemyRuntimeOMSStateStore:
                 fill = ReconciliationFill(
                     fill_id=str(fill_id),
                     order_id=_coerce_uuid(order_id),
-                    quantity=float(row.get("fill_quantity", 0.0) or 0.0),
-                    price=float(row.get("fill_price", 0.0) or 0.0),
-                    fee=float(row.get("fill_fee", 0.0) or 0.0),
+                    quantity=Decimal(str(float(row.get("fill_quantity", 0.0) or 0.0))),
+                    price=Decimal(str(float(row.get("fill_price", 0.0) or 0.0))),
+                    fee=Decimal(str(float(row.get("fill_fee", 0.0) or 0.0))),
                     source=str(row.get("fill_source", "runtime_worker") or "runtime_worker"),
                 )
             status_raw = row.get("status")
@@ -316,9 +317,9 @@ class SQLAlchemyRuntimeOMSStateStore:
         return PositionState(
             mode=str(row["mode"]),
             symbol=str(row["symbol"]),
-            quantity=float(row["quantity"]),
-            average_entry_price=float(row["average_entry_price"]),
-            realized_pnl=float(row["realized_pnl"]),
+            quantity=Decimal(str(row["quantity"])),
+            average_entry_price=Decimal(str(row["average_entry_price"])),
+            realized_pnl=Decimal(str(row["realized_pnl"])),
             status=str(row["status"]),
             updated_at=str(row["updated_at"]),
         )
@@ -420,15 +421,15 @@ class SQLAlchemyRuntimeOMSStateStore:
             deduped[symbol] = PositionState(
                 mode=str(row["mode"]),
                 symbol=symbol,
-                quantity=float(row["quantity"]),
-                average_entry_price=float(row["average_entry_price"]),
-                realized_pnl=float(row["realized_pnl"]),
+                quantity=Decimal(str(row["quantity"])),
+                average_entry_price=Decimal(str(row["average_entry_price"])),
+                realized_pnl=Decimal(str(row["realized_pnl"])),
                 status=str(row["status"]),
                 updated_at=str(row["updated_at"]),
             )
         return tuple(deduped[key] for key in sorted(deduped))
 
-    def upsert_mark_price(self, *, mode: str, symbol: str, mark_price: float) -> None:
+    def upsert_mark_price(self, *, mode: str, symbol: str, mark_price: float | Decimal) -> None:
         self._db.execute(
             """
             INSERT INTO runtime_oms_mark_prices

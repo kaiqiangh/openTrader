@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from services.oms.fill_reconciliation import (
     ExchangeOrderSnapshot,
     FillReconciliationEngine,
@@ -15,10 +17,10 @@ def test_reconcile_uses_exchange_fallback_for_missing_queue_fills() -> None:
         order_id="order-1",
         symbol="BTC/USDT",
         mode="REAL",
-        requested_quantity=1.0,
+        requested_quantity=Decimal("1.0"),
         status="OPEN",
-        filled_quantity=0.4,
-        average_price=100.0,
+        filled_quantity=Decimal("0.4"),
+        average_price=Decimal("100.0"),
     )
 
     result = engine.reconcile(
@@ -29,23 +31,23 @@ def test_reconcile_uses_exchange_fallback_for_missing_queue_fills() -> None:
                 fill=ReconciliationFill(
                     fill_id="fill-1",
                     order_id="order-1",
-                    quantity=0.4,
-                    price=100.0,
-                    fee=0.1,
+                    quantity=Decimal("0.4"),
+                    price=Decimal("100.0"),
+                    fee=Decimal("0.1"),
                 ),
             ),
         ),
         exchange_snapshot=ExchangeOrderSnapshot(
             status="FILLED",
-            filled_quantity=1.0,
-            average_price=101.2,
+            filled_quantity=Decimal("1.0"),
+            average_price=Decimal("101.2"),
             fills=(
                 ReconciliationFill(
                     fill_id="fill-2",
                     order_id="order-1",
-                    quantity=0.6,
-                    price=102.0,
-                    fee=0.15,
+                    quantity=Decimal("0.6"),
+                    price=Decimal("102.0"),
+                    fee=Decimal("0.15"),
                     source="exchange",
                 ),
             ),
@@ -54,7 +56,7 @@ def test_reconcile_uses_exchange_fallback_for_missing_queue_fills() -> None:
 
     assert result.used_exchange_fallback is True
     assert result.status == "FILLED"
-    assert result.filled_quantity == 1.0
+    assert result.filled_quantity == Decimal("1.0")
     assert len(result.fills) == 2
     assert result.changed is True
 
@@ -65,9 +67,9 @@ def test_reconcile_keeps_terminal_queue_status_when_snapshot_has_no_new_fill() -
         order_id="order-2",
         symbol="BTC/USDT",
         mode="REAL",
-        requested_quantity=1.0,
+        requested_quantity=Decimal("1.0"),
         status="CANCELED",
-        filled_quantity=0.0,
+        filled_quantity=Decimal("0"),
         average_price=None,
     )
 
@@ -76,7 +78,7 @@ def test_reconcile_keeps_terminal_queue_status_when_snapshot_has_no_new_fill() -
         lifecycle_events=(LifecycleEvent(event_type="oms.order.canceled"),),
         exchange_snapshot=ExchangeOrderSnapshot(
             status="OPEN",
-            filled_quantity=0.0,
+            filled_quantity=Decimal("0"),
             average_price=None,
             fills=(),
         ),
@@ -93,17 +95,17 @@ def test_reconcile_dedupes_duplicate_fill_ids() -> None:
         order_id="order-3",
         symbol="ETH/USDT",
         mode="MOCK",
-        requested_quantity=1.0,
+        requested_quantity=Decimal("1.0"),
         status="OPEN",
-        filled_quantity=0.0,
+        filled_quantity=Decimal("0"),
         average_price=None,
     )
 
     duplicate = ReconciliationFill(
         fill_id="fill-dup",
         order_id="order-3",
-        quantity=0.2,
-        price=2000.0,
+        quantity=Decimal("0.2"),
+        price=Decimal("2000.0"),
     )
 
     result = engine.reconcile(
@@ -116,8 +118,8 @@ def test_reconcile_dedupes_duplicate_fill_ids() -> None:
                 fill=ReconciliationFill(
                     fill_id="fill-4",
                     order_id="order-3",
-                    quantity=0.3,
-                    price=2010.0,
+                    quantity=Decimal("0.3"),
+                    price=Decimal("2010.0"),
                 ),
             ),
         ),
@@ -125,9 +127,9 @@ def test_reconcile_dedupes_duplicate_fill_ids() -> None:
 
     assert result.status == "PARTIALLY_FILLED"
     assert len(result.fills) == 2
-    assert result.filled_quantity == 0.5
+    assert result.filled_quantity == Decimal("0.5")
     assert result.average_price is not None
-    assert result.average_price > 2000.0
+    assert result.average_price > Decimal("2000.0")
     assert result.changed is True
 
 
@@ -137,17 +139,17 @@ def test_reconcile_marks_unchanged_when_order_snapshot_matches() -> None:
         order_id="order-4",
         symbol="ETH/USDT",
         mode="MOCK",
-        requested_quantity=0.5,
+        requested_quantity=Decimal("0.5"),
         status="PARTIALLY_FILLED",
-        filled_quantity=0.2,
-        average_price=2000.0,
+        filled_quantity=Decimal("0.2"),
+        average_price=Decimal("2000.0"),
     )
 
     result = engine.reconcile(order=order)
 
     assert result.status == "PARTIALLY_FILLED"
-    assert result.filled_quantity == 0.2
-    assert result.average_price == 2000.0
+    assert result.filled_quantity == Decimal("0.2")
+    assert result.average_price == Decimal("2000.0")
     assert result.changed is False
 
 
@@ -157,8 +159,8 @@ def test_requires_fallback_ignores_tiny_fill_gap() -> None:
 
     snapshot = ExchangeOrderSnapshot(
         status="OPEN",
-        filled_quantity=1.0,
-        average_price=100.0,
+        filled_quantity=Decimal("1.0"),
+        average_price=Decimal("100.0"),
         fills=(),
     )
 
@@ -177,12 +179,12 @@ def test_requires_fallback_ignores_rounding_noise() -> None:
 
     snapshot = ExchangeOrderSnapshot(
         status="OPEN",
-        filled_quantity=1.00000001,  # tiny noise
-        average_price=100.0,
+        filled_quantity=Decimal("1.00000001"),  # tiny noise
+        average_price=Decimal("100.0"),
         fills=(),
     )
 
-    queue_fill = ReconciliationFill(fill_id="f1", order_id="o1", quantity=1.0, price=100.0)
+    queue_fill = ReconciliationFill(fill_id="f1", order_id="o1", quantity=Decimal("1.0"), price=Decimal("100.0"))
 
     result = _requires_fallback(
         current_status="OPEN",
