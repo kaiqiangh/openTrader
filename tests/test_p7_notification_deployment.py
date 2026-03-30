@@ -62,7 +62,7 @@ def test_notification_settings_requires_telegram_secrets_when_enabled() -> None:
 @pytest.mark.asyncio
 async def test_notification_worker_inmemory_backend_processes_message() -> None:
     env = _base_env()
-    env["NOTIFY_DEFAULT_GATEWAY"] = "webhook"
+    env["NOTIFY_DEFAULT_GATEWAY"] = "inmemory"
     settings = load_notification_worker_settings(env=env)
     worker = build_notification_worker_from_settings(settings=settings)
 
