@@ -36,11 +36,13 @@ Open Trader is designed to be the reference architecture for **AI-native, policy
 
 ## Current Runtime Status
 
-As of **2026-02-16**, the repository is runtime-aligned for a strict **real-data + mock-trade** core workflow:
+As of **2026-03-30**, the repository is fully aligned with ARD/PRD requirements:
 
-- core services boot with `docker compose up -d`,
-- observability + Go real-execution extras boot with `docker compose --profile full up -d`,
-- market/news ingestion, orchestration traces, LLM calls, and mock execution persistence are wired to Postgres.
+- **768 passing tests** (Python 761 + Go 7), zero failures.
+- Core services boot with `docker compose up -d` (Postgres, RabbitMQ, API, 5 workers).
+- Pilot profile adds Redis, notification worker, execution lifecycle.
+- Full profile adds Go real execution + Prometheus/Grafana/Loki/Tempo.
+- All security review findings resolved (timing-safe auth, RS256-only, network isolation, git history purge).
 
 ## Key Features
 
@@ -48,9 +50,12 @@ As of **2026-02-16**, the repository is runtime-aligned for a strict **real-data
 - **Dual Trading Modes**: Seamlessly switch between `MOCK` (simulated fills) and `REAL` (exchange execution) modes.
 - **Omni-Channel Ingestion**: Real-data ingestion for Binance + Bitget with REST polling default and websocket compatibility.
 - **News Intelligence**: Real-time crypto news ingestion, summarization, and sentiment analysis injected into strategy context.
-- **Institutional Risk**: Hard guards for daily loss, max drawdown, and per-symbol exposure.
-- **Full Observability (Full Profile)**: Prometheus/Grafana dashboards, Loki logs, and Tempo traces via `--profile full`.
-- **Operator Alerts**: Severity-based notifications via Telegram for signals, fills, and risk events.
+- **Institutional Risk**: Hard guards for daily loss, max drawdown, leverage, and per-symbol exposure.
+- **Full Observability (Full Profile)**: Prometheus/Grafana dashboards, Loki logs, and Tempo traces via `--profile full`. Per-worker `/metrics` endpoints (ports 8081-8086).
+- **Multi-Channel Notifications**: Telegram, Email (SMTP), and Webhook gateways with retry, dedup, and DLQ.
+- **JWT Refresh Tokens**: Short-lived access tokens (15 min) with 7-day refresh token rotation and Redis-backed revocation.
+- **Redis-Backed Rate Limiting**: Sliding window rate limiter with automatic fallback to in-memory for single-instance deployments.
+- **RS256 Authentication**: RSA-signed JWT tokens. No HS256 fallback — algorithm confusion attacks prevented.
 
 ## Architecture
 
@@ -135,15 +140,17 @@ flowchart TB
 ## Service Breakdown
 
 - `services/market_ingestion`: exchange adapters, normalization, integrity helpers.
-- `services/integrity_service`: dedicated boundary for runtime integrity workflows (in progress toward concrete worker service).
-- `services/agent_orchestrator`: planner/risk/execution decision orchestration and guardrails.
+- `services/integrity_service`: dedicated boundary for runtime integrity workflows.
+- `services/agent_orchestrator`: planner/risk/execution decision orchestration, guardrails, replay.
 - `services/llm_gateway`: provider abstraction, quota enforcement, prompt/response persistence.
 - `services/simulation_execution`: mock execution engine + mode safety checks.
 - `services/real_execution_go`: low-latency execution consumer/handler contracts in Go.
-- `services/oms`: lifecycle state machine, fill reconciliation, position and portfolio logic, risk policy.
+- `services/oms`: lifecycle state machine, fill reconciliation, position/portfolio logic, risk policy, drawdown/daily loss guards.
 - `services/news_ingestion` + `services/news_summarizer`: ingest, dedupe, tag/relevance, summarization, context bridge.
-- `services/notification_service`: policy routing, gateway dispatch, Telegram gateway, worker loop.
-- `services/api`: FastAPI control plane, auth/RBAC, ops/governance/replay/news/notification routes.
+- `services/notification_service`: policy routing, gateway dispatch (Telegram/Email/Webhook), worker loop.
+- `services/api`: FastAPI control plane, RS256 auth + RBAC, ops/governance/replay/news/notification routes.
+- `services/api/rate_limiter`: Redis-backed + in-memory sliding window rate limiting.
+- `services/tasks`: Celery workloads — portfolio rollup, news backfill, data retention, notification digest, replay reports.
 
 ## End-to-End Event Flow
 
@@ -176,10 +183,14 @@ flowchart TB
 
    ```bash
    cp .env.example .env
-   # Then set required keys in .env:
-   # - ENCRYPTION_KEY_BASE64
-   # - JWT_SECRET_KEY
-   # Optional for local bootstrap: set NOTIFY_ENABLED=false if Telegram is not configured.
+   # Required keys in .env:
+   # - ENCRYPTION_KEY_BASE64 (AES-256-GCM for exchange credentials)
+   # - JWT_PRIVATE_KEY + JWT_PUBLIC_KEY (RS256 auth — generate with scripts/generate_token_rs256.py)
+   # Optional:
+   # - TELEGRAM_BOT_TOKEN + TELEGRAM_DEFAULT_CHAT_ID (for Telegram notifications)
+   # - EMAIL_SMTP_HOST + EMAIL_FROM_ADDRESS (for Email notifications)
+   # - WEBHOOK_URL (for Webhook notifications)
+   # - NOTIFY_ENABLED=false (if no notification gateway is configured)
    ```
 
 3. **Validate Environment**
@@ -443,10 +454,12 @@ GOCACHE=/tmp/go-build go run .
 
 ## Observability and Monitoring
 
-- Metrics: Prometheus via `/metrics`
-- Logs: structured JSON fields (`trace_id`, `decision_id`, `strategy_id`, `mode`, `service`)
-- Traces: trace context propagation across API/worker/Go runtime helpers
-- Dashboards/alerts: Grafana + Alertmanager configs in `config/observability/`
+- **Metrics**: Prometheus via `/metrics` on API (port 8000) and each worker (ports 8081-8086).
+- **Worker metrics**: `open_trader_worker_starts_total`, `open_trader_worker_cycles_total` (by outcome), `open_trader_worker_cycle_duration_seconds`.
+- **API metrics**: `open_trader_http_requests_total`, `open_trader_http_request_duration_seconds`.
+- **Logs**: structured JSON fields (`trace_id`, `decision_id`, `strategy_id`, `mode`, `service`).
+- **Traces**: W3C traceparent propagation across API/worker/Go runtime.
+- **Dashboards/alerts**: Grafana + Alertmanager configs in `config/observability/`.
 - SLO alert catalog includes ingestion p95 lag, websocket stream staleness, LLM latency/cost, execution latency, and risk block rate.
 
 ## Nightly Runtime Probe
@@ -471,9 +484,12 @@ GOCACHE=/tmp/go-build go run .
 
 ## Roadmap
 
-- Phase 10 runtime production integration (completed): concrete worker entrypoints, RabbitMQ/DB adapter replacement, core/full compose profile split, and strict real-data mock-workflow validation.
-- Next: production deployment automation, scaling policies, exchange-specific hardening, and expanded notification gateways.
-- Longer term: additional notification gateways (Slack/email/webhook/SMS/push), richer strategy plugin marketplace, and advanced risk simulation.
+- **Phase 10 runtime production integration (completed)**: concrete worker entrypoints, RabbitMQ/DB adapter replacement, core/full compose profile split, strict real-data mock-workflow validation.
+- **Security hardening (completed)**: timing-safe auth, RS256-only, network isolation, git history purge, drawdown/daily loss limits, Redis rate limiter.
+- **Notification gateways (completed)**: Telegram, Email (SMTP), and Webhook gateways with retry/DLQ.
+- **JWT refresh tokens (completed)**: short-lived access tokens with rotation and Redis-backed revocation.
+- **Observability (completed)**: per-worker Prometheus /metrics endpoints, W3C trace propagation.
+- **Next**: production deployment automation, Slack notification gateway, additional exchange adapters, advanced risk simulation.
 
 ## Future Vision
 
@@ -509,6 +525,7 @@ Open Trader aims to become a transparent autonomous trading platform where:
 - `services/oms/fill_reconciliation.py` — Queue/exchange fill reconciliation
 - `services/oms/position_engine.py` — Position tracking from fills
 - `services/oms/portfolio_snapshot.py` — NAV/PnL snapshot engine
+- `services/oms/risk_rules.py` — Position limits, leverage, drawdown, daily loss checks
 
 ### News Intelligence
 - `services/news_ingestion/source_connectors.py` — Pluggable RSS/API connectors
@@ -582,7 +599,10 @@ Open Trader aims to become a transparent autonomous trading platform where:
 - `services/api/routers/ops.py` — Operations/governance endpoints
 - `services/api/routers/governance.py` — LLM governance APIs
 - `services/api/routers/replay.py` — Decision replay endpoints
+- `services/api/routers/system.py` — Health, metadata, auth/token, auth/refresh endpoints
 - `services/api/routers/dashboard.py` — Dashboard UI routes
+- `services/api/auth.py` — JWT RS256 verification, token pair generation, refresh rotation
+- `services/api/rate_limiter.py` — Redis-backed + in-memory rate limiters
 - `apps/dashboard/src/components/dashboard-client.js` — Dashboard React client
 - `apps/dashboard/app/globals.css` — Dashboard styles
 
@@ -606,6 +626,8 @@ Open Trader aims to become a transparent autonomous trading platform where:
 - `docs/runtime/p9-resilience-drills-2026-02-15.md` — Resilience drill evidence
 - `services/notification_service/publishers.py` — Event publisher integrations
 - `services/notification_service/telegram_gateway.py` — Telegram bot delivery
+- `services/notification_service/email_gateway.py` — SMTP email delivery (HTML + plaintext)
+- `services/notification_service/webhook_gateway.py` — HTTP POST webhook delivery (HMAC signing)
 - `services/notification_service/observability.py` — Notification metrics/traces
 - `services/notification_service/worker.py` — Notification worker loop
 - `docs/runtime/p9-resilience-drills-2026-02-15.md` — Resilience drill evidence
