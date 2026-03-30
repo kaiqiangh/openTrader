@@ -72,8 +72,6 @@ services:
       - head
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
@@ -102,8 +100,6 @@ services:
       - services.notification_service.worker
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
@@ -115,6 +111,16 @@ services:
       NOTIFY_POLL_TIMEOUT_SECONDS: ${NOTIFY_POLL_TIMEOUT_SECONDS:-1.0}
       NOTIFY_IDLE_SLEEP_SECONDS: ${NOTIFY_IDLE_SLEEP_SECONDS:-0.5}
       NOTIFY_OBSERVABILITY_MAX_RECORDS: ${NOTIFY_OBSERVABILITY_MAX_RECORDS:-200}
+      NOTIFY_GATEWAY_TIMEOUT_SECONDS: ${NOTIFY_GATEWAY_TIMEOUT_SECONDS:-10.0}
+      NOTIFY_RATE_LIMIT_PER_MIN: ${NOTIFY_RATE_LIMIT_PER_MIN:-30}
+      NOTIFY_DEDUPE_WINDOW_SECONDS: ${NOTIFY_DEDUPE_WINDOW_SECONDS:-120}
+      NOTIFY_MAX_ATTEMPTS: ${NOTIFY_MAX_ATTEMPTS:-3}
+      NOTIFY_BACKOFF_BASE_SECONDS: ${NOTIFY_BACKOFF_BASE_SECONDS:-0.2}
+      NOTIFY_BACKOFF_MULTIPLIER: ${NOTIFY_BACKOFF_MULTIPLIER:-2.0}
+      NOTIFY_BACKOFF_MAX_SECONDS: ${NOTIFY_BACKOFF_MAX_SECONDS:-2.0}
+      NOTIFICATION_DEFAULT_SEVERITY: ${NOTIFICATION_DEFAULT_SEVERITY:-WARNING}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-bot}
       TELEGRAM_DEFAULT_CHAT_ID: ${TELEGRAM_DEFAULT_CHAT_ID:-chat}
     depends_on:
@@ -143,18 +149,34 @@ services:
       - "8000"
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      APP_NAME: ${APP_NAME:-open-trader}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_HOST: ${API_HOST:-0.0.0.0}
+      API_PORT: ${API_PORT:-8000}
+      API_READ_ONLY_MODE: ${API_READ_ONLY_MODE:-true}
+      API_STRICT_DATABASE_MODE: ${API_STRICT_DATABASE_MODE:-true}
+      API_CORS_ALLOWED_ORIGINS: ${API_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ISSUER: ${JWT_ISSUER:-open-trader}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-open-trader-api}
+      REAL_EXECUTION_BRIDGE_API_KEY: ${REAL_EXECUTION_BRIDGE_API_KEY}
+      EXECUTION_MODE_DEFAULT: ${EXECUTION_MODE_DEFAULT:-MOCK}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      BITGET_API_KEY: ${BITGET_API_KEY:-}
+      BITGET_API_SECRET: ${BITGET_API_SECRET:-}
+      BITGET_API_PASSPHRASE: ${BITGET_API_PASSPHRASE:-}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -209,10 +231,10 @@ services:
       - --bootstrap-topology
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -221,7 +243,24 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      EXCHANGE_DEFAULT: ${EXCHANGE_DEFAULT:-binance}
+      MARKET_EXCHANGES: ${MARKET_EXCHANGES:-binance,bitget}
+      MARKET_SYMBOLS: ${MARKET_SYMBOLS:-BTC/USDT}
+      BINANCE_BASE_URL: ${BINANCE_BASE_URL:-https://api.binance.com}
+      BINANCE_WS_URL: ${BINANCE_WS_URL:-wss://stream.binance.com:9443/ws}
+      BITGET_BASE_URL: ${BITGET_BASE_URL:-https://api.bitget.com}
+      BITGET_WS_URL: ${BITGET_WS_URL:-wss://ws.bitget.com/v2/ws/public}
+      MARKET_DATA_FETCH_MODE: ${MARKET_DATA_FETCH_MODE:-rest}
+      MARKET_DATA_REST_POLL_SECONDS: ${MARKET_DATA_REST_POLL_SECONDS:-300}
+      MARKET_DATA_HTTP_TIMEOUT_SECONDS: ${MARKET_DATA_HTTP_TIMEOUT_SECONDS:-10.0}
+      ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS: ${ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS:-180}
+      KLINE_INTERVALS: ${KLINE_INTERVALS:-1m}
+      KLINE_POLL_INTERVAL_SECONDS: ${KLINE_POLL_INTERVAL_SECONDS:-60}
+      KLINE_FETCH_LIMIT: ${KLINE_FETCH_LIMIT:-200}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -249,10 +288,10 @@ services:
       - --bootstrap-topology
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -261,7 +300,18 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      LLM_RUNTIME_ENABLED: ${LLM_RUNTIME_ENABLED:-true}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-15.0}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      LLM_QUICK_PROVIDER_ORDER: ${LLM_QUICK_PROVIDER_ORDER:-default}
+      LLM_DEEP_PROVIDER_ORDER: ${LLM_DEEP_PROVIDER_ORDER:-default}
+      AGENT_DECISION_TTL_SECONDS: ${AGENT_DECISION_TTL_SECONDS:-900}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -288,10 +338,10 @@ services:
       - simulation
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -300,7 +350,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      EXECUTION_MODE_DEFAULT: ${EXECUTION_MODE_DEFAULT:-MOCK}
+      SIMULATION_SLIPPAGE_BPS: ${SIMULATION_SLIPPAGE_BPS:-3.0}
+      SIMULATION_FEE_BPS: ${SIMULATION_FEE_BPS:-5.0}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -326,10 +382,10 @@ services:
       - oms
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -338,7 +394,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      OMS_RECONCILIATION_STALE_AFTER_SECONDS: ${OMS_RECONCILIATION_STALE_AFTER_SECONDS:-5.0}
+      OMS_PORTFOLIO_BASE_BALANCE_USD: ${OMS_PORTFOLIO_BASE_BALANCE_USD:-100000.0}
+      EXECUTION_MODE_DEFAULT: ${EXECUTION_MODE_DEFAULT:-MOCK}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -366,10 +428,10 @@ services:
       - --bootstrap-topology
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -378,7 +440,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      EXECUTION_MODE_DEFAULT: ${EXECUTION_MODE_DEFAULT:-MOCK}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      BITGET_API_KEY: ${BITGET_API_KEY:-}
+      BITGET_API_SECRET: ${BITGET_API_SECRET:-}
+      BITGET_API_PASSPHRASE: ${BITGET_API_PASSPHRASE:-}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -404,10 +475,10 @@ services:
       - news
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -416,7 +487,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
+      RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
+      RUNTIME_WORKER_POLL_TIMEOUT_SECONDS: ${RUNTIME_WORKER_POLL_TIMEOUT_SECONDS:-0.5}
+      RUNTIME_WORKER_IDLE_SLEEP_SECONDS: ${RUNTIME_WORKER_IDLE_SLEEP_SECONDS:-0.5}
       RUNTIME_REQUIRE_DATABASE: ${RUNTIME_REQUIRE_DATABASE:-true}
+      NEWS_SOURCE_MODE: ${NEWS_SOURCE_MODE:-real}
+      NEWS_RSS_FEEDS: ${NEWS_RSS_FEEDS}
+      NEWS_FETCH_TIMEOUT_SECONDS: ${NEWS_FETCH_TIMEOUT_SECONDS:-8.0}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -439,14 +516,14 @@ services:
       - /usr/local/go/bin/go run .
     volumes:
       - ./:/app
-    env_file:
-      - .env
     environment:
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
-      REAL_EXECUTION_BRIDGE_URL: ${REAL_EXECUTION_BRIDGE_URL:-http://api:8000/internal/execution/dispatch}
-      REAL_EXECUTION_QUEUE_NAME: ${REAL_EXECUTION_QUEUE_NAME:-execution.intent.real}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      REAL_EXECUTION_BRIDGE_URL: ${REAL_EXECUTION_BRIDGE_URL:-http://api:8000/internal/execution/dispatch}
+      REAL_EXECUTION_BRIDGE_TIMEOUT_MS: ${REAL_EXECUTION_BRIDGE_TIMEOUT_MS:-3000}
+      REAL_EXECUTION_BRIDGE_API_KEY: ${REAL_EXECUTION_BRIDGE_API_KEY}
+      REAL_EXECUTION_QUEUE_NAME: ${REAL_EXECUTION_QUEUE_NAME:-execution.intent.real}
     depends_on:
       rabbitmq:
         condition: service_healthy
