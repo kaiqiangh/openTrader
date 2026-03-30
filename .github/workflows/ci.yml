@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check for leaked secrets in tracked .env files
+        run: uv run python scripts/check_env_secrets.py $(git ls-files '.env*' --error-unmatch 2>/dev/null || true)
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
