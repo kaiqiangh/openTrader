@@ -257,6 +257,7 @@ GitHub Actions on every push/PR:
 ## Key Module References
 
 ### Market Ingestion
+
 - `services/market_ingestion/persistence_writers.py` — TimescaleDB kline/orderbook writers
 - `services/market_ingestion/pipeline_metrics.py` — Prometheus ingestion metrics
 - `services/market_ingestion/integration_harness.py` — Replay fixture test harness
@@ -272,10 +273,12 @@ GitHub Actions on every push/PR:
 - `services/news_summarizer/resilience.py` — News module fallback behavior
 
 ### Integrity Service
+
 - `services/integrity_service/gap_detection.py` — Sequence gap detection
 - `services/integrity_service/kline_validator.py` — K-line reconstruction validation
 
 ### Agent Runtime
+
 - `services/agent_orchestrator/orchestrator.py` — Multi-agent decision orchestration
 - `services/agent_orchestrator/planner_agent.py` — Dynamic plan generation
 - `services/agent_orchestrator/risk_agent.py` — Pre-trade risk signals
@@ -287,6 +290,7 @@ GitHub Actions on every push/PR:
 - `services/agent_orchestrator/metrics_tracing.py` — Agent latency/token metrics
 
 ### LLM Gateway
+
 - `services/llm_gateway/contracts.py` — Gateway provider contracts
 - `services/llm_gateway/gateway.py` — Centralized model access layer
 - `services/llm_gateway/persistence.py` — LLMCallRecord and prompt/response storage
@@ -295,6 +299,7 @@ GitHub Actions on every push/PR:
 - `docs/learning/2026-02-14-p3-llm-quota-instincts.md`
 
 ### OMS + Risk
+
 - `services/oms/fill_reconciliation.py` — Queue/exchange fill reconciliation
 - `services/oms/position_engine.py` — Position tracking from fills
 - `services/oms/portfolio_snapshot.py` — NAV/PnL snapshot engine
@@ -305,6 +310,7 @@ GitHub Actions on every push/PR:
 - `services/oms/risk_observability.py` — Risk telemetry
 
 ### API Control Plane
+
 - `services/api/app.py` — FastAPI application factory
 - `services/api/auth.py` — JWT RS256 verification, token pair generation, refresh rotation
 - `services/api/rate_limiter.py` — Redis-backed + in-memory rate limiters
@@ -318,6 +324,7 @@ GitHub Actions on every push/PR:
 - `apps/dashboard/app/globals.css` — Dashboard styles
 
 ### Observability
+
 - `services/shared/runtime/structured_logging.py` — JSON structured logger
 - `services/shared/runtime/prometheus.py` — Prometheus metrics registry
 - `services/shared/runtime/trace_context.py` — OpenTelemetry trace propagation
@@ -326,6 +333,7 @@ GitHub Actions on every push/PR:
 - `config/observability/alerts.yml` — Alert rule catalog
 
 ### Notification
+
 - `services/notification_service/models.py` — Notification data models
 - `services/notification_service/publishers.py` — Event publisher integrations
 - `services/notification_service/telegram_gateway.py` — Telegram bot delivery
@@ -336,12 +344,14 @@ GitHub Actions on every push/PR:
 - `services/notification_service/worker.py` — Notification worker loop
 
 ### Migrations
+
 - `migrations/versions/20260214_0003_agent_trace_schema.py` — decision_traces, agent_runs, agent_messages tables
 - `migrations/versions/20260214_0004_llm_governance_schema.py` — llm_calls, llm_usage tables
 - `migrations/versions/20260214_0005_news_schema.py` — news_items, news_tags, news_summaries tables
 - `migrations/versions/20260219_0007_control_plane_notification_state.py` — strategy_runtime_state, mode_audit_events tables
 
 ### Tests
+
 - `tests/test_p9_e2e_mock_flow.py` — E2E mock flow validation
 - `tests/test_p9_e2e_real_flow.py` — E2E real flow validation
 - `tests/test_p9_mode_isolation.py` — Mode separation verification
