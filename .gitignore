@@ -219,3 +219,8 @@ apps/dashboard/.next/
 apps/dashboard/out/
 .env.backup*
 .worktrees/
+
+# Secrets
+*.pem
+.env
+.env.*

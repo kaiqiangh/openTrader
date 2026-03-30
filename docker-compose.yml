@@ -626,6 +626,56 @@ services:
       - internal
       - public
 
+  celery_worker:
+    profiles: ["full"]
+    <<: *python_runtime
+    working_dir: /app
+    command:
+      - uv
+      - run
+      - --frozen
+      - celery
+      - -A
+      - services.tasks.celery_app
+      - worker
+      - --loglevel=info
+    volumes:
+      - ./:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-}@redis:6379/0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  celery_beat:
+    profiles: ["full"]
+    <<: *python_runtime
+    working_dir: /app
+    command:
+      - uv
+      - run
+      - --frozen
+      - celery
+      - -A
+      - services.tasks.celery_app
+      - beat
+      - --loglevel=info
+    volumes:
+      - ./:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-}@redis:6379/0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
 volumes:
   postgres_data:
   redis_data:
