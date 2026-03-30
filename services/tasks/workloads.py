@@ -4,15 +4,21 @@ from services.tasks.celery_app import app
 @app.task
 def daily_portfolio_rollup():
     """Compute daily portfolio summary and persist."""
-    # TODO: implement
-    return {"status": "placeholder"}
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning("daily_portfolio_rollup_skipped reason=not_implemented")
+    return {"status": "skipped", "reason": "not_implemented"}
 
 
 @app.task
 def news_backfill():
     """Backfill missing news articles from configured sources."""
-    # TODO: implement
-    return {"status": "placeholder"}
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning("news_backfill_skipped reason=not_implemented")
+    return {"status": "skipped", "reason": "not_implemented"}
 
 
 @app.task
@@ -22,8 +28,10 @@ def data_retention_cleanup():
     Retention periods:
     - notification_events: 30 days
     - notification_deliveries: 30 days
-    - llm_call_records: 90 days
-    - agent_trace_spans: 90 days
+    - llm_calls: 90 days
+    - agent_runs: 90 days
+    - agent_messages: 90 days
+    - decision_traces: 90 days
     - portfolio_snapshots: 365 days
     """
     import os
@@ -45,8 +53,10 @@ def data_retention_cleanup():
         cutoffs = {
             "notification_events": now - timedelta(days=30),
             "notification_deliveries": now - timedelta(days=30),
-            "llm_call_records": now - timedelta(days=90),
-            "agent_trace_spans": now - timedelta(days=90),
+            "llm_calls": now - timedelta(days=90),
+            "agent_runs": now - timedelta(days=90),
+            "agent_messages": now - timedelta(days=90),
+            "decision_traces": now - timedelta(days=90),
             "portfolio_snapshots": now - timedelta(days=365),
         }
 
@@ -75,12 +85,18 @@ def data_retention_cleanup():
 @app.task
 def notification_digest():
     """Generate and send notification digest."""
-    # TODO: implement
-    return {"status": "placeholder"}
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning("notification_digest_skipped reason=not_implemented")
+    return {"status": "skipped", "reason": "not_implemented"}
 
 
 @app.task
 def replay_report():
     """Generate decision replay report."""
-    # TODO: implement
-    return {"status": "placeholder"}
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning("replay_report_skipped reason=not_implemented")
+    return {"status": "skipped", "reason": "not_implemented"}

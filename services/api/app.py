@@ -92,6 +92,10 @@ def create_app(
     _RATE_LIMIT_MAX_BUCKETS = 10_000  # Max unique IP:route combinations tracked
     _RATE_LIMIT_CLEANUP_INTERVAL = 1_000  # Cleanup stale buckets every N requests
 
+    # TODO: Redis-backed rate limiting for multi-instance deployments.
+    # When API_REDIS_RATE_LIMIT=true, use Redis sorted sets for sliding window.
+    # See ARD §1.1 for specification.
+
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
         """Per-IP sliding-window rate limiter with bounded memory.

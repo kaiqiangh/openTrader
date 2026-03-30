@@ -4,16 +4,22 @@ from services.api.settings import load_api_settings
 from services.notification_service.settings import load_notification_worker_settings
 
 
-def test_api_settings_loads_jwt_secret_from_dotenv(tmp_path, monkeypatch) -> None:
+def test_api_settings_loads_jwt_keys_from_dotenv(tmp_path, monkeypatch) -> None:
     dotenv = tmp_path / ".env"
-    dotenv.write_text("JWT_SECRET_KEY=dotenv-secret\n", encoding="utf-8")
+    dotenv.write_text(
+        "JWT_PRIVATE_KEY=test-private-key-pem\n"
+        "JWT_PUBLIC_KEY=test-public-key-pem\n",
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    monkeypatch.delenv("JWT_PRIVATE_KEY", raising=False)
+    monkeypatch.delenv("JWT_PUBLIC_KEY", raising=False)
     monkeypatch.delenv("EXECUTION_MODE_DEFAULT", raising=False)
 
     settings = load_api_settings()
 
-    assert settings.jwt_secret_key == "dotenv-secret"
+    assert settings.jwt_private_key == "test-private-key-pem"
+    assert settings.jwt_public_key == "test-public-key-pem"
     assert settings.default_mode == "MOCK"
     assert settings.llm_quick_provider_order == ("default",)
     assert settings.llm_deep_provider_order == ("default",)

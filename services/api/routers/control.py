@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from services.api.auth import require_operator, require_viewer
 from services.api.dependencies import get_control_plane_repository, get_control_plane_state
@@ -95,8 +95,8 @@ def list_strategies(
 
 @router.put("/strategies/{strategy_id}/state", response_model=StrategyRecordResponse)
 def update_strategy_state(
-    strategy_id: str,
     body: StrategyStateUpdateRequest,
+    strategy_id: str = Path(pattern=r"^[a-zA-Z0-9_-]+$"),
     principal: AuthPrincipal = Depends(require_operator),
     state: ControlPlaneState = Depends(get_control_plane_state),
     repository: Any | None = Depends(get_control_plane_repository),
