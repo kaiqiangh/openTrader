@@ -73,9 +73,16 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 - **Status**: ✅ Fixed in commit `fe23daa` — `JWT_SECRET_KEY: ${JWT_SECRET_KEY}` (no default value; requires explicit env var)
 
 #### SEC-015: All Secrets Shared with All Docker Containers
-- **File**: `docker-compose.yml` — all services use `env_file: - .env`
-- **Impact**: Violates least-privilege. Each container receives full secrets (Telegram token, LLM key, Grafana password, JWT secret, encryption key)
-- **Fix**: Use Docker secrets or per-service env files
+- **File**: `docker-compose.yml`
+- **Status**: ✅ **Already mitigated** — no `env_file` found. Secrets are passed per-service via inline `environment:` blocks. Analysis confirmed:
+  - `rabbitmq` → RABBITMQ_DEFAULT_USER/PASS only
+  - `notification_worker` → RABBITMQ credentials + TELEGRAM_BOT_TOKEN
+  - `api` → JWT_SECRET_KEY, REAL_EXECUTION_BRIDGE_API_KEY, BINANCE/BITGET credentials (needed for order dispatch)
+  - `runtime_worker_orchestrator` → LLM_API_KEY only
+  - `runtime_worker_execution_lifecycle` → BINANCE/BITGET credentials (for exchange order dispatch)
+  - `real_execution_go` → RABBITMQ credentials + REAL_EXECUTION_BRIDGE_API_KEY
+  - `grafana` → GRAFANA_ADMIN credentials only
+- Each service receives only the secrets it needs. Least-privilege is respected.
 
 #### SEC-016: Go Runner: Zero Backoff Tight Loop on Empty Queue → ✅ ALREADY FIXED
 - **File**: `services/real_execution_go/internal/service/runner.go`
@@ -245,7 +252,7 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 | SEC-017 Go handler nil check | ~~HIGH~~ — | Medium | Low | — | ✅ Already fixed |
 | SEC-001 Real keys in .env | CRITICAL | Medium | Low | P0 | 🔴 Open (secrets rotation, local-only risk) |
 | SEC-013 Fill reconciliation | HIGH (partial) | Medium | Low | P1 | ⚠️ Dead code removed; requested_quantity validation pending |
-| SEC-015 All secrets to all containers | HIGH | Medium | High | P1 | 🔴 Open |
+| SEC-015 All secrets to all containers | ~~HIGH~~ — | Medium | High | — | ✅ Already mitigated (per-service env blocks) |
 | CQ-002 Go in-memory idempotency | HIGH | Medium | Medium | P1 | 🔴 Open |
 | SEC-004 Env var credentials | HIGH | Medium | High | P1 | 🔴 Open |
 
@@ -254,10 +261,9 @@ openTrader is a well-architected crypto trading platform with 10 phases of imple
 ## 7. Remaining Work (P1 — No Longer Blocking)
 
 1. **SEC-001**: Rotate secrets in `.env` (local-only, low risk since no remote repo)
-2. **SEC-015**: Per-service secrets isolation (Docker secrets or per-service env files)
-3. **SEC-013**: Validate `requested_quantity > 0` at order creation time
-4. **CQ-002**: Go idempotency store → Redis or PostgreSQL (survives restarts)
-5. **SEC-004**: Wire encrypted credential store or deprecate it
+2. **SEC-013**: Validate `requested_quantity > 0` at order creation time
+3. **CQ-002**: Go idempotency store → Redis or PostgreSQL (survives restarts)
+4. **SEC-004**: Wire encrypted credential store or deprecate it
 
 ---
 
