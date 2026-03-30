@@ -16,8 +16,7 @@ REQUIRED_KEYS = [
     "POSTGRES_DB",
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
-    "REDIS_URL",
-    "RABBITMQ_URL",
+    "REDIS_PASSWORD",
     "RABBITMQ_DEFAULT_USER",
     "RABBITMQ_DEFAULT_PASS",
     "EXCHANGE_DEFAULT",
@@ -49,7 +48,7 @@ REQUIRED_KEYS = [
     "NOTIFY_BACKOFF_MAX_SECONDS",
     "NOTIFY_OBSERVABILITY_MAX_RECORDS",
     "ENCRYPTION_KEY_BASE64",
-    "JWT_SECRET_KEY",
+    "JWT_PRIVATE_KEY",
 ]
 
 
@@ -86,6 +85,22 @@ def main() -> int:
             print(
                 "TELEGRAM_DEFAULT_CHAT_ID is required when NOTIFY_ENABLED=true and NOTIFY_DEFAULT_GATEWAY=telegram"
             )
+            return 1
+
+    if notify_enabled and default_gateway == "email":
+        if not os.getenv("EMAIL_SMTP_HOST"):
+            print("EMAIL_SMTP_HOST is required when NOTIFY_DEFAULT_GATEWAY=email")
+            return 1
+        if not os.getenv("EMAIL_FROM_ADDRESS"):
+            print("EMAIL_FROM_ADDRESS is required when NOTIFY_DEFAULT_GATEWAY=email")
+            return 1
+        if not os.getenv("EMAIL_DEFAULT_RECIPIENTS"):
+            print("EMAIL_DEFAULT_RECIPIENTS is required when NOTIFY_DEFAULT_GATEWAY=email")
+            return 1
+
+    if notify_enabled and default_gateway == "webhook":
+        if not os.getenv("WEBHOOK_URL"):
+            print("WEBHOOK_URL is required when NOTIFY_DEFAULT_GATEWAY=webhook")
             return 1
 
     if (
