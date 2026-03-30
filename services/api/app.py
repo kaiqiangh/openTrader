@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from collections import deque
+import os
 from contextlib import asynccontextmanager
-from time import perf_counter, time
+from time import perf_counter
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from services.api.rate_limiter import InMemoryRateLimiter, RedisRateLimiter, RateLimiter
 from services.api.routers import (
     control_router,
     dashboard_router,
@@ -86,78 +87,46 @@ def create_app(
     app.state.control_plane_repository = resolved_repository
     app.state.prometheus_registry = PrometheusRegistry()
     app.state.structured_logger = StructuredLogger(service="api")
-    app.state._rate_limit_windows: dict[str, deque[float]] = {}
-    app.state._rate_limit_request_count: int = 0
 
-    _RATE_LIMIT_MAX_BUCKETS = 10_000  # Max unique IP:route combinations tracked
-    _RATE_LIMIT_CLEANUP_INTERVAL = 1_000  # Cleanup stale buckets every N requests
-
-    # TODO: Redis-backed rate limiting for multi-instance deployments.
-    # When API_REDIS_RATE_LIMIT=true, use Redis sorted sets for sliding window.
-    # See ARD §1.1 for specification.
+    # ── Rate limiter: Redis if REDIS_URL is set, otherwise in-memory ──
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    _general_limiter: RateLimiter
+    _internal_limiter: RateLimiter
+    if redis_url:
+        _general_limiter = RedisRateLimiter(redis_url=redis_url, window_seconds=60, max_requests=300)
+        _internal_limiter = RedisRateLimiter(redis_url=redis_url, window_seconds=60, max_requests=30)
+    else:
+        _general_limiter = InMemoryRateLimiter(window_seconds=60, max_requests=300)
+        _internal_limiter = InMemoryRateLimiter(window_seconds=60, max_requests=30)
 
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
-        """Per-IP sliding-window rate limiter with bounded memory.
+        """Per-IP sliding-window rate limiter.
 
         Limits:
           - /internal/* endpoints: 30 req/min per IP
+          - /health/* endpoints: unlimited
           - All other endpoints: 300 req/min per IP
 
-        Memory safety:
-          - Max 10,000 unique IP:route buckets
-          - Stale bucket cleanup every 1,000 requests
-          - For multi-instance deployments, replace with Redis-backed rate limiting.
+        Uses Redis sorted sets when REDIS_URL is configured, otherwise in-process deques.
         """
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
-        now = time()
 
-        if path.startswith("/internal/"):
-            window_seconds = 60
-            max_requests = 30
-        elif path.startswith("/health/"):
+        if path.startswith("/health/"):
             return await call_next(request)
-        else:
-            window_seconds = 60
-            max_requests = 300
 
+        limiter = _internal_limiter if path.startswith("/internal/") else _general_limiter
         key = f"{client_ip}:{'internal' if path.startswith('/internal/') else 'general'}"
-        windows: dict[str, deque[float]] = request.app.state._rate_limit_windows
 
-        # Periodic cleanup of stale buckets to prevent memory leak
-        request_count = request.app.state._rate_limit_request_count + 1
-        request.app.state._rate_limit_request_count = request_count
-        if request_count % _RATE_LIMIT_CLEANUP_INTERVAL == 0:
-            stale_cutoff = now - window_seconds * 2
-            stale_keys = [k for k, v in windows.items() if not v or v[-1] < stale_cutoff]
-            for k in stale_keys:
-                del windows[k]
-
-        # Reject if bucket limit reached (prevents memory exhaustion via IP spoofing)
-        if key not in windows and len(windows) >= _RATE_LIMIT_MAX_BUCKETS:
+        allowed, meta = await limiter.is_allowed(key)
+        if not allowed:
+            retry_after = meta.get("retry_after", 60)
             return JSONResponse(
                 status_code=429,
                 content={"detail": "rate limit exceeded"},
-                headers={"Retry-After": str(window_seconds)},
+                headers={"Retry-After": str(retry_after)},
             )
-
-        bucket = windows.get(key)
-        if bucket is None:
-            bucket = deque()
-            windows[key] = bucket
-
-        cutoff = now - window_seconds
-        while bucket and bucket[0] < cutoff:
-            bucket.popleft()
-
-        if len(bucket) >= max_requests:
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "rate limit exceeded"},
-                headers={"Retry-After": str(window_seconds)},
-            )
-        bucket.append(now)
 
         return await call_next(request)
 

@@ -24,6 +24,10 @@ class CoreRiskConfig:
     max_position_abs: float
     max_symbol_notional_usd: float
     max_leverage: float
+    max_daily_loss_usd: float = 0.0  # 0 = disabled
+    max_drawdown_pct: float = 0.0  # 0 = disabled (e.g. 0.10 = 10%)
+    max_daily_loss_usd: float = 0.0
+    max_drawdown_pct: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +68,8 @@ class CoreRiskRuleEngine:
         current_position: PositionState | None,
         account_equity_usd: float,
         current_total_exposure_usd: float,
+        realized_pnl_today: float = 0.0,
+        peak_equity_usd: float = 0.0,
     ) -> CoreRiskEvaluation:
         normalized_order = _validate_order(order)
         _validate_position(order=normalized_order, position=current_position)
@@ -91,7 +97,7 @@ class CoreRiskRuleEngine:
         else:
             projected_leverage = projected_total_exposure / equity
 
-        checks = (
+        checks_list = [
             CoreRiskCheck(
                 name="position_limit",
                 passed=abs(projected_quantity) <= self._config.max_position_abs,
@@ -113,8 +119,40 @@ class CoreRiskRuleEngine:
                 limit=self._config.max_leverage,
                 message="Projected account leverage must stay within limit",
             ),
-        )
+        ]
 
+        # Daily loss limit (skip if disabled or no PnL data)
+        if self._config.max_daily_loss_usd > 0:
+            daily_loss = Decimal(str(min(0.0, realized_pnl_today)))
+            checks_list.append(
+                CoreRiskCheck(
+                    name="daily_loss_limit",
+                    passed=daily_loss >= -Decimal(str(self._config.max_daily_loss_usd)),
+                    value=float(abs(daily_loss)),
+                    limit=self._config.max_daily_loss_usd,
+                    message="Daily realized loss exceeds limit",
+                )
+            )
+
+        # Max drawdown (skip if disabled or no peak equity data)
+        if self._config.max_drawdown_pct > 0 and peak_equity_usd > 0:
+            peak = Decimal(str(peak_equity_usd))
+            current_eq = Decimal(str(account_equity_usd))
+            if peak > _EPSILON:
+                drawdown_pct = (peak - current_eq) / peak
+            else:
+                drawdown_pct = _ZERO
+            checks_list.append(
+                CoreRiskCheck(
+                    name="max_drawdown",
+                    passed=drawdown_pct <= Decimal(str(self._config.max_drawdown_pct)),
+                    value=float(drawdown_pct),
+                    limit=self._config.max_drawdown_pct,
+                    message="Portfolio drawdown exceeds maximum allowed",
+                )
+            )
+
+        checks = tuple(checks_list)
         blocked_by = tuple(check.name for check in checks if not check.passed)
         return CoreRiskEvaluation(
             allowed=not blocked_by,
@@ -134,6 +172,10 @@ def _validate_config(config: CoreRiskConfig) -> CoreRiskConfig:
         raise CoreRiskRuleError("max_symbol_notional_usd must be positive")
     if Decimal(str(config.max_leverage)) <= _ZERO:
         raise CoreRiskRuleError("max_leverage must be positive")
+    if config.max_daily_loss_usd < 0:
+        raise CoreRiskRuleError("max_daily_loss_usd must be positive")
+    if config.max_drawdown_pct < 0:
+        raise CoreRiskRuleError("max_drawdown_pct must be positive")
     return config
 
 
