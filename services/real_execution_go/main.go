@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,7 +26,7 @@ func main() {
 		queueName = "execution.intent.real"
 	}
 
-	store := idempotency.NewInMemoryStore()
+	store := resolveIdempotencyStore()
 	bridgeClient := bridge.NewHTTPBridgeClientFromEnv()
 	queueConsumer := consumer.NewRabbitMQHTTPConsumerFromEnv()
 	eventPublisher := publisher.NewRabbitMQHTTPPublisherFromEnv()
@@ -47,4 +48,18 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("real_execution_go stopped")
+}
+
+func resolveIdempotencyStore() idempotency.Store {
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379/0"
+	}
+	redisStore, err := idempotency.NewRedisStore(redisURL)
+	if err == nil {
+		log.Printf("idempotency: using Redis store")
+		return redisStore
+	}
+	log.Printf("idempotency: Redis unavailable (%v), falling back to in-memory", err)
+	return idempotency.NewInMemoryStore()
 }

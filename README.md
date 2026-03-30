@@ -590,7 +590,6 @@ Open Trader aims to become a transparent autonomous trading platform where:
 - `config/observability/prometheus.yml` — Prometheus scrape config
 - `config/observability/alerts.yml` — Alert rule catalog
 - `services/shared/runtime/key_encryption.py` — AES-256-GCM credential encryption
-- `services/shared/runtime/exchange_credentials.py` — Encrypted credential store
 - `/metrics` — Prometheus metrics endpoint
 
 ### Validation Tests

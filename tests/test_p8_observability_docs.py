@@ -17,7 +17,6 @@ def test_readme_mentions_observability_baseline() -> None:
     assert "config/observability/prometheus.yml" in content
     assert "config/observability/alerts.yml" in content
     assert "services/shared/runtime/key_encryption.py" in content
-    assert "services/shared/runtime/exchange_credentials.py" in content
     assert "/metrics" in content
 
 
