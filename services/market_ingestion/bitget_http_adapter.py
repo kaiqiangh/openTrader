@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+import httpx
 import asyncio
 import json
 import time
@@ -52,15 +51,16 @@ class BitgetHTTPOrderBookClient:
             query["limit"] = int(limit)
         url = f"{self.base_url}{self.depth_path}?{urlencode(query)}"
 
-        request = Request(url=url, method="GET")
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310 - explicit URL target
-                raw = response.read().decode("utf-8")
-        except HTTPError as exc:  # pragma: no cover - tested through monkeypatch
-            detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
-            raise BitgetHTTPAdapterError(f"Bitget HTTP {exc.code}: {detail}") from exc
-        except URLError as exc:  # pragma: no cover - tested through monkeypatch
-            raise BitgetHTTPAdapterError(f"Bitget connection error: {exc.reason}") from exc
+            with httpx.Client(timeout=self.timeout_seconds, verify=True) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                raw = response.text
+        except httpx.HTTPStatusError as exc:  # pragma: no cover - tested through monkeypatch
+            detail = exc.response.text
+            raise BitgetHTTPAdapterError(f"Bitget HTTP {exc.response.status_code}: {detail}") from exc
+        except httpx.HTTPError as exc:  # pragma: no cover - tested through monkeypatch
+            raise BitgetHTTPAdapterError(f"Bitget connection error: {exc}") from exc
 
         try:
             parsed = json.loads(raw)
@@ -145,15 +145,16 @@ class BitgetHTTPOrderBookClient:
 
 
 def _request_json(*, url: str, timeout_seconds: float) -> Any:
-    request = Request(url=url, method="GET")
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - explicit URL target
-            raw = response.read().decode("utf-8")
-    except HTTPError as exc:  # pragma: no cover - tested through monkeypatch
-        detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
-        raise BitgetHTTPAdapterError(f"Bitget HTTP {exc.code}: {detail}") from exc
-    except URLError as exc:  # pragma: no cover - tested through monkeypatch
-        raise BitgetHTTPAdapterError(f"Bitget connection error: {exc.reason}") from exc
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            raw = response.text
+    except httpx.HTTPStatusError as exc:  # pragma: no cover - tested through monkeypatch
+        detail = exc.response.text
+        raise BitgetHTTPAdapterError(f"Bitget HTTP {exc.response.status_code}: {detail}") from exc
+    except httpx.HTTPError as exc:  # pragma: no cover - tested through monkeypatch
+        raise BitgetHTTPAdapterError(f"Bitget connection error: {exc}") from exc
 
     try:
         return json.loads(raw)

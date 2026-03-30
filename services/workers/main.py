@@ -5,8 +5,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
-from urllib import request
 from urllib.parse import urlparse
+
+import httpx
 import asyncio
 import hashlib
 import os
@@ -1752,9 +1753,10 @@ def _worker_idle_heartbeat_cycles() -> int:
 
 
 def _http_get_text(url: str, *, timeout_seconds: float) -> str:
-    req = request.Request(url=url, method="GET")
-    with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310 - explicit URL target
-        return response.read().decode("utf-8", errors="ignore")
+    with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.text
 
 
 def _parse_rss_items(*, feed_url: str, rss_xml: str, limit: int) -> list[dict[str, Any]]:

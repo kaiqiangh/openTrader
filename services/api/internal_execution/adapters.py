@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+import httpx
 import base64
 import hashlib
 import hmac
@@ -202,12 +201,8 @@ class BinanceSignedSpotExecutionAdapter:
             digestmod=hashlib.sha256,
         ).hexdigest()
         url = f"{self.base_url}{path}?{query}&signature={signature}"
-        request = Request(
-            url=url,
-            method=method.upper(),
-            headers={"X-MBX-APIKEY": self.api_key},
-        )
-        parsed = _request_json(request=request, timeout_seconds=self.timeout_seconds, provider="Binance")
+        headers = {"X-MBX-APIKEY": self.api_key}
+        parsed = _request_json(url=url, method=method.upper(), body=None, headers=headers, timeout_seconds=self.timeout_seconds, provider="Binance")
         if not isinstance(parsed, Mapping):
             raise InternalDispatchUpstreamError("Binance response must be a JSON object")
         if parsed.get("code") is not None and parsed.get("msg"):
@@ -387,20 +382,16 @@ class BitgetSignedSpotExecutionAdapter:
         ).decode("utf-8")
 
         url = f"{self.base_url}{request_path}"
-        request = Request(
-            url=url,
-            method=method.upper(),
-            data=payload_text.encode("utf-8") if payload_text else None,
-            headers={
-                "ACCESS-KEY": self.api_key,
-                "ACCESS-SIGN": signature,
-                "ACCESS-TIMESTAMP": timestamp,
-                "ACCESS-PASSPHRASE": self.passphrase,
-                "locale": "en-US",
-                "Content-Type": "application/json",
-            },
-        )
-        parsed = _request_json(request=request, timeout_seconds=self.timeout_seconds, provider="Bitget")
+        body = payload_text.encode("utf-8") if payload_text else None
+        headers = {
+            "ACCESS-KEY": self.api_key,
+            "ACCESS-SIGN": signature,
+            "ACCESS-TIMESTAMP": timestamp,
+            "ACCESS-PASSPHRASE": self.passphrase,
+            "locale": "en-US",
+            "Content-Type": "application/json",
+        }
+        parsed = _request_json(url=url, method=method.upper(), body=body, headers=headers, timeout_seconds=self.timeout_seconds, provider="Bitget")
         if not isinstance(parsed, Mapping):
             raise InternalDispatchUpstreamError("Bitget response must be a JSON object")
         code = str(parsed.get("code", "")).strip()
@@ -628,15 +619,17 @@ def _bitget_data_object(parsed: Mapping[str, Any]) -> Mapping[str, Any]:
     return {}
 
 
-def _request_json(*, request: Request, timeout_seconds: float, provider: str) -> Any:
+def _request_json(*, url: str, method: str, body: bytes | None, headers: dict[str, str], timeout_seconds: float, provider: str) -> Any:
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - explicit provider URL
-            raw = response.read().decode("utf-8")
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
-        raise InternalDispatchUpstreamError(f"{provider} HTTP {exc.code}: {detail}") from exc
-    except URLError as exc:
-        raise InternalDispatchUpstreamError(f"{provider} connection error: {exc.reason}") from exc
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.request(method, url, content=body, headers=headers)
+            response.raise_for_status()
+            raw = response.text
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.text
+        raise InternalDispatchUpstreamError(f"{provider} HTTP {exc.response.status_code}: {detail}") from exc
+    except httpx.HTTPError as exc:
+        raise InternalDispatchUpstreamError(f"{provider} connection error: {exc}") from exc
 
     try:
         return json.loads(raw)

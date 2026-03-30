@@ -3,56 +3,78 @@ from __future__ import annotations
 from typing import Any
 import json
 
+import httpx
 import pytest
 
 from services.llm_gateway.openai_compatible_adapter import LLMProviderError, OpenAICompatibleClient
 
 
 class _FakeHTTPResponse:
-    def __init__(self, payload: dict[str, Any]) -> None:
-        self.payload = payload
+    def __init__(self, payload: Any) -> None:
+        self.text = json.dumps(payload)
+        self.status_code = 200
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+class _FakeClient:
+    def __init__(self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]) -> None:
+        self._response = response
+        self._captured = captured
+        self._timeout = timeout
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        _ = exc_type, exc, tb
         return False
 
-    def read(self) -> bytes:
-        return json.dumps(self.payload).encode("utf-8")
+    def post(self, url: str, *, content: bytes, headers: dict[str, str]) -> _FakeHTTPResponse:
+        self._captured["url"] = url
+        self._captured["timeout"] = self._timeout
+        self._captured["authorization"] = headers.get("Authorization")
+        self._captured["body"] = json.loads(content.decode("utf-8"))
+        return self._response
+
+
+def _make_fake_client_cls(response, captured):
+    class _FakeClientCls:
+        def __init__(self, **kwargs):
+            self._inner = _FakeClient(kwargs.get("timeout"), kwargs.get("verify"), response, captured)
+
+        def __enter__(self):
+            return self._inner
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+    return _FakeClientCls
 
 
 @pytest.mark.asyncio
 async def test_litellm_http_adapter_posts_json_and_returns_payload(monkeypatch) -> None:
     captured: dict[str, Any] = {}
-
-    def _fake_urlopen(request, timeout):
-        captured["url"] = request.full_url
-        captured["timeout"] = timeout
-        captured["authorization"] = request.headers.get("Authorization")
-        captured["body"] = json.loads(request.data.decode("utf-8"))
-        return _FakeHTTPResponse(
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "hello",
-                        }
+    response = _FakeHTTPResponse(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": "hello",
                     }
-                ],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-            }
-        )
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+    )
 
-    monkeypatch.setattr("services.llm_gateway.openai_compatible_adapter.urlopen", _fake_urlopen)
+    monkeypatch.setattr(httpx, "Client", _make_fake_client_cls(response, captured))
 
     client = OpenAICompatibleClient(
         base_url="http://litellm:4000",
         api_key="secret-token",
         timeout_seconds=7.5,
     )
-    response = await client.complete(
+    result = await client.complete(
         model="gpt-4o-mini",
         messages=(
             {"role": "system", "content": "be concise"},
@@ -65,16 +87,14 @@ async def test_litellm_http_adapter_posts_json_and_returns_payload(monkeypatch) 
     assert captured["timeout"] == 7.5
     assert captured["authorization"] == "Bearer secret-token"
     assert captured["body"]["model"] == "gpt-4o-mini"
-    assert response["usage"]["total_tokens"] == 15
+    assert result["usage"]["total_tokens"] == 15
 
 
 @pytest.mark.asyncio
 async def test_litellm_http_adapter_raises_on_error_payload(monkeypatch) -> None:
-    def _fake_urlopen(request, timeout):
-        _ = request, timeout
-        return _FakeHTTPResponse({"error": {"message": "provider failed"}})
+    response = _FakeHTTPResponse({"error": {"message": "provider failed"}})
 
-    monkeypatch.setattr("services.llm_gateway.openai_compatible_adapter.urlopen", _fake_urlopen)
+    monkeypatch.setattr(httpx, "Client", _make_fake_client_cls(response, {}))
 
     client = OpenAICompatibleClient(base_url="http://litellm:4000")
     with pytest.raises(LLMProviderError):

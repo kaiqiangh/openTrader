@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 from typing import Any, Protocol
-from urllib import error, request
+import httpx
 
 from services.notification_service.models import DeliveryResult, NotificationMessage
 from services.shared.runtime.env_loader import load_dotenv_file
@@ -182,23 +182,14 @@ def _send_http_request(
         }
     ).encode("utf-8")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    req = request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
 
     try:
-        with request.urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310
-            raw = response.read().decode("utf-8")
-            body = _decode_json(raw)
-            status_code = int(getattr(response, "status", 200))
+        with httpx.Client(timeout=timeout_seconds, verify=True) as client:
+            response = client.post(url, content=payload, headers={"Content-Type": "application/json"})
+            body = _decode_json(response.text)
+            status_code = int(response.status_code)
             return TelegramSendResult(status_code=status_code, body=body)
-    except error.HTTPError as exc:
-        raw = exc.read().decode("utf-8")
-        body = _decode_json(raw)
-        return TelegramSendResult(
-            status_code=int(exc.code),
-            body=body,
-            error=str(exc),
-        )
-    except (OSError, ValueError) as exc:
+    except (httpx.HTTPError, OSError, ValueError) as exc:
         return TelegramSendResult(status_code=0, body=None, error=str(exc))
 
 
