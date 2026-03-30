@@ -25,7 +25,13 @@ func NewHandler(
 	bridgeClient bridge.Client,
 	store idempotency.Store,
 	eventPublisher ...publisher.MessagePublisher,
-) *Handler {
+) (*Handler, error) {
+	if bridgeClient == nil {
+		return nil, errors.New("bridge client is required")
+	}
+	if store == nil {
+		return nil, errors.New("idempotency store is required")
+	}
 	var configuredPublisher publisher.MessagePublisher
 	if len(eventPublisher) > 0 {
 		configuredPublisher = eventPublisher[0]
@@ -35,7 +41,7 @@ func NewHandler(
 		Store:     store,
 		Publisher: configuredPublisher,
 		Now:       time.Now,
-	}
+	}, nil
 }
 
 func (h *Handler) Handle(ctx context.Context, body []byte) error {

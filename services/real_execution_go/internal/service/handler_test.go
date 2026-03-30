@@ -64,9 +64,12 @@ func realEnvelope(t *testing.T, action string, idempotencyKey string) []byte {
 func TestHandlerDispatchesCreateIntent(t *testing.T) {
 	bridgeClient := &fakeBridge{}
 	store := idempotency.NewInMemoryStore()
-	handler := NewHandler(bridgeClient, store)
+	handler, err := NewHandler(bridgeClient, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := handler.Handle(context.Background(), realEnvelope(t, "BUY", "idem-1"))
+	err = handler.Handle(context.Background(), realEnvelope(t, "BUY", "idem-1"))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -81,7 +84,10 @@ func TestHandlerDispatchesCreateIntent(t *testing.T) {
 func TestHandlerDedupesDuplicateCreateIntent(t *testing.T) {
 	bridgeClient := &fakeBridge{}
 	store := idempotency.NewInMemoryStore()
-	handler := NewHandler(bridgeClient, store)
+	handler, err := NewHandler(bridgeClient, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	body := realEnvelope(t, "SELL", "idem-dup")
 	if err := handler.Handle(context.Background(), body); err != nil {
@@ -98,7 +104,10 @@ func TestHandlerDedupesDuplicateCreateIntent(t *testing.T) {
 func TestHandlerDispatchesCancelIntent(t *testing.T) {
 	bridgeClient := &fakeBridge{}
 	store := idempotency.NewInMemoryStore()
-	handler := NewHandler(bridgeClient, store)
+	handler, err := NewHandler(bridgeClient, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	payload := map[string]any{
 		"trace_id":        "trace-1",
@@ -119,7 +128,7 @@ func TestHandlerDispatchesCancelIntent(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	err := handler.Handle(context.Background(), body)
+	err = handler.Handle(context.Background(), body)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -134,7 +143,10 @@ func TestHandlerDispatchesCancelIntent(t *testing.T) {
 func TestHandlerRejectsNonRealMode(t *testing.T) {
 	bridgeClient := &fakeBridge{}
 	store := idempotency.NewInMemoryStore()
-	handler := NewHandler(bridgeClient, store)
+	handler, err := NewHandler(bridgeClient, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	payload := map[string]any{
 		"trace_id":        "trace-1",
@@ -165,7 +177,10 @@ func TestHandlerRejectsNonRealMode(t *testing.T) {
 func TestHandlerMarksFailureWhenBridgeFails(t *testing.T) {
 	bridgeClient := &fakeBridge{err: errors.New("bridge down")}
 	store := idempotency.NewInMemoryStore()
-	handler := NewHandler(bridgeClient, store)
+	handler, err := NewHandler(bridgeClient, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	body := realEnvelope(t, "BUY", "idem-fail")
 	if err := handler.Handle(context.Background(), body); err == nil {
@@ -184,9 +199,12 @@ func TestHandlerPublishesSubmittedEventOnSuccess(t *testing.T) {
 	bridgeClient := &fakeBridge{}
 	store := idempotency.NewInMemoryStore()
 	eventPublisher := &fakePublisher{}
-	handler := NewHandler(bridgeClient, store, eventPublisher)
+	handler, err := NewHandler(bridgeClient, store, eventPublisher)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := handler.Handle(context.Background(), realEnvelope(t, "BUY", "idem-publish-success"))
+	err = handler.Handle(context.Background(), realEnvelope(t, "BUY", "idem-publish-success"))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -202,9 +220,12 @@ func TestHandlerPublishesRejectedEventWhenBridgeFails(t *testing.T) {
 	bridgeClient := &fakeBridge{err: errors.New("bridge down")}
 	store := idempotency.NewInMemoryStore()
 	eventPublisher := &fakePublisher{}
-	handler := NewHandler(bridgeClient, store, eventPublisher)
+	handler, err := NewHandler(bridgeClient, store, eventPublisher)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := handler.Handle(context.Background(), realEnvelope(t, "SELL", "idem-publish-fail"))
+	err = handler.Handle(context.Background(), realEnvelope(t, "SELL", "idem-publish-fail"))
 	if err == nil {
 		t.Fatal("expected bridge failure")
 	}

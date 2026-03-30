@@ -29,7 +29,11 @@ func main() {
 	bridgeClient := bridge.NewHTTPBridgeClientFromEnv()
 	queueConsumer := consumer.NewRabbitMQHTTPConsumerFromEnv()
 	eventPublisher := publisher.NewRabbitMQHTTPPublisherFromEnv()
-	handler := service.NewHandler(bridgeClient, store, eventPublisher)
+	handler, err := service.NewHandler(bridgeClient, store, eventPublisher)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "handler init failed: %v\n", err)
+		os.Exit(1)
+	}
 	runner := &service.Runner{
 		QueueName: queueName,
 		Consumer:  queueConsumer,

@@ -180,8 +180,19 @@ def _requires_fallback(
     queue_filled = _filled_quantity(queue_fills)
     snapshot_filled = max(0.0, float(exchange_snapshot.filled_quantity))
 
+    # Fallback only when exchange has strictly more information:
+    # 1. Exchange shows a terminal state while queue doesn't yet
+    # 2. Exchange shows more fills than queue (queue missed some fills)
     if current_status not in TERMINAL_STATES:
+        if normalized_snapshot_status in TERMINAL_STATES:
+            return True
+        if snapshot_filled > (queue_filled + _EPSILON):
+            return True
+        return False
+
+    if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
         return True
+    return snapshot_filled > (queue_filled + _EPSILON)
     if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
         return True
     return snapshot_filled > (queue_filled + _EPSILON)
