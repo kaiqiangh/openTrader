@@ -7,7 +7,11 @@ toward dedicated integrity workers.
 """
 
 from services.integrity_service.gap_detection import GapDetectionModule, GapDetectionResult
-from services.integrity_service.kline_validator import KlineBar, KlineReconstructionValidator, KlineValidationResult
+from services.integrity_service.kline_validator import (
+    KlineBar,
+    KlineReconstructionValidator,
+    KlineValidationResult,
+)
 from services.integrity_service.order_book_sync import (
     OrderBookDelta,
     OrderBookLevel,

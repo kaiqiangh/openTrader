@@ -75,7 +75,10 @@ def _request() -> LLMRequest:
         decision_id="66d2d9e4-72c1-4f9f-b58f-77f15a04f93e",
         strategy_id="d17ea0d5-3fd3-42e4-92b4-f4d34f88af0e",
         agent_name="planner",
-        messages=({"role": "system", "content": "stay concise"}, {"role": "user", "content": "analyze"}),
+        messages=(
+            {"role": "system", "content": "stay concise"},
+            {"role": "user", "content": "analyze"},
+        ),
         temperature=0.2,
         max_tokens=120,
         metadata={"symbol": "BTC/USDT"},

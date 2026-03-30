@@ -35,9 +35,7 @@ def main(argv: list[str] | None = None) -> int:
             since=since,
         )
         if stats["rows"] < args.min_rows:
-            failures.append(
-                f"{exchange}: expected >= {args.min_rows} rows, found {stats['rows']}"
-            )
+            failures.append(f"{exchange}: expected >= {args.min_rows} rows, found {stats['rows']}")
         latest = stats["latest"]
         if latest is None:
             failures.append(f"{exchange}: no latest timestamp in window")
@@ -83,7 +81,9 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         help="comma-separated exchange list",
     )
     parser.add_argument("--minutes", type=int, default=10, help="freshness lookback window")
-    parser.add_argument("--min-rows", type=int, default=1, help="minimum rows expected per exchange")
+    parser.add_argument(
+        "--min-rows", type=int, default=1, help="minimum rows expected per exchange"
+    )
     return parser.parse_args(argv)
 
 
@@ -107,9 +107,10 @@ def _kline_stats(
     since: datetime,
 ) -> dict[str, object]:
     with engine.connect() as connection:
-        row = connection.execute(
-            text(
-                """
+        row = (
+            connection.execute(
+                text(
+                    """
                 SELECT COUNT(*) AS rows, MAX(time) AS latest
                 FROM klines
                 WHERE exchange = :exchange
@@ -117,14 +118,17 @@ def _kline_stats(
                   AND "interval" = :interval
                   AND time >= :since
                 """
-            ),
-            {
-                "exchange": exchange,
-                "symbol": symbol,
-                "interval": interval,
-                "since": since,
-            },
-        ).mappings().one()
+                ),
+                {
+                    "exchange": exchange,
+                    "symbol": symbol,
+                    "interval": interval,
+                    "since": since,
+                },
+            )
+            .mappings()
+            .one()
+        )
         duplicate_open_times = connection.execute(
             text(
                 """

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from services.notification_service.settings import NotificationSettingsError, load_notification_worker_settings
+from services.notification_service.settings import (
+    NotificationSettingsError,
+    load_notification_worker_settings,
+)
 
 
 def _base_env() -> dict[str, str]:
@@ -46,4 +49,3 @@ def test_notification_settings_allow_rabbitmq_backend_when_runtime_db_required()
     settings = load_notification_worker_settings(env=env)
     assert settings.consumer_backend == "rabbitmq_http"
     assert settings.runtime_require_database is True
-

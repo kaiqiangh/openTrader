@@ -64,7 +64,9 @@ class PortfolioSnapshotEngine:
                 raise PortfolioSnapshotEngineError(
                     f"missing mark price for open position symbol: {position.symbol}"
                 )
-            unrealized_pnl += (Decimal(str(mark_price)) - position.average_entry_price) * position.quantity
+            unrealized_pnl += (
+                Decimal(str(mark_price)) - position.average_entry_price
+            ) * position.quantity
 
         realized_value = (
             realized_pnl_total if realized_pnl_total is not None else realized_from_positions

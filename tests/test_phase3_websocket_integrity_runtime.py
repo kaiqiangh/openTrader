@@ -73,7 +73,9 @@ async def test_phase3_websocket_gap_resyncs_to_rest_snapshot() -> None:
         )
     )
     worker = MarketIngestionRuntimeWorker(
-        adapter=CCXTIngestionAdapter(exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"),
+        adapter=CCXTIngestionAdapter(
+            exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"
+        ),
         pipeline=CanonicalNormalizationPipeline(publisher=broker),
         symbol="BTC/USDT",
         mode="MOCK",
@@ -101,13 +103,11 @@ async def test_phase3_websocket_stale_stream_cutover_uses_rest_snapshot() -> Non
             _snapshot(sequence=101, bid=42001.0, ask=42002.0),  # stale cutover fallback
         )
     )
-    ws = _ScriptedWsClient(
-        deltas=(
-            _delta(start=101, end=101, bid=42000.5, ask=42001.5),
-        )
-    )
+    ws = _ScriptedWsClient(deltas=(_delta(start=101, end=101, bid=42000.5, ask=42001.5),))
     worker = MarketIngestionRuntimeWorker(
-        adapter=CCXTIngestionAdapter(exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"),
+        adapter=CCXTIngestionAdapter(
+            exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"
+        ),
         pipeline=CanonicalNormalizationPipeline(publisher=broker),
         symbol="BTC/USDT",
         mode="MOCK",
@@ -144,7 +144,9 @@ async def test_phase3_websocket_error_falls_back_to_rest_snapshot() -> None:
     )
     ws = _ScriptedWsClient(deltas=(RuntimeError("socket disconnected"),))
     worker = MarketIngestionRuntimeWorker(
-        adapter=CCXTIngestionAdapter(exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"),
+        adapter=CCXTIngestionAdapter(
+            exchange="binance", rest_client=rest, ws_client=ws, delta_source="websocket"
+        ),
         pipeline=CanonicalNormalizationPipeline(publisher=broker),
         symbol="BTC/USDT",
         mode="MOCK",

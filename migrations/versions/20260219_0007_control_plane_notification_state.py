@@ -24,11 +24,18 @@ def upgrade() -> None:
         sa.Column("symbol", sa.Text(), nullable=False),
         sa.Column("mode", sa.String(length=8), nullable=False),
         sa.Column("state", sa.String(length=16), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("changed_by", sa.Text(), nullable=False),
         sa.Column("reason", sa.Text(), nullable=True),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_strategy_runtime_state_mode"),
-        sa.CheckConstraint("state IN ('ENABLED','DISABLED','PAUSED')", name="ck_strategy_runtime_state_state"),
+        sa.CheckConstraint(
+            "state IN ('ENABLED','DISABLED','PAUSED')", name="ck_strategy_runtime_state_state"
+        ),
     )
 
     op.create_table(
@@ -37,7 +44,12 @@ def upgrade() -> None:
         sa.Column("mode", sa.String(length=8), nullable=False),
         sa.Column("changed_by", sa.Text(), nullable=False),
         sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("changed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "changed_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_mode_audit_events_mode"),
     )
     op.create_index("idx_mode_audit_events_changed_at", "mode_audit_events", ["changed_at"])
@@ -49,7 +61,12 @@ def upgrade() -> None:
         sa.Column("gateways_json", sa.Text(), nullable=False),
         sa.Column("strategy_ids_json", sa.Text(), nullable=False),
         sa.Column("event_types_json", sa.Text(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("updated_by", sa.Text(), nullable=False),
         sa.CheckConstraint(
             "min_severity IN ('INFO','WARNING','CRITICAL')",
@@ -69,7 +86,9 @@ def upgrade() -> None:
         sa.Column("delivery_status", sa.String(length=32), nullable=False),
         sa.Column("attempt", sa.Integer(), nullable=False),
         sa.Column("detail", sa.Text(), nullable=True),
-        sa.Column("logged_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "logged_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+        ),
     )
     op.create_index(
         "idx_notification_deliveries_event_time",

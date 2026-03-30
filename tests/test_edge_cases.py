@@ -12,15 +12,17 @@ class TestFillReconciliationEdgeCases:
 
     def test_empty_lifecycle_events(self):
         from services.oms.fill_reconciliation import (
-            ExchangeOrderSnapshot,
             FillReconciliationEngine,
             ReconciliationOrder,
         )
 
         engine = FillReconciliationEngine()
         order = ReconciliationOrder(
-            order_id="o1", symbol="BTC/USDT", mode="MOCK",
-            requested_quantity=Decimal("1.0"), status="NEW",
+            order_id="o1",
+            symbol="BTC/USDT",
+            mode="MOCK",
+            requested_quantity=Decimal("1.0"),
+            status="NEW",
         )
         result = engine.reconcile(order=order)
         assert result.status == "NEW"
@@ -29,15 +31,17 @@ class TestFillReconciliationEdgeCases:
 
     def test_zero_requested_quantity(self):
         from services.oms.fill_reconciliation import (
-            ExchangeOrderSnapshot,
             FillReconciliationEngine,
             ReconciliationOrder,
         )
 
         engine = FillReconciliationEngine()
         order = ReconciliationOrder(
-            order_id="o1", symbol="BTC/USDT", mode="MOCK",
-            requested_quantity=Decimal("0"), status="NEW",
+            order_id="o1",
+            symbol="BTC/USDT",
+            mode="MOCK",
+            requested_quantity=Decimal("0"),
+            status="NEW",
         )
         result = engine.reconcile(order=order)
         # Can't derive FILLED/PARTIALLY_FILLED without requested_quantity
@@ -53,10 +57,15 @@ class TestFillReconciliationEdgeCases:
 
         engine = FillReconciliationEngine()
         order = ReconciliationOrder(
-            order_id="o1", symbol="BTC/USDT", mode="MOCK",
-            requested_quantity=Decimal("2.0"), status="OPEN",
+            order_id="o1",
+            symbol="BTC/USDT",
+            mode="MOCK",
+            requested_quantity=Decimal("2.0"),
+            status="OPEN",
         )
-        fill = ReconciliationFill(fill_id="f1", order_id="o1", quantity=Decimal("1.0"), price=Decimal("50000"))
+        fill = ReconciliationFill(
+            fill_id="f1", order_id="o1", quantity=Decimal("1.0"), price=Decimal("50000")
+        )
         events = [
             LifecycleEvent(event_type="oms.order.filled", fill=fill),
             LifecycleEvent(event_type="oms.order.filled", fill=fill),  # duplicate
@@ -73,9 +82,14 @@ class TestPositionEngineEdgeCases:
 
         engine = PositionEngine()
         fill = PositionFill(
-            order_id="o1", mode="MOCK", symbol="BTC/USDT", side="BUY",
-            quantity=Decimal("0"), price=Decimal("50000"),
-            fee=Decimal("0"), filled_at="2026-01-01T00:00:00Z",
+            order_id="o1",
+            mode="MOCK",
+            symbol="BTC/USDT",
+            side="BUY",
+            quantity=Decimal("0"),
+            price=Decimal("50000"),
+            fee=Decimal("0"),
+            filled_at="2026-01-01T00:00:00Z",
         )
         with pytest.raises(PositionEngineError, match="fill.quantity must be positive"):
             engine.apply_fill(position=None, fill=fill)
@@ -85,9 +99,14 @@ class TestPositionEngineEdgeCases:
 
         engine = PositionEngine()
         fill = PositionFill(
-            order_id="o1", mode="MOCK", symbol="BTC/USDT", side="SELL",
-            quantity=Decimal("1"), price=Decimal("50000"),
-            fee=Decimal("0"), filled_at="2026-01-01T00:00:00Z",
+            order_id="o1",
+            mode="MOCK",
+            symbol="BTC/USDT",
+            side="SELL",
+            quantity=Decimal("1"),
+            price=Decimal("50000"),
+            fee=Decimal("0"),
+            filled_at="2026-01-01T00:00:00Z",
         )
         result = engine.apply_fill(position=None, fill=fill)
         # SELL on empty position = short
@@ -100,7 +119,9 @@ class TestRiskRulesEdgeCases:
     def test_validate_order_rejects_zero_quantity(self):
         from services.oms.risk_rules import ProposedOrder, _validate_order
 
-        order = ProposedOrder(mode="MOCK", symbol="BTC/USDT", side="BUY", quantity=0.0, price=50000.0)
+        order = ProposedOrder(
+            mode="MOCK", symbol="BTC/USDT", side="BUY", quantity=0.0, price=50000.0
+        )
         with pytest.raises(Exception, match="quantity must be positive"):
             _validate_order(order)
 
@@ -114,14 +135,22 @@ class TestRiskRulesEdgeCases:
     def test_validate_order_accepts_decimal_quantity(self):
         from services.oms.risk_rules import ProposedOrder, _validate_order
 
-        order = ProposedOrder(mode="MOCK", symbol="BTC/USDT", side="BUY", quantity=Decimal("0.001"), price=Decimal("50000"))
+        order = ProposedOrder(
+            mode="MOCK",
+            symbol="BTC/USDT",
+            side="BUY",
+            quantity=Decimal("0.001"),
+            price=Decimal("50000"),
+        )
         result = _validate_order(order)
         assert result.symbol == "BTC/USDT"
 
     def test_validate_order_rejects_sub_epsilon_quantity(self):
         from services.oms.risk_rules import ProposedOrder, _validate_order
 
-        order = ProposedOrder(mode="MOCK", symbol="BTC/USDT", side="BUY", quantity=1e-10, price=50000.0)
+        order = ProposedOrder(
+            mode="MOCK", symbol="BTC/USDT", side="BUY", quantity=1e-10, price=50000.0
+        )
         with pytest.raises(Exception, match="quantity must be positive"):
             _validate_order(order)
 
@@ -195,7 +224,9 @@ class TestSecurityDefaultsEdgeCases:
         from services.shared.runtime.rabbitmq_http_broker import RabbitMQHTTPTopicBroker
 
         with patch("services.shared.runtime.rabbitmq_http_broker.load_dotenv_file"):
-            with patch.dict("os.environ", {"RABBITMQ_DEFAULT_USER": "", "RABBITMQ_DEFAULT_PASS": ""}):
+            with patch.dict(
+                "os.environ", {"RABBITMQ_DEFAULT_USER": "", "RABBITMQ_DEFAULT_PASS": ""}
+            ):
                 with pytest.raises(RuntimeError, match="RABBITMQ_DEFAULT"):
                     RabbitMQHTTPTopicBroker.from_env()
 
@@ -205,10 +236,12 @@ class TestSecurityDefaultsEdgeCases:
 
         with patch("services.shared.runtime.database.load_dotenv_file"):
             with pytest.raises(RuntimeError, match="POSTGRES_PASSWORD"):
-                load_runtime_database_settings(env={
-                    "DATABASE_URL": "",
-                    "POSTGRES_PASSWORD": "",
-                    "POSTGRES_HOST": "localhost",
-                    "POSTGRES_DB": "test",
-                    "POSTGRES_USER": "test",
-                })
+                load_runtime_database_settings(
+                    env={
+                        "DATABASE_URL": "",
+                        "POSTGRES_PASSWORD": "",
+                        "POSTGRES_HOST": "localhost",
+                        "POSTGRES_DB": "test",
+                        "POSTGRES_USER": "test",
+                    }
+                )

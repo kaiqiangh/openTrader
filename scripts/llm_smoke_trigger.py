@@ -208,7 +208,9 @@ def _build_market_envelope(
     }
 
 
-async def _run_once(*, broker: InMemoryTopicBroker, worker: Any, envelope: dict[str, Any], timeout_seconds: float) -> bool:
+async def _run_once(
+    *, broker: InMemoryTopicBroker, worker: Any, envelope: dict[str, Any], timeout_seconds: float
+) -> bool:
     await broker.publish(routing_key="market.canonical", message=dict(envelope))
     return bool(await worker.run_once(timeout_seconds=timeout_seconds))
 

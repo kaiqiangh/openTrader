@@ -44,7 +44,11 @@ def test_news_context_falls_back_to_latest_summary_when_lookback_misses() -> Non
                 VALUES (:summary_id, :summary_text, :generated_at)
                 """
             ),
-            {"summary_id": "summary-1", "summary_text": "stale-but-valid", "generated_at": generated_at},
+            {
+                "summary_id": "summary-1",
+                "summary_text": "stale-but-valid",
+                "generated_at": generated_at,
+            },
         )
 
     context = module._fetch_latest_news_context(engine=engine, lookback_minutes=5)  # type: ignore[attr-defined]

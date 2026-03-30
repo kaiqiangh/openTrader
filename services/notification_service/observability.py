@@ -114,7 +114,9 @@ class NotificationObservabilityCollector:
                 self._totals["failed_total"] += 1
 
             gateway_status_key = f"{result.gateway}:{status}"
-            self._gateway_status[gateway_status_key] = self._gateway_status.get(gateway_status_key, 0) + 1
+            self._gateway_status[gateway_status_key] = (
+                self._gateway_status.get(gateway_status_key, 0) + 1
+            )
 
             attempt_bucket = str(max(1, int(result.attempt)))
             self._retry_attempt_histogram[attempt_bucket] = (
@@ -140,9 +142,11 @@ class NotificationObservabilityCollector:
 
         dispatch_status = "succeeded"
         if any(result.status.strip().upper() != "DELIVERED" for result in results):
-            dispatch_status = "partial_failure" if any(
-                result.status.strip().upper() == "DELIVERED" for result in results
-            ) else "failed"
+            dispatch_status = (
+                "partial_failure"
+                if any(result.status.strip().upper() == "DELIVERED" for result in results)
+                else "failed"
+            )
 
         self._append_span(
             NotificationTraceSpan(

@@ -41,7 +41,11 @@ class NewsContextInjectionBridge:
         if self._publisher is None:
             raise RuntimeError("publisher is not configured")
 
-        fallback = bool(is_fallback) if is_fallback is not None else (summary.summary_text == "news_unavailable")
+        fallback = (
+            bool(is_fallback)
+            if is_fallback is not None
+            else (summary.summary_text == "news_unavailable")
+        )
         payload = {
             "strategy_id": strategy_id,
             "symbol_scope": summary.symbol_scope,
@@ -84,7 +88,11 @@ class NewsContextInjectionBridge:
         is_fallback: bool | None = None,
     ) -> dict[str, Any]:
         payload = dict(market_payload)
-        fallback = bool(is_fallback) if is_fallback is not None else (summary.summary_text == "news_unavailable")
+        fallback = (
+            bool(is_fallback)
+            if is_fallback is not None
+            else (summary.summary_text == "news_unavailable")
+        )
         payload["news"] = {
             "summary": summary.summary_text,
             "sentiment": float(sentiment),

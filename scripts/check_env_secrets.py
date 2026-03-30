@@ -4,6 +4,7 @@
 Run: python scripts/check_env_secrets.py .env
 Exit 0 = clean, Exit 1 = secrets detected.
 """
+
 from __future__ import annotations
 
 import re

@@ -54,9 +54,7 @@ class ConnectorNotFoundError(KeyError):
     """Raised when connector lookup fails."""
 
 
-FetchCallable = Callable[
-    ..., Iterable[NewsSourceRecord | Mapping[str, Any]]
-]
+FetchCallable = Callable[..., Iterable[NewsSourceRecord | Mapping[str, Any]]]
 
 
 class CallableSourceConnector:
@@ -87,7 +85,9 @@ class CallableSourceConnector:
             raise ValueError("limit must be positive")
 
         raw_items = tuple(self._fetcher(since=since, limit=limit))
-        normalized_items = tuple(_normalize_record(item=item, default_source=self.connector_id) for item in raw_items)
+        normalized_items = tuple(
+            _normalize_record(item=item, default_source=self.connector_id) for item in raw_items
+        )
         return ConnectorFetchResult(
             source=self.connector_id,
             connector_kind=self.connector_kind,
@@ -106,7 +106,9 @@ class SourceConnectorRegistry:
 
     def register(self, connector: NewsSourceConnector) -> None:
         if connector.connector_id in self._connectors:
-            raise ConnectorRegistrationError(f"connector already registered: {connector.connector_id}")
+            raise ConnectorRegistrationError(
+                f"connector already registered: {connector.connector_id}"
+            )
         self._connectors[connector.connector_id] = connector
 
     def get(self, connector_id: str) -> NewsSourceConnector:
@@ -195,7 +197,9 @@ def _normalize_record(
             title=title,
             url=str(item.get("url")).strip() if item.get("url") is not None else None,
             content=str(item.get("content", "")),
-            metadata=dict(item.get("metadata", {})) if isinstance(item.get("metadata"), Mapping) else {},
+            metadata=dict(item.get("metadata", {}))
+            if isinstance(item.get("metadata"), Mapping)
+            else {},
         )
 
     if not record.source.strip():

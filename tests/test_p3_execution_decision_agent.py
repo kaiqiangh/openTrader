@@ -34,7 +34,9 @@ def _plan(*, action: str, quantity: float, confidence: float) -> PlannerDecision
     )
 
 
-def _risk(*, approved: bool, approved_quantity: float, blocked_by: tuple[str, ...]) -> RiskAssessment:
+def _risk(
+    *, approved: bool, approved_quantity: float, blocked_by: tuple[str, ...]
+) -> RiskAssessment:
     signals = (
         RiskSignal(
             name="confidence_minimum",

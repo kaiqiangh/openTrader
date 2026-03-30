@@ -57,6 +57,11 @@ def test_implementation_plan_marks_p9_001_to_p9_009_done() -> None:
     assert re.search(r"\| P9-007 \|.*\| DONE \|", content)
     assert re.search(r"\| P9-008 \|.*\| DONE \|", content)
     assert re.search(r"\| P9-009 \|.*\| DONE \|", content)
-    assert "1. Populate owner names for all `TBD` fields in `docs/release/p9-post-phase-handoff-pack-2026-02-15.md`." in content
+    assert (
+        "1. Populate owner names for all `TBD` fields in `docs/release/p9-post-phase-handoff-pack-2026-02-15.md`."
+        in content
+    )
     assert "2. Execute hypercare checklist windows and track status in war-room channel." in content
-    assert "3. Convert `BL-001..BL-007` triage items into sprint tickets with owners/dates." in content
+    assert (
+        "3. Convert `BL-001..BL-007` triage items into sprint tickets with owners/dates." in content
+    )

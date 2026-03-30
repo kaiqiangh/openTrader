@@ -62,9 +62,13 @@ def create_app(
     if resolved_state is None:
         if resolved_settings.strict_database_mode and state is None:
             if repository_load_error is not None:
-                raise RuntimeError("failed to initialize control-plane repository from runtime environment") from repository_load_error
+                raise RuntimeError(
+                    "failed to initialize control-plane repository from runtime environment"
+                ) from repository_load_error
             if resolved_repository is None:
-                raise RuntimeError("control-plane repository is required when API_STRICT_DATABASE_MODE=true")
+                raise RuntimeError(
+                    "control-plane repository is required when API_STRICT_DATABASE_MODE=true"
+                )
             raise RuntimeError("control-plane state is unavailable")
         resolved_state = build_default_state(default_mode=resolved_settings.default_mode)
 
@@ -93,8 +97,12 @@ def create_app(
     _general_limiter: RateLimiter
     _internal_limiter: RateLimiter
     if redis_url:
-        _general_limiter = RedisRateLimiter(redis_url=redis_url, window_seconds=60, max_requests=300)
-        _internal_limiter = RedisRateLimiter(redis_url=redis_url, window_seconds=60, max_requests=30)
+        _general_limiter = RedisRateLimiter(
+            redis_url=redis_url, window_seconds=60, max_requests=300
+        )
+        _internal_limiter = RedisRateLimiter(
+            redis_url=redis_url, window_seconds=60, max_requests=30
+        )
     else:
         _general_limiter = InMemoryRateLimiter(window_seconds=60, max_requests=300)
         _internal_limiter = InMemoryRateLimiter(window_seconds=60, max_requests=30)

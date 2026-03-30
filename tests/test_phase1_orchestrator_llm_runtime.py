@@ -6,7 +6,11 @@ import uuid
 import pytest
 
 from services.agent_orchestrator.contracts import StrategyConfig
-from services.agent_orchestrator.llm_runtime import ExecutionSuggestion, PlannerSuggestion, RiskSuggestion
+from services.agent_orchestrator.llm_runtime import (
+    ExecutionSuggestion,
+    PlannerSuggestion,
+    RiskSuggestion,
+)
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 
 

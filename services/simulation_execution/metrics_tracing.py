@@ -89,7 +89,9 @@ class SimulationExecutionMetrics:
         )
 
     def snapshot(self) -> dict[str, Any]:
-        avg_latency = (sum(self._latencies_ms) / len(self._latencies_ms)) if self._latencies_ms else None
+        avg_latency = (
+            (sum(self._latencies_ms) / len(self._latencies_ms)) if self._latencies_ms else None
+        )
         max_latency = max(self._latencies_ms) if self._latencies_ms else None
         failure_rate = (self._failure_total / self._runs_total) if self._runs_total else 0.0
         return {

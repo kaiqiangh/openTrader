@@ -69,12 +69,10 @@ class RollingNewsSummarizer:
         scope = symbol_scope.strip().upper() or "GLOBAL"
         item_map = {item.news_id: item for item in items}
 
-        scoped_tags = [
-            tag
-            for tag in tags
-            if _tag_matches_scope(scope=scope, tag=tag)
-        ]
-        scoped_tags.sort(key=lambda tag: (tag.relevance_score, tag.sentiment_score, tag.news_id), reverse=True)
+        scoped_tags = [tag for tag in tags if _tag_matches_scope(scope=scope, tag=tag)]
+        scoped_tags.sort(
+            key=lambda tag: (tag.relevance_score, tag.sentiment_score, tag.news_id), reverse=True
+        )
 
         selected_news_ids: list[str] = []
         for tag in scoped_tags:

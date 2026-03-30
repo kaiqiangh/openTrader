@@ -108,10 +108,7 @@ class AgentMemoryLayer:
             strategy_id=strategy_id,
             decision_id=decision_id,
         )
-        normalized_slots = {
-            slot: _ensure_mapping(payload)
-            for slot, payload in slots.items()
-        }
+        normalized_slots = {slot: _ensure_mapping(payload) for slot, payload in slots.items()}
         if normalized_slots:
             return DecisionMemorySnapshot(
                 mode=mode,

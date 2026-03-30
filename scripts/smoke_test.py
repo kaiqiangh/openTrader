@@ -142,8 +142,7 @@ def _assert_services_running(
             stable_since = None
         time.sleep(1.0)
     raise RuntimeError(
-        "docker compose up -d did not start all required services. Missing: "
-        + ", ".join(missing)
+        "docker compose up -d did not start all required services. Missing: " + ", ".join(missing)
     )
 
 
@@ -270,7 +269,9 @@ def _assert_real_execution_rabbitmq_bridge_flow() -> None:
         for row in rows:
             payload = row.get("payload")
             parsed = json.loads(payload) if isinstance(payload, str) else payload
-            if isinstance(parsed, dict) and str(parsed.get("event_type", "")).startswith("oms.order."):
+            if isinstance(parsed, dict) and str(parsed.get("event_type", "")).startswith(
+                "oms.order."
+            ):
                 return
         time.sleep(0.25)
     raise RuntimeError("Did not observe OMS lifecycle event from real execution bridge flow")
@@ -298,7 +299,9 @@ def _resolve_database_url_for_host(database_url: str) -> str:
         userinfo += "@"
     port = parsed.port or 5432
     netloc = f"{userinfo}127.0.0.1:{port}"
-    return urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+    return urlunparse(
+        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
 
 
 def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) -> None:
@@ -307,7 +310,13 @@ def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) ->
         username=username,
         password=password,
         path="/exchanges/%2F/execution.events",
-        payload={"type": "topic", "durable": True, "auto_delete": False, "internal": False, "arguments": {}},
+        payload={
+            "type": "topic",
+            "durable": True,
+            "auto_delete": False,
+            "internal": False,
+            "arguments": {},
+        },
         method="PUT",
     )
     _safe_rabbitmq_api_call(
@@ -315,7 +324,13 @@ def _bootstrap_smoke_topology(*, api_base: str, username: str, password: str) ->
         username=username,
         password=password,
         path="/exchanges/%2F/oms.events",
-        payload={"type": "topic", "durable": True, "auto_delete": False, "internal": False, "arguments": {}},
+        payload={
+            "type": "topic",
+            "durable": True,
+            "auto_delete": False,
+            "internal": False,
+            "arguments": {},
+        },
         method="PUT",
     )
     _safe_rabbitmq_api_call(

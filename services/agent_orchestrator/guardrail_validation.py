@@ -34,8 +34,17 @@ class GuardrailValidationLayer:
         current_position = Decimal(str(market_context.get("current_position", 0.0)))
         projected_position = current_position + quantity
         projected_notional = abs(quantity) * mid_price
-        equity_usd = Decimal(str(max(market_context.get("equity_usd", float(mid_price) if mid_price > 0 else 1.0), 1.0)))
-        projected_leverage = abs(projected_position * mid_price) / equity_usd if mid_price > 0 else Decimal("0")
+        equity_usd = Decimal(
+            str(
+                max(
+                    market_context.get("equity_usd", float(mid_price) if mid_price > 0 else 1.0),
+                    1.0,
+                )
+            )
+        )
+        projected_leverage = (
+            abs(projected_position * mid_price) / equity_usd if mid_price > 0 else Decimal("0")
+        )
 
         checks["action_allowed"] = action in set(strategy.allowed_actions)
         if not checks["action_allowed"]:
@@ -47,7 +56,9 @@ class GuardrailValidationLayer:
                 )
             )
 
-        checks["quantity_semantics"] = self._quantity_semantics_valid(action=action, quantity=quantity)
+        checks["quantity_semantics"] = self._quantity_semantics_valid(
+            action=action, quantity=quantity
+        )
         if not checks["quantity_semantics"]:
             violations.append(
                 GuardrailViolation(
@@ -159,4 +170,3 @@ class GuardrailValidationLayer:
         if action == "HOLD":
             return quantity == Decimal("0")
         return False
-

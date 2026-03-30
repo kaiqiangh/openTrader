@@ -17,8 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column("portfolio_snapshots", "realized_pnl_today", new_column_name="realized_pnl_total")
+    op.alter_column(
+        "portfolio_snapshots", "realized_pnl_today", new_column_name="realized_pnl_total"
+    )
 
 
 def downgrade() -> None:
-    op.alter_column("portfolio_snapshots", "realized_pnl_total", new_column_name="realized_pnl_today")
+    op.alter_column(
+        "portfolio_snapshots", "realized_pnl_total", new_column_name="realized_pnl_today"
+    )

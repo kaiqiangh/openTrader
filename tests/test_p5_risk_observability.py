@@ -35,10 +35,14 @@ def _snapshot(*, total_balance_usd: float, realized_pnl_total: float = 0.0) -> P
     )
 
 
-def _engine(*, controls: RiskControlPlane | None = None, sink: RiskObservabilityCollector | None = None) -> RiskPolicyEngine:
+def _engine(
+    *, controls: RiskControlPlane | None = None, sink: RiskObservabilityCollector | None = None
+) -> RiskPolicyEngine:
     return RiskPolicyEngine(
         config=RiskPolicyConfig(
-            core=CoreRiskConfig(max_position_abs=1.0, max_symbol_notional_usd=200.0, max_leverage=2.0),
+            core=CoreRiskConfig(
+                max_position_abs=1.0, max_symbol_notional_usd=200.0, max_leverage=2.0
+            ),
             guards=DrawdownDailyLossConfig(max_drawdown_pct=0.2, max_daily_loss_usd=200.0),
         ),
         controls=controls or RiskControlPlane(),

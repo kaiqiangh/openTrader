@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 
 import pytest
 
 from services.oms.risk_rules import (
     CoreRiskCheck,
     CoreRiskConfig,
-    CoreRiskEvaluation,
     CoreRiskRuleEngine,
     CoreRiskRuleError,
     ProposedOrder,
@@ -150,7 +148,9 @@ class TestConfigValidation:
             CoreRiskRuleEngine(config=_make_config(max_drawdown_pct=-0.05))
 
     def test_zero_values_are_valid_disabled(self) -> None:
-        engine = CoreRiskRuleEngine(config=_make_config(max_daily_loss_usd=0.0, max_drawdown_pct=0.0))
+        engine = CoreRiskRuleEngine(
+            config=_make_config(max_daily_loss_usd=0.0, max_drawdown_pct=0.0)
+        )
         assert engine is not None
 
 

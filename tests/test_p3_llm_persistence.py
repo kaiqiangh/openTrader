@@ -4,7 +4,12 @@ from typing import Any, Mapping
 
 import pytest
 
-from services.llm_gateway.contracts import GatewaySettings, LLMRequest, LLMRetryExhaustedError, ProviderSettings
+from services.llm_gateway.contracts import (
+    GatewaySettings,
+    LLMRequest,
+    LLMRetryExhaustedError,
+    ProviderSettings,
+)
 from services.llm_gateway.gateway import LLMGateway
 from services.llm_gateway.persistence import LLMCallRecord
 

@@ -45,7 +45,9 @@ def publish_event(
     password = password or os.getenv("RABBITMQ_DEFAULT_PASS", "").strip()
 
     if not all([api_url, username, password]):
-        logger.warning("publish_event_skipped reason=missing_rabbitmq_config routing_key=%s", event_type)
+        logger.warning(
+            "publish_event_skipped reason=missing_rabbitmq_config routing_key=%s", event_type
+        )
         return
 
     exchange_name = _resolve_exchange(event_type)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -10,11 +9,14 @@ from services.api.state import build_default_state
 from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
+
 def _settings() -> APISettings:
     return make_test_settings()
+
 
 def test_ops_endpoints_return_orders_positions_snapshot_and_risk_status() -> None:
     settings = _settings()
@@ -69,6 +71,7 @@ def test_ops_endpoints_return_orders_positions_snapshot_and_risk_status() -> Non
     assert risk_response.status_code == 200
     assert "kill_switch_enabled" in risk_response.json()
 
+
 def test_operator_can_trip_and_reset_circuit_breaker() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode="MOCK"))
@@ -91,6 +94,7 @@ def test_operator_can_trip_and_reset_circuit_breaker() -> None:
     )
     assert reset_response.status_code == 200
     assert reset_response.json()["status"] == "CLOSED"
+
 
 def test_only_admin_can_toggle_kill_switch() -> None:
     settings = _settings()

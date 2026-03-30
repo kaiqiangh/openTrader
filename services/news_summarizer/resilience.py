@@ -168,7 +168,9 @@ def _fallback_payload(*, reason: str) -> dict[str, Any]:
 
 def _sentiment_hint(summary_text: str) -> float:
     lowered = summary_text.lower()
-    positive_hits = sum(token in lowered for token in ("bull", "strong", "inflow", "approval", "growth"))
+    positive_hits = sum(
+        token in lowered for token in ("bull", "strong", "inflow", "approval", "growth")
+    )
     negative_hits = sum(token in lowered for token in ("bear", "panic", "hack", "exploit", "drop"))
     total = positive_hits + negative_hits
     if total == 0:

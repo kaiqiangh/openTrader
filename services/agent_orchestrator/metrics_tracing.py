@@ -133,7 +133,9 @@ class AgentRuntimeMetrics:
 
     def snapshot(self) -> dict[str, Any]:
         agent_stages: dict[str, Any] = {}
-        stage_names = set(self._stage_runs) | set(self._stage_failures) | set(self._stage_latency_ms)
+        stage_names = (
+            set(self._stage_runs) | set(self._stage_failures) | set(self._stage_latency_ms)
+        )
         for stage in sorted(stage_names):
             runs = self._stage_runs.get(stage, 0)
             failures = self._stage_failures.get(stage, 0)
@@ -154,7 +156,8 @@ class AgentRuntimeMetrics:
             "llm_usage": {
                 "totals": _coerce_metric_types(self._llm_totals),
                 "by_scope": {
-                    scope: _coerce_metric_types(values) for scope, values in sorted(self._llm_by_scope.items())
+                    scope: _coerce_metric_types(values)
+                    for scope, values in sorted(self._llm_by_scope.items())
                 },
             },
             "recent_spans": [asdict(span) for span in self._spans[-100:]],

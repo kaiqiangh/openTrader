@@ -149,7 +149,9 @@ class DecisionReplayService:
             )
 
         runs_payload: list[Mapping[str, Any]] = []
-        runs = sorted(await self.trace_store.list_agent_runs(decision_id=decision_id), key=_run_sort_key)
+        runs = sorted(
+            await self.trace_store.list_agent_runs(decision_id=decision_id), key=_run_sort_key
+        )
         for run in runs:
             messages = sorted(
                 await self.trace_store.list_agent_messages(agent_run_id=run.agent_run_id),

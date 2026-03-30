@@ -56,8 +56,12 @@ class LLMDecisionRuntime:
         deep_temperature: float = 0.2,
     ) -> None:
         self.gateway = gateway
-        self.quick_provider_order = tuple(alias.strip() for alias in quick_provider_order if alias.strip())
-        self.deep_provider_order = tuple(alias.strip() for alias in deep_provider_order if alias.strip())
+        self.quick_provider_order = tuple(
+            alias.strip() for alias in quick_provider_order if alias.strip()
+        )
+        self.deep_provider_order = tuple(
+            alias.strip() for alias in deep_provider_order if alias.strip()
+        )
         self.quick_temperature = float(quick_temperature)
         self.deep_temperature = float(deep_temperature)
 

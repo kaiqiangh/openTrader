@@ -109,7 +109,9 @@ class RiskObservabilityCollector:
 
         for event in events:
             self._totals["control_events_total"] += 1
-            self._control_events[event.event_type] = self._control_events.get(event.event_type, 0) + 1
+            self._control_events[event.event_type] = (
+                self._control_events.get(event.event_type, 0) + 1
+            )
 
             self._events.append(
                 RiskObservabilityEvent(

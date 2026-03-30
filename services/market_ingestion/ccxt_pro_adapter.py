@@ -89,7 +89,9 @@ class CCXTProOrderBookClient:
                     return tuple(r for r in normalized if r is not None)
             except Exception:
                 _logger.warning("ccxt_pro_fetch_ohlcv_fallback", exc_info=True)
-        fallback = await self.fallback_rest_client.fetch_klines(symbol, interval=interval, limit=limit)
+        fallback = await self.fallback_rest_client.fetch_klines(
+            symbol, interval=interval, limit=limit
+        )
         return tuple(dict(item) for item in fallback)
 
     async def close(self) -> None:

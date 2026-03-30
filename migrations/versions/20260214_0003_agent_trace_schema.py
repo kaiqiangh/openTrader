@@ -27,7 +27,12 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_decision_traces_mode"),
     )
     op.create_index("idx_decision_traces_trace_id", "decision_traces", ["trace_id"], unique=True)
@@ -35,7 +40,9 @@ def upgrade() -> None:
     op.create_table(
         "agent_runs",
         sa.Column("agent_run_id", sa.UUID(), primary_key=True, nullable=False),
-        sa.Column("decision_id", sa.UUID(), sa.ForeignKey("decision_traces.decision_id"), nullable=False),
+        sa.Column(
+            "decision_id", sa.UUID(), sa.ForeignKey("decision_traces.decision_id"), nullable=False
+        ),
         sa.Column("agent_name", sa.String(length=64), nullable=False),
         sa.Column("input_ref", sa.String(length=256), nullable=True),
         sa.Column("output_ref", sa.String(length=256), nullable=True),
@@ -43,18 +50,32 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
     op.create_index("idx_agent_runs_decision_id", "agent_runs", ["decision_id"])
-    op.create_index("idx_agent_runs_decision_id_agent_name", "agent_runs", ["decision_id", "agent_name"])
+    op.create_index(
+        "idx_agent_runs_decision_id_agent_name", "agent_runs", ["decision_id", "agent_name"]
+    )
 
     op.create_table(
         "agent_messages",
         sa.Column("message_id", sa.UUID(), primary_key=True, nullable=False),
-        sa.Column("agent_run_id", sa.UUID(), sa.ForeignKey("agent_runs.agent_run_id"), nullable=False),
+        sa.Column(
+            "agent_run_id", sa.UUID(), sa.ForeignKey("agent_runs.agent_run_id"), nullable=False
+        ),
         sa.Column("role", sa.String(length=32), nullable=False),
         sa.Column("payload_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
     op.create_index(
         "idx_agent_messages_agent_run_id_created_at",

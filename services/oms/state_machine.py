@@ -18,7 +18,9 @@ TERMINAL_STATES: Final[frozenset[str]] = frozenset({"FILLED", "CANCELED", "REJEC
 
 _ALLOWED_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "NEW": frozenset({"SUBMITTED", "REJECTED", "CANCELED", "EXPIRED"}),
-    "SUBMITTED": frozenset({"OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED", "EXPIRED"}),
+    "SUBMITTED": frozenset(
+        {"OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED", "EXPIRED"}
+    ),
     "OPEN": frozenset({"PARTIALLY_FILLED", "FILLED", "CANCELED", "EXPIRED"}),
     "PARTIALLY_FILLED": frozenset({"FILLED", "CANCELED", "EXPIRED"}),
     "FILLED": frozenset(),

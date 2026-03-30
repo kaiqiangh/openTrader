@@ -96,7 +96,9 @@ def _tail_lines(value: str, *, max_lines: int) -> list[str]:
 
 def _write_artifact(*, output_path: Path, payload: dict[str, Any]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

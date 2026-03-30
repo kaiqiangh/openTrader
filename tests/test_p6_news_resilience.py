@@ -69,7 +69,9 @@ async def test_resilience_publishes_alert_envelopes() -> None:
     broker.declare_queue("news.alerts")
     broker.bind_queue(routing_key="news.alerts", queue_name="news.alerts")
 
-    policy = NewsResiliencePolicy(stale_after_seconds=120, alert_publisher=broker, alert_routing_key="news.alerts")
+    policy = NewsResiliencePolicy(
+        stale_after_seconds=120, alert_publisher=broker, alert_routing_key="news.alerts"
+    )
     decision = policy.evaluate(summary=None, now=datetime(2026, 2, 14, 19, 5, tzinfo=timezone.utc))
 
     await policy.publish_alerts(

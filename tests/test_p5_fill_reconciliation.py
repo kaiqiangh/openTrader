@@ -184,7 +184,9 @@ def test_requires_fallback_ignores_rounding_noise() -> None:
         fills=(),
     )
 
-    queue_fill = ReconciliationFill(fill_id="f1", order_id="o1", quantity=Decimal("1.0"), price=Decimal("100.0"))
+    queue_fill = ReconciliationFill(
+        fill_id="f1", order_id="o1", quantity=Decimal("1.0"), price=Decimal("100.0")
+    )
 
     result = _requires_fallback(
         current_status="OPEN",

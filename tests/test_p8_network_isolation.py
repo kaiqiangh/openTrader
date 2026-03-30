@@ -31,21 +31,21 @@ def test_rabbitmq_management_port_is_localhost_bound_only() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     rabbitmq = _service_block(compose, "rabbitmq")
     assert "ports:" in rabbitmq
-    assert '127.0.0.1:15672:15672' in rabbitmq
+    assert "127.0.0.1:15672:15672" in rabbitmq
 
 
 def test_postgres_port_is_localhost_bound_only() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     postgres = _service_block(compose, "postgres_timescaledb")
     assert "ports:" in postgres
-    assert '127.0.0.1:5432:5432' in postgres
+    assert "127.0.0.1:5432:5432" in postgres
 
 
 def test_only_grafana_is_exposed_for_observability_surface() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
     grafana = _service_block(compose, "grafana")
     assert "ports:" in grafana
-    assert '127.0.0.1:${GRAFANA_HOST_PORT:-3001}:3000' in grafana
+    assert "127.0.0.1:${GRAFANA_HOST_PORT:-3001}:3000" in grafana
 
 
 def _service_block(content: str, service_name: str) -> str:

@@ -13,7 +13,10 @@ def test_smoke_script_exists_and_checks_compose_services() -> None:
 
 def test_makefile_exposes_smoke_target() -> None:
     content = Path("Makefile").read_text(encoding="utf-8")
-    assert ".PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke" in content
+    assert (
+        ".PHONY: test lint fmt env-validate migrate-up migrate-down migrate-revision smoke"
+        in content
+    )
     assert "smoke:" in content
     assert "uv run python scripts/smoke_test.py" in content
 

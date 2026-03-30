@@ -28,7 +28,9 @@ def generate_span_id() -> str:
     return secrets.token_hex(8)
 
 
-def build_traceparent(*, trace_id: str | None = None, span_id: str | None = None, sampled: bool = True) -> str:
+def build_traceparent(
+    *, trace_id: str | None = None, span_id: str | None = None, sampled: bool = True
+) -> str:
     resolved_trace_id = trace_id or generate_trace_id()
     resolved_span_id = span_id or generate_span_id()
     flags = "01" if sampled else "00"
@@ -63,4 +65,3 @@ def resolve_trace_context(incoming_traceparent: str | None) -> TraceContext:
         span_id=generate_span_id(),
         sampled=True,
     )
-

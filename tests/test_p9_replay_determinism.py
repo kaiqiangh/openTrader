@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from services.agent_orchestrator.memory_layer import DecisionMemoryRecord
-from services.agent_orchestrator.replay_service import AgentMessageRecord, AgentRunRecord, DecisionTraceRecord
+from services.agent_orchestrator.replay_service import (
+    AgentMessageRecord,
+    AgentRunRecord,
+    DecisionTraceRecord,
+)
 from services.api.state import build_default_state
 from services.llm_gateway.persistence import LLMCallRecord
 
@@ -160,7 +164,10 @@ async def test_p9_replay_determinism_reproduces_stored_decision_chain() -> None:
         "agent.decision.intent_published",
     ]
     assert [item["agent_name"] for item in first.agent_runs] == ["planner", "risk"]
-    assert [item["messages"][0]["message_id"] for item in first.agent_runs] == ["planner-1", "risk-1"]
+    assert [item["messages"][0]["message_id"] for item in first.agent_runs] == [
+        "planner-1",
+        "risk-1",
+    ]
     assert [item["llm_call_id"] for item in first.llm_calls] == ["llm-planner", "llm-risk"]
     assert any(edge.relation == "has_summary" for edge in first.graph_edges)
 

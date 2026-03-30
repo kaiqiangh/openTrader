@@ -15,7 +15,10 @@ from services.agent_orchestrator.memory_layer import AgentMemoryLayer
 from services.agent_orchestrator.planner_agent import PlannerAgent
 from services.agent_orchestrator.risk_agent import RiskAgent
 from services.notification_service.publishers import NotificationEventBridge
-from services.simulation_execution.mode_routing import assert_no_mode_leakage, route_execution_intent
+from services.simulation_execution.mode_routing import (
+    assert_no_mode_leakage,
+    route_execution_intent,
+)
 from services.shared.contracts.message_envelope import validate_envelope
 
 
@@ -328,7 +331,9 @@ class AgentOrchestrator:
                 decision_id=decision_id,
                 mode=mode,
                 event_type=(
-                    "agent.decision.risk_approved" if risk.approved else "agent.decision.risk_rejected"
+                    "agent.decision.risk_approved"
+                    if risk.approved
+                    else "agent.decision.risk_rejected"
                 ),
                 idempotency_key=f"agent.decision.risk:{decision_id}:{status}",
                 payload={
@@ -396,7 +401,10 @@ class AgentOrchestrator:
         )
         if should_publish_intent:
             exchange = str(market_context.get("exchange", "binance")).strip().lower() or "binance"
-            order_type = str(execution_decision.constraints.get("order_type", "MARKET")).strip().upper() or "MARKET"
+            order_type = (
+                str(execution_decision.constraints.get("order_type", "MARKET")).strip().upper()
+                or "MARKET"
+            )
             time_in_force = execution_decision.constraints.get("time_in_force")
             limit_price = execution_decision.constraints.get("limit_price")
             trigger_price = execution_decision.constraints.get("trigger_price")
@@ -404,7 +412,9 @@ class AgentOrchestrator:
                 time_in_force = "GTC" if order_type == "LIMIT" else None
             reduce_only = bool(execution_decision.action == "CLOSE")
             client_order_id = str(
-                execution_decision.constraints.get("client_order_id", f"{strategy.strategy_id}-{decision_id[:12]}")
+                execution_decision.constraints.get(
+                    "client_order_id", f"{strategy.strategy_id}-{decision_id[:12]}"
+                )
             )
             execution_intent = self._build_envelope(
                 trace_id=trace_id,
@@ -584,8 +594,16 @@ class AgentOrchestrator:
                 rationale=tuple(rationale),
                 metrics=dict(plan.metrics),
             )
-        action = suggestion.action if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"} else plan.action
-        confidence = plan.confidence if suggestion.confidence is None else max(0.0, min(1.0, suggestion.confidence))
+        action = (
+            suggestion.action
+            if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"}
+            else plan.action
+        )
+        confidence = (
+            plan.confidence
+            if suggestion.confidence is None
+            else max(0.0, min(1.0, suggestion.confidence))
+        )
         target_quantity = (
             plan.target_quantity
             if suggestion.target_quantity is None
@@ -643,7 +661,11 @@ class AgentOrchestrator:
             if suggestion.approved_quantity is None
             else float(suggestion.approved_quantity)
         )
-        risk_score = risk.risk_score if suggestion.risk_score is None else max(0.0, min(1.0, suggestion.risk_score))
+        risk_score = (
+            risk.risk_score
+            if suggestion.risk_score is None
+            else max(0.0, min(1.0, suggestion.risk_score))
+        )
         blocked_by = risk.blocked_by if not suggestion.blocked_by else tuple(suggestion.blocked_by)
         rationale = list(risk.rationale)
         rationale.extend(list(suggestion.rationale))
@@ -698,7 +720,11 @@ class AgentOrchestrator:
             if suggestion.action in {"BUY", "SELL", "HOLD", "CLOSE"}
             else execution_decision.action
         )
-        quantity = execution_decision.quantity if suggestion.quantity is None else float(suggestion.quantity)
+        quantity = (
+            execution_decision.quantity
+            if suggestion.quantity is None
+            else float(suggestion.quantity)
+        )
         confidence = (
             execution_decision.confidence
             if suggestion.confidence is None

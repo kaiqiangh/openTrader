@@ -64,10 +64,14 @@ class InMemoryTopicBroker:
             queue = self._queues[queue_name]
             payload = dict(message)
             await queue.put(payload)
-            published.append(PublishedMessage(queue=queue_name, routing_key=routing_key, message=payload))
+            published.append(
+                PublishedMessage(queue=queue_name, routing_key=routing_key, message=payload)
+            )
         return published
 
-    async def consume(self, *, queue_name: str, timeout_seconds: float | None = None) -> dict[str, Any] | None:
+    async def consume(
+        self, *, queue_name: str, timeout_seconds: float | None = None
+    ) -> dict[str, Any] | None:
         queue = self._queues.get(queue_name)
         if queue is None:
             raise BrokerConfigurationError(f"queue not declared: {queue_name}")
@@ -125,7 +129,9 @@ def _match_tokens(*, pattern_tokens: list[str], routing_tokens: list[str]) -> bo
         if len(pattern_tokens) == 1:
             return True
         for idx in range(len(routing_tokens) + 1):
-            if _match_tokens(pattern_tokens=pattern_tokens[1:], routing_tokens=routing_tokens[idx:]):
+            if _match_tokens(
+                pattern_tokens=pattern_tokens[1:], routing_tokens=routing_tokens[idx:]
+            ):
                 return True
         return False
 

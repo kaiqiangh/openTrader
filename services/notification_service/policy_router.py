@@ -34,7 +34,9 @@ class NotificationPolicyRouter:
         self._rate_events.clear()
         self._suppressed_counts = {"dedupe": 0, "rate_limit": 0}
 
-    def route(self, *, event: NotificationEvent, now_seconds: float) -> tuple[NotificationMessage, ...]:
+    def route(
+        self, *, event: NotificationEvent, now_seconds: float
+    ) -> tuple[NotificationMessage, ...]:
         active_prefs = self.preferences or (
             NotificationPreference(user_id="ops-default", min_severity=NotificationSeverity.INFO),
         )
@@ -51,7 +53,9 @@ class NotificationPolicyRouter:
                     self._suppressed_counts["dedupe"] += 1
                     continue
 
-                if not self._consume_rate_budget(user_id=pref.user_id, gateway=gateway, now_seconds=now_seconds):
+                if not self._consume_rate_budget(
+                    user_id=pref.user_id, gateway=gateway, now_seconds=now_seconds
+                ):
                     self._suppressed_counts["rate_limit"] += 1
                     continue
 
@@ -92,7 +96,6 @@ class NotificationPolicyRouter:
             return False
         entries.append(now_seconds)
         return True
-
 
 
 def _matches_preference(*, pref: NotificationPreference, event: NotificationEvent) -> bool:

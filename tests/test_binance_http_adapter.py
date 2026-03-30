@@ -6,7 +6,10 @@ import json
 import httpx
 import pytest
 
-from services.market_ingestion.binance_http_adapter import BinanceHTTPAdapterError, BinanceHTTPOrderBookClient
+from services.market_ingestion.binance_http_adapter import (
+    BinanceHTTPAdapterError,
+    BinanceHTTPOrderBookClient,
+)
 
 
 class _FakeHTTPResponse:
@@ -19,7 +22,9 @@ class _FakeHTTPResponse:
 
 
 class _FakeClient:
-    def __init__(self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]) -> None:
+    def __init__(
+        self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]
+    ) -> None:
         self._response = response
         self._captured = captured
         self._timeout = timeout
@@ -105,14 +110,36 @@ async def test_binance_http_adapter_fetches_klines(monkeypatch) -> None:
     captured: dict[str, Any] = {}
     response = _FakeHTTPResponse(
         [
-            [1739535600000, "42000.0", "42010.0", "41990.0", "42005.0", "12.5", 1739535659999, "525000.0", 120],
-            [1739535660000, "42005.0", "42015.0", "42000.0", "42012.0", "11.0", 1739535719999, "462000.0", 110],
+            [
+                1739535600000,
+                "42000.0",
+                "42010.0",
+                "41990.0",
+                "42005.0",
+                "12.5",
+                1739535659999,
+                "525000.0",
+                120,
+            ],
+            [
+                1739535660000,
+                "42005.0",
+                "42015.0",
+                "42000.0",
+                "42012.0",
+                "11.0",
+                1739535719999,
+                "462000.0",
+                110,
+            ],
         ]
     )
 
     class _FakeClientCls:
         def __init__(self, **kwargs):
-            self._inner = _FakeClient(kwargs.get("timeout"), kwargs.get("verify"), response, captured)
+            self._inner = _FakeClient(
+                kwargs.get("timeout"), kwargs.get("verify"), response, captured
+            )
 
         def __enter__(self):
             return self._inner

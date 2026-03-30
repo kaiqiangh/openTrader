@@ -38,8 +38,12 @@ def test_render_telegram_message_text_escapes_markdown_v2_reserved_chars() -> No
 class _SenderStub:
     status_code: int
 
-    async def __call__(self, *, token: str, chat_id: str, text: str, timeout_seconds: float) -> TelegramSendResult:
-        return TelegramSendResult(status_code=self.status_code, body={"ok": self.status_code == 200})
+    async def __call__(
+        self, *, token: str, chat_id: str, text: str, timeout_seconds: float
+    ) -> TelegramSendResult:
+        return TelegramSendResult(
+            status_code=self.status_code, body={"ok": self.status_code == 200}
+        )
 
 
 @pytest.mark.asyncio
@@ -58,4 +62,5 @@ async def test_telegram_gateway_maps_retryable_and_terminal_statuses() -> None:
 def test_markdown_v2_reserved_is_set():
     """_MARKDOWN_V2_RESERVED should be a set for O(1) lookup."""
     from services.notification_service.telegram_gateway import _MARKDOWN_V2_RESERVED
+
     assert isinstance(_MARKDOWN_V2_RESERVED, set)

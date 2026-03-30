@@ -45,7 +45,10 @@ def test_risk_agent_rejects_plan_when_notional_exceeds_limit() -> None:
 
     assert assessment.approved is False
     assert "notional_limit" in assessment.blocked_by
-    assert any((signal.name == "notional_limit") and (signal.passed is False) for signal in assessment.signals)
+    assert any(
+        (signal.name == "notional_limit") and (signal.passed is False)
+        for signal in assessment.signals
+    )
 
 
 def test_risk_agent_rejects_low_confidence_plan() -> None:

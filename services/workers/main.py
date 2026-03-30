@@ -16,12 +16,11 @@ from __future__ import annotations
 import asyncio
 import time
 from argparse import Namespace
-from typing import Any
 
 from services.shared.runtime.database import RuntimeDatabaseConfigError
 from services.shared.runtime.structured_logging import StructuredLogger
 from services.workers.builders import (
-    build_runtime_broker,
+    build_runtime_broker,  # noqa: F401 — re-exported for tests
     build_runtime_worker,
     _worker_idle_heartbeat_cycles,
 )
@@ -34,7 +33,6 @@ from services.workers.health import WorkerHealthServer
 from services.workers.settings import (
     RuntimeWorkerBuildResult,
     RuntimeWorkerSettings,
-    RuntimeWorkerRunner,
     _resolve_runtime_engine,
     _validate_runtime_backend_policy,
     load_runtime_worker_settings,
@@ -76,7 +74,9 @@ def _resolve_health_port(worker_name: str) -> int:
     return int(os.getenv("WORKER_HEALTH_PORT", str(defaults.get(worker_name, 8080))))
 
 
-async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult) -> int:
+async def run_worker_loop(
+    *, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult
+) -> int:
     logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     heartbeat_every = _worker_idle_heartbeat_cycles()
     registry = PrometheusRegistry()
@@ -184,7 +184,11 @@ async def _run_worker_core(
             if settings.once:
                 logger.info(
                     event="runtime.worker.exited",
-                    context={"worker": settings.worker, "reason": "once_cycle_failed", "cycle": total_cycles},
+                    context={
+                        "worker": settings.worker,
+                        "reason": "once_cycle_failed",
+                        "cycle": total_cycles,
+                    },
                 )
                 return 1
             idle_cycles += 1

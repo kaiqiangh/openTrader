@@ -6,9 +6,7 @@ def test_news_schema_migration_exists() -> None:
 
 
 def test_news_schema_migration_has_required_tables() -> None:
-    content = Path("migrations/versions/20260214_0005_news_schema.py").read_text(
-        encoding="utf-8"
-    )
+    content = Path("migrations/versions/20260214_0005_news_schema.py").read_text(encoding="utf-8")
     assert "news_items" in content
     assert "news_tags" in content
     assert "news_summaries" in content
@@ -16,9 +14,7 @@ def test_news_schema_migration_has_required_tables() -> None:
 
 
 def test_news_schema_migration_has_constraints_and_indexes() -> None:
-    content = Path("migrations/versions/20260214_0005_news_schema.py").read_text(
-        encoding="utf-8"
-    )
+    content = Path("migrations/versions/20260214_0005_news_schema.py").read_text(encoding="utf-8")
     assert "uq_news_items_source_source_item_id" in content
     assert "idx_news_items_published_at" in content
     assert "idx_news_tags_symbol_topic" in content

@@ -45,7 +45,9 @@ class _FailOnceBrokerProxy:
     async def publish(self, *, routing_key: str, message: dict[str, object]) -> object:
         return await self._broker.publish(routing_key=routing_key, message=message)
 
-    async def consume(self, *, queue_name: str, timeout_seconds: float | None = None) -> dict[str, object] | None:
+    async def consume(
+        self, *, queue_name: str, timeout_seconds: float | None = None
+    ) -> dict[str, object] | None:
         if not self._consume_failed:
             self._consume_failed = True
             raise ConnectionError("simulated broker restart")
@@ -93,7 +95,10 @@ class _SlowProvider:
     ) -> Mapping[str, object]:
         _ = model, messages, request_kwargs
         await asyncio.sleep(0.08)
-        return {"content": "slow", "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}}
+        return {
+            "content": "slow",
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+        }
 
 
 class _FastProvider:
@@ -161,8 +166,12 @@ class _FailOnceLongTermStore:
 def _gateway_settings() -> GatewaySettings:
     return GatewaySettings(
         providers={
-            "primary": ProviderSettings(alias="primary", model="gpt-4o-mini", timeout_ms=40, max_retries=1),
-            "secondary": ProviderSettings(alias="secondary", model="gpt-4o-mini", timeout_ms=40, max_retries=0),
+            "primary": ProviderSettings(
+                alias="primary", model="gpt-4o-mini", timeout_ms=40, max_retries=1
+            ),
+            "secondary": ProviderSettings(
+                alias="secondary", model="gpt-4o-mini", timeout_ms=40, max_retries=0
+            ),
         },
         default_provider_order=("primary", "secondary"),
         retry_base_ms=1,
@@ -176,7 +185,10 @@ def _llm_request() -> LLMRequest:
         decision_id="165f8cad-07b6-4f1c-9217-3e13f811f015",
         strategy_id="chaos-suite",
         agent_name="planner",
-        messages=({"role": "system", "content": "plan"}, {"role": "user", "content": "buy or sell"}),
+        messages=(
+            {"role": "system", "content": "plan"},
+            {"role": "user", "content": "buy or sell"},
+        ),
         temperature=0.2,
         max_tokens=128,
         metadata={"symbol": "BTC/USDT"},
@@ -186,7 +198,9 @@ def _llm_request() -> LLMRequest:
 @pytest.mark.asyncio
 async def test_p9_chaos_broker_restart_recovers_and_completes_dispatch() -> None:
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
-    await broker.publish(routing_key="execution.intent.mock", message=_build_mock_execution_intent())
+    await broker.publish(
+        routing_key="execution.intent.mock", message=_build_mock_execution_intent()
+    )
 
     metrics = SimulationExecutionMetrics()
     worker = SimulationExecutionWorker(
@@ -234,7 +248,9 @@ async def test_p9_chaos_exchange_disconnect_emits_alert_then_recovers() -> None:
     notification_event = await broker.consume(queue_name="notify.events.raw", timeout_seconds=0.0)
     assert notification_event is not None
     assert notification_event["event_type"] == "notify.system.event"
-    assert notification_event["payload"]["source_event_type"] == "system.exchange.connectivity_issue"
+    assert (
+        notification_event["payload"]["source_event_type"] == "system.exchange.connectivity_issue"
+    )
 
 
 @pytest.mark.asyncio

@@ -15,11 +15,21 @@ import json
 
 from services.notification_service.event_intake import NotificationEventIntake
 from services.notification_service.gateway_dispatch import GatewayDispatcher, InMemoryGateway
-from services.notification_service.models import NotificationPreference, NotificationProcessingResult
-from services.notification_service.observability import NotificationObservabilityCollector, utc_now_iso
+from services.notification_service.models import (
+    NotificationPreference,
+    NotificationProcessingResult,
+)
+from services.notification_service.observability import (
+    NotificationObservabilityCollector,
+    utc_now_iso,
+)
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.service import NotificationService
-from services.notification_service.settings import NotificationSettingsError, NotificationWorkerSettings, load_notification_worker_settings
+from services.notification_service.settings import (
+    NotificationSettingsError,
+    NotificationWorkerSettings,
+    load_notification_worker_settings,
+)
 from services.shared.runtime.broker import InMemoryTopicBroker
 from services.shared.runtime.prometheus import PrometheusRegistry
 from services.shared.runtime.structured_logging import StructuredLogger
@@ -31,7 +41,9 @@ _WORKER_DELIVERY_METRIC = "open_trader_notification_delivery_results_total"
 
 
 class NotificationEnvelopeConsumer(Protocol):
-    async def consume(self, *, queue_name: str, timeout_seconds: float) -> Mapping[str, Any] | None: ...
+    async def consume(
+        self, *, queue_name: str, timeout_seconds: float
+    ) -> Mapping[str, Any] | None: ...
 
 
 class InMemoryNotificationEnvelopeConsumer:
@@ -369,7 +381,9 @@ async def run_worker_loop(
 ) -> int:
     startup_logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     if not settings.enabled:
-        startup_logger.info(event="notification.worker.disabled", context={"reason": "NOTIFY_ENABLED=false"})
+        startup_logger.info(
+            event="notification.worker.disabled", context={"reason": "NOTIFY_ENABLED=false"}
+        )
         return 0
 
     worker = build_notification_worker_from_settings(settings=settings)
@@ -423,8 +437,14 @@ def main(argv: list[str] | None = None) -> int:
 def _build_gateway(*, settings: NotificationWorkerSettings) -> Any:
     if settings.default_gateway == "telegram":
         if not settings.telegram_bot_token or not settings.telegram_default_chat_id:
-            raise NotificationSettingsError("telegram gateway enabled but telegram secrets are missing")
-        from services.notification_service.telegram_gateway import TelegramGateway, TelegramGatewayConfig
+            raise NotificationSettingsError(
+                "telegram gateway enabled but telegram secrets are missing"
+            )
+        from services.notification_service.telegram_gateway import (
+            TelegramGateway,
+            TelegramGatewayConfig,
+        )
+
         return TelegramGateway(
             config=TelegramGatewayConfig(
                 bot_token=settings.telegram_bot_token,
@@ -435,6 +455,7 @@ def _build_gateway(*, settings: NotificationWorkerSettings) -> Any:
 
     if settings.default_gateway == "email":
         from services.notification_service.email_gateway import load_email_gateway_from_env
+
         gateway = load_email_gateway_from_env()
         if gateway is None:
             raise NotificationSettingsError("email gateway enabled but SMTP settings are missing")
@@ -442,10 +463,15 @@ def _build_gateway(*, settings: NotificationWorkerSettings) -> Any:
 
     if settings.default_gateway == "webhook":
         import os
+
         webhook_url = os.getenv("WEBHOOK_URL", "").strip()
         if not webhook_url:
             raise NotificationSettingsError("webhook gateway enabled but WEBHOOK_URL is missing")
-        from services.notification_service.webhook_gateway import WebhookGateway, WebhookGatewayConfig
+        from services.notification_service.webhook_gateway import (
+            WebhookGateway,
+            WebhookGatewayConfig,
+        )
+
         webhook_secret = os.getenv("WEBHOOK_SECRET", "").strip()
         return WebhookGateway(
             config=WebhookGatewayConfig(
@@ -510,7 +536,9 @@ def _default_rabbitmq_http_fetch(
             raw = response.text
     except httpx.HTTPStatusError as exc:
         body = exc.response.text
-        raise RabbitMQHTTPPollingError(status_code=int(exc.response.status_code), body=body) from exc
+        raise RabbitMQHTTPPollingError(
+            status_code=int(exc.response.status_code), body=body
+        ) from exc
     except httpx.HTTPError as exc:
         raise NotificationSettingsError(f"RabbitMQ HTTP polling failed: {exc}") from exc
 
@@ -550,7 +578,9 @@ def _default_rabbitmq_http_declare_queue(
             return
     except httpx.HTTPStatusError as exc:
         body = exc.response.text
-        raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc.response.status_code} {body}") from exc
+        raise NotificationSettingsError(
+            f"RabbitMQ queue declare failed: {exc.response.status_code} {body}"
+        ) from exc
     except httpx.HTTPError as exc:
         raise NotificationSettingsError(f"RabbitMQ queue declare failed: {exc}") from exc
 

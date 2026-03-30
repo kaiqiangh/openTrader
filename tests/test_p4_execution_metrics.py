@@ -11,7 +11,9 @@ from services.simulation_execution.safety_guard import SimulationSafetyViolation
 from services.simulation_execution.worker import SimulationExecutionWorker
 
 
-def _intent_envelope(*, mode: str = "MOCK", action: str = "BUY", quantity: float = 0.2) -> dict[str, object]:
+def _intent_envelope(
+    *, mode: str = "MOCK", action: str = "BUY", quantity: float = 0.2
+) -> dict[str, object]:
     return {
         "trace_id": str(uuid.uuid4()),
         "decision_id": str(uuid.uuid4()),

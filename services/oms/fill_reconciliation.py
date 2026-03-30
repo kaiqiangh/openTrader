@@ -7,7 +7,9 @@ from typing import Iterable, Final
 from services.oms.state_machine import TERMINAL_STATES, normalize_state
 
 _EPSILON: Final[Decimal] = Decimal("1e-9")
-_MIN_FILL_GAP: Final[Decimal] = Decimal("1e-6")  # Minimum fill quantity gap to trigger exchange fallback
+_MIN_FILL_GAP: Final[Decimal] = Decimal(
+    "1e-6"
+)  # Minimum fill quantity gap to trigger exchange fallback
 _EVENT_STATUS_MAP: Final[dict[str, str]] = {
     "oms.order.created": "OPEN",
     "oms.order.submitted": "SUBMITTED",
@@ -112,13 +114,17 @@ class FillReconciliationEngine:
             used_exchange_fallback = True
             snapshot_status = normalize_state(exchange_snapshot.status)
             merged_status = _pick_status([merged_status, snapshot_status])
-            merged_fills = _dedupe_fills([*merged_fills, *(_normalize_fill(fill) for fill in exchange_snapshot.fills)])
+            merged_fills = _dedupe_fills(
+                [*merged_fills, *(_normalize_fill(fill) for fill in exchange_snapshot.fills)]
+            )
 
         filled_quantity = _filled_quantity(merged_fills)
         if filled_quantity <= _EPSILON:
             filled_quantity = max(Decimal("0"), order.filled_quantity)
             if exchange_snapshot is not None:
-                filled_quantity = max(filled_quantity, max(Decimal("0"), exchange_snapshot.filled_quantity))
+                filled_quantity = max(
+                    filled_quantity, max(Decimal("0"), exchange_snapshot.filled_quantity)
+                )
 
         average_price = _weighted_average_price(merged_fills)
         if average_price is None:
@@ -192,12 +198,17 @@ def _requires_fallback(
             return True
         return False
 
-    if normalized_snapshot_status in TERMINAL_STATES and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]:
+    if (
+        normalized_snapshot_status in TERMINAL_STATES
+        and _STATUS_PRIORITY[normalized_snapshot_status] > _STATUS_PRIORITY[current_status]
+    ):
         return True
     return snapshot_filled > (queue_filled + _MIN_FILL_GAP)
 
 
-def _derive_status(*, base_status: str, requested_quantity: Decimal, filled_quantity: Decimal) -> str:
+def _derive_status(
+    *, base_status: str, requested_quantity: Decimal, filled_quantity: Decimal
+) -> str:
     normalized = normalize_state(base_status)
     if requested_quantity <= _EPSILON:
         return normalized

@@ -88,7 +88,9 @@ def test_risk_policy_denies_when_kill_switch_enabled() -> None:
     )
 
     config = RiskPolicyConfig(
-        core=CoreRiskConfig(max_position_abs=2.0, max_symbol_notional_usd=10_000.0, max_leverage=5.0),
+        core=CoreRiskConfig(
+            max_position_abs=2.0, max_symbol_notional_usd=10_000.0, max_leverage=5.0
+        ),
         guards=DrawdownDailyLossConfig(max_drawdown_pct=0.5, max_daily_loss_usd=1_000.0),
     )
     engine = RiskPolicyEngine(config=config, controls=controls)

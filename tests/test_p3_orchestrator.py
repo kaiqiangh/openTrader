@@ -26,7 +26,9 @@ class _FakeRedisMemoryStore:
         self.read_calls: list[dict[str, str]] = []
         self.write_calls: list[dict[str, str]] = []
 
-    async def read_slots(self, *, mode: str, strategy_id: str, decision_id: str) -> dict[str, object]:
+    async def read_slots(
+        self, *, mode: str, strategy_id: str, decision_id: str
+    ) -> dict[str, object]:
         self.read_calls.append(
             {"mode": mode, "strategy_id": strategy_id, "decision_id": decision_id}
         )
@@ -119,7 +121,9 @@ async def test_orchestrator_consumes_market_event_and_publishes_lifecycle_and_in
     publisher = _FakePublisher()
     orchestrator = AgentOrchestrator(publisher=publisher)
 
-    result = await orchestrator.handle_market_event(_market_event(mode="MOCK"), strategy=_strategy())
+    result = await orchestrator.handle_market_event(
+        _market_event(mode="MOCK"), strategy=_strategy()
+    )
 
     assert result.status == "RISK_APPROVED"
     assert [item["event_type"] for item in result.lifecycle] == [
@@ -132,7 +136,9 @@ async def test_orchestrator_consumes_market_event_and_publishes_lifecycle_and_in
         "agent.decision.intent_published",
     ]
 
-    intent_messages = [item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"]
+    intent_messages = [
+        item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"
+    ]
     assert len(intent_messages) == 1
     intent_envelope = intent_messages[0]["message"]
     assert intent_envelope["payload"]["action"] in {"BUY", "SELL", "HOLD", "CLOSE"}
@@ -162,7 +168,9 @@ async def test_orchestrator_marks_decision_rejected_when_risk_fails() -> None:
     assert "agent.decision.guardrail_passed" in [item["event_type"] for item in result.lifecycle]
     assert result.execution_decision is not None
     assert result.execution_decision.action == "HOLD"
-    intent_messages = [item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"]
+    intent_messages = [
+        item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"
+    ]
     assert intent_messages == []
 
 
@@ -179,7 +187,9 @@ async def test_orchestrator_marks_guardrail_rejected_when_symbol_constraint_fail
     assert result.status == "GUARDRAIL_REJECTED"
     assert "agent.decision.guardrail_rejected" in [item["event_type"] for item in result.lifecycle]
     assert "symbol_constraint" in result.guardrail.blocked_by
-    intent_messages = [item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"]
+    intent_messages = [
+        item for item in publisher.messages if item["routing_key"] == "execution.intent.mock"
+    ]
     assert intent_messages == []
 
 
@@ -201,7 +211,9 @@ async def test_orchestrator_persists_short_and_long_term_memory() -> None:
     memory_layer = AgentMemoryLayer(short_term_store=redis_store, long_term_store=postgres_store)
     orchestrator = AgentOrchestrator(publisher=publisher, memory_layer=memory_layer)
 
-    result = await orchestrator.handle_market_event(_market_event(mode="MOCK"), strategy=_strategy())
+    result = await orchestrator.handle_market_event(
+        _market_event(mode="MOCK"), strategy=_strategy()
+    )
 
     assert redis_store.read_calls == [
         {
@@ -235,7 +247,13 @@ async def test_orchestrator_records_stage_latency_metrics() -> None:
     snapshot = metrics.snapshot()
 
     stage_names = set(snapshot["agent_stages"].keys())
-    assert {"market_context_agent", "planner_agent", "risk_agent", "execution_decision_agent", "guardrail_validation"}.issubset(stage_names)
+    assert {
+        "market_context_agent",
+        "planner_agent",
+        "risk_agent",
+        "execution_decision_agent",
+        "guardrail_validation",
+    }.issubset(stage_names)
     assert snapshot["agent_stages"]["planner_agent"]["runs_total"] == 1
     assert snapshot["agent_stages"]["planner_agent"]["failures_total"] == 0
 

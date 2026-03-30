@@ -6,7 +6,9 @@ from services.agent_orchestrator.metrics_tracing import AgentRuntimeMetrics
 from services.workers.main import _build_llm_runtime
 
 
-def test_build_llm_runtime_defaults_to_default_alias_with_deepseek_normalization(monkeypatch) -> None:
+def test_build_llm_runtime_defaults_to_default_alias_with_deepseek_normalization(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("LLM_RUNTIME_ENABLED", "true")
     monkeypatch.setenv("LLM_BASE_URL", "https://api.deepseek.com")
     monkeypatch.setenv("LLM_MODEL", "deepseek-chat")

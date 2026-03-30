@@ -21,7 +21,6 @@ from services.workers.helpers import (
     _parse_csv_tokens,
     _to_bool,
     _utc_now_iso,
-    _worker_activity_snapshot,
 )
 from services.workers.runtime_pipeline import AgentOrchestratorRuntimeWorker
 
@@ -53,12 +52,20 @@ def _build_llm_runtime(
     if not base_url:
         return None
 
-    timeout_seconds = max(0.1, float(os.getenv("LLM_TIMEOUT_SECONDS", os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0"))))
+    timeout_seconds = max(
+        0.1, float(os.getenv("LLM_TIMEOUT_SECONDS", os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0")))
+    )
     timeout_ms = max(1, int(timeout_seconds * 1000))
     retries = max(0, int(os.getenv("LLM_PROVIDER_MAX_RETRIES", "1")))
 
-    quick_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "default")))
-    deep_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "default")))
+    quick_order = tuple(
+        token.lower()
+        for token in _parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "default"))
+    )
+    deep_order = tuple(
+        token.lower()
+        for token in _parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "default"))
+    )
     default_order = quick_order or ("default",)
     normalized_model = _normalize_llm_model(
         base_url=base_url,
@@ -214,13 +221,15 @@ def _extract_llm_provider_tags(*rationales: tuple[str, ...]) -> tuple[str, ...]:
             value = str(item).strip()
             if not value.startswith(prefix):
                 continue
-            provider_model = value[len(prefix):].strip()
+            provider_model = value[len(prefix) :].strip()
             if provider_model:
                 tags.append(provider_model)
     return tuple(dict.fromkeys(tags))
 
 
-def _decision_spans(worker: AgentOrchestratorRuntimeWorker, *, decision_id: str) -> tuple[Mapping[str, Any], ...]:
+def _decision_spans(
+    worker: AgentOrchestratorRuntimeWorker, *, decision_id: str
+) -> tuple[Mapping[str, Any], ...]:
     snapshot = worker.orchestrator.metrics.snapshot()
     spans = snapshot.get("recent_spans")
     if not isinstance(spans, list):
@@ -242,9 +251,16 @@ def _build_trace_runs(
     last_market_envelope: Mapping[str, Any] | None,
     recent_spans: tuple[Mapping[str, Any], ...],
 ) -> tuple[TraceAgentRun, ...]:
-    span_by_stage = {str(item.get("stage", "")): item for item in recent_spans if isinstance(item, Mapping)}
+    span_by_stage = {
+        str(item.get("stage", "")): item for item in recent_spans if isinstance(item, Mapping)
+    }
     ordered_stages = (
-        ("market_context_agent", "context", _context_stage_input(last_market_envelope), _context_stage_output(result)),
+        (
+            "market_context_agent",
+            "context",
+            _context_stage_input(last_market_envelope),
+            _context_stage_output(result),
+        ),
         ("planner_agent", "planner", _planner_stage_input(result), _planner_stage_output(result)),
         ("risk_agent", "risk", _risk_stage_input(result, strategy), _risk_stage_output(result)),
         (
@@ -253,7 +269,12 @@ def _build_trace_runs(
             _execution_stage_input(result),
             _execution_stage_output(result),
         ),
-        ("guardrail_validation", "guardrail", _guardrail_stage_input(result), _guardrail_stage_output(result)),
+        (
+            "guardrail_validation",
+            "guardrail",
+            _guardrail_stage_input(result),
+            _guardrail_stage_output(result),
+        ),
     )
     runs: list[TraceAgentRun] = []
     for stage_key, agent_name, input_payload, output_payload in ordered_stages:
@@ -374,7 +395,9 @@ def _decision_completed_at(lifecycle: tuple[Mapping[str, Any], ...]) -> str:
     return _utc_now_iso()
 
 
-def _decision_news_links(last_market_envelope: Mapping[str, Any] | None) -> tuple[tuple[str, str], ...]:
+def _decision_news_links(
+    last_market_envelope: Mapping[str, Any] | None,
+) -> tuple[tuple[str, str], ...]:
     from services.workers.helpers import _maybe_uuid
 
     if not isinstance(last_market_envelope, Mapping):
@@ -429,6 +452,7 @@ def _safe_list(value: Any) -> list[Any]:
 
 # ── OrchestratorWorkerRunner ──────────────────────────────────────────────────
 
+
 class OrchestratorWorkerRunner:
     def __init__(
         self,
@@ -448,7 +472,10 @@ class OrchestratorWorkerRunner:
             timeout_seconds=timeout_seconds,
         )
         if result is None:
-            self._last_activity = {"event": "no_market_event", "strategy_id": self.strategy.strategy_id}
+            self._last_activity = {
+                "event": "no_market_event",
+                "strategy_id": self.strategy.strategy_id,
+            }
             return False
         if self.trace_store is not None:
             await self.trace_store.persist_cycle(

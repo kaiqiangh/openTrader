@@ -23,7 +23,9 @@ _DEFAULT_EXCHANGE_BY_PREFIX: dict[str, str] = {
 
 
 class RabbitMQHTTPBrokerError(RuntimeError):
-    def __init__(self, *, message: str, status_code: int | None = None, body: str | None = None) -> None:
+    def __init__(
+        self, *, message: str, status_code: int | None = None, body: str | None = None
+    ) -> None:
         self.status_code = status_code
         self.body = body
         suffix = ""
@@ -176,7 +178,9 @@ class RabbitMQHTTPTopicBroker:
             self.request_timeout_seconds,
         )
 
-    async def consume(self, *, queue_name: str, timeout_seconds: float | None = None) -> dict[str, Any] | None:
+    async def consume(
+        self, *, queue_name: str, timeout_seconds: float | None = None
+    ) -> dict[str, Any] | None:
         _ = timeout_seconds
         try:
             rows = await asyncio.to_thread(
@@ -371,7 +375,9 @@ def _default_rabbitmq_http_declare_exchange(
 ) -> None:
     exchange_ref = parse.quote(exchange_name, safe="")
     url = f"{api_base_url}/exchanges/%2F/{exchange_ref}"
-    payload = json.dumps({"type": "topic", "durable": True, "auto_delete": False, "arguments": {}}).encode("utf-8")
+    payload = json.dumps(
+        {"type": "topic", "durable": True, "auto_delete": False, "arguments": {}}
+    ).encode("utf-8")
     _request_json(
         url=url,
         username=username,
@@ -451,7 +457,9 @@ def _match_tokens(*, pattern_tokens: list[str], routing_tokens: list[str]) -> bo
         if len(pattern_tokens) == 1:
             return True
         for idx in range(len(routing_tokens) + 1):
-            if _match_tokens(pattern_tokens=pattern_tokens[1:], routing_tokens=routing_tokens[idx:]):
+            if _match_tokens(
+                pattern_tokens=pattern_tokens[1:], routing_tokens=routing_tokens[idx:]
+            ):
                 return True
         return False
 

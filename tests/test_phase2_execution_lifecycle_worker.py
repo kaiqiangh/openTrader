@@ -14,7 +14,9 @@ from services.workers.execution_lifecycle import (
 
 
 class _ScriptedPrivateConnector:
-    def __init__(self, *, scripted_batches: tuple[tuple[LifecycleStatusSnapshot, ...], ...]) -> None:
+    def __init__(
+        self, *, scripted_batches: tuple[tuple[LifecycleStatusSnapshot, ...], ...]
+    ) -> None:
         self._batches = deque(scripted_batches)
 
     @property

@@ -15,16 +15,20 @@ from services.api.repositories import ControlPlaneRepository
 from services.api.settings import APISettings
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
+
 def _settings() -> APISettings:
     return make_test_settings(read_only_mode=False)
+
 
 def _repository(tmp_path) -> ControlPlaneRepository:
     db_path = tmp_path / "runtime_truth.db"
     engine = create_engine(f"sqlite+pysqlite:///{db_path}", future=True)
     return ControlPlaneRepository(engine=engine)
+
 
 def test_control_mode_and_strategy_changes_are_restart_safe(tmp_path) -> None:
     settings = _settings()
@@ -63,6 +67,7 @@ def test_control_mode_and_strategy_changes_are_restart_safe(tmp_path) -> None:
     assert btc["state"] == "DISABLED"
     assert btc["mode"] == "REAL"
 
+
 def test_notification_preferences_are_restart_safe(tmp_path) -> None:
     settings = _settings()
     repo = _repository(tmp_path)
@@ -95,6 +100,7 @@ def test_notification_preferences_are_restart_safe(tmp_path) -> None:
     assert listing.status_code == 200
     assert len(listing.json()["items"]) == 1
     assert listing.json()["items"][0]["user_id"] == "ops-primary"
+
 
 def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None:
     settings = _settings()
@@ -260,8 +266,8 @@ def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None
                 "snapshot_time": "2026-02-19T19:00:01Z",
                 "exchange": "binance",
                 "symbol": "BTC/USDT",
-                "bids": "[{\"price\":50049.0,\"amount\":1.5}]",
-                "asks": "[{\"price\":50051.0,\"amount\":1.2}]",
+                "bids": '[{"price":50049.0,"amount":1.5}]',
+                "asks": '[{"price":50051.0,"amount":1.2}]',
                 "best_bid": 50049.0,
                 "best_ask": 50051.0,
                 "spread_bps": 0.399,

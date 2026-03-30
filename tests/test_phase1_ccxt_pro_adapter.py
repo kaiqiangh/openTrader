@@ -16,7 +16,9 @@ class _FakeRestClient:
             "asks": [[50001.0, 1.1]],
         }
 
-    async def fetch_klines(self, symbol: str, *, interval: str, limit: int = 200) -> tuple[dict[str, Any], ...]:
+    async def fetch_klines(
+        self, symbol: str, *, interval: str, limit: int = 200
+    ) -> tuple[dict[str, Any], ...]:
         return (
             {
                 "open_time_ms": 1739535600000,
@@ -43,8 +45,12 @@ class _FakeWsClient:
 
 
 @pytest.mark.asyncio
-async def test_ccxt_pro_adapter_falls_back_to_direct_clients_when_library_missing(monkeypatch) -> None:
-    monkeypatch.setattr("importlib.import_module", lambda name: (_ for _ in ()).throw(ImportError("missing")))
+async def test_ccxt_pro_adapter_falls_back_to_direct_clients_when_library_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "importlib.import_module", lambda name: (_ for _ in ()).throw(ImportError("missing"))
+    )
     client = CCXTProOrderBookClient(
         exchange="binance",
         fallback_rest_client=_FakeRestClient(),

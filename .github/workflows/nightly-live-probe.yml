@@ -17,7 +17,8 @@ jobs:
       LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
       LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
       LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
-      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+      JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+      JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
       ENCRYPTION_KEY_BASE64: ${{ secrets.ENCRYPTION_KEY_BASE64 }}
       RUNTIME_BROKER_BACKEND: rabbitmq_http
       RUNTIME_REQUIRE_DATABASE: "true"
@@ -38,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for key in LITELLM_BASE_URL LITELLM_API_KEY JWT_SECRET_KEY ENCRYPTION_KEY_BASE64; do
+          for key in LITELLM_BASE_URL LITELLM_API_KEY JWT_PRIVATE_KEY ENCRYPTION_KEY_BASE64; do
             if [ -z "${!key:-}" ]; then
               echo "::error::Missing required secret/env: ${key}"
               missing=1

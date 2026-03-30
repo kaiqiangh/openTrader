@@ -58,7 +58,9 @@ def load_api_settings() -> APISettings:
         litellm_base_url=os.getenv("LLM_BASE_URL", os.getenv("LITELLM_BASE_URL", "")).strip(),
         llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "default")),
         llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "default")),
-        read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"),
+        read_only_mode=_parse_bool(
+            os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"
+        ),
         strict_database_mode=_parse_bool(
             os.getenv("API_STRICT_DATABASE_MODE", "true"),
             setting_name="API_STRICT_DATABASE_MODE",

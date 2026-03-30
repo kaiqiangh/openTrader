@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 import hashlib
@@ -18,6 +19,7 @@ _NEWS_SOURCE_ITEM_ID_MAX_LEN = 128
 
 # ── Time helpers ──────────────────────────────────────────────────────────────
 
+
 def _utc_now_ms() -> int:
     return int(datetime.now(timezone.utc).timestamp() * 1000)
 
@@ -27,6 +29,7 @@ def _utc_now_iso() -> str:
 
 
 # ── Value coercion ────────────────────────────────────────────────────────────
+
 
 def _to_bool(value: str) -> bool:
     normalized = value.strip().lower()
@@ -73,6 +76,7 @@ def _resolve_requested_quantity(raw_quantity: float | None) -> Decimal:
 
 # ── Mapping / collection safety ───────────────────────────────────────────────
 
+
 def _safe_mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
@@ -86,6 +90,7 @@ def _safe_list(value: Any) -> list[Any]:
 
 
 # ── Worker observability ──────────────────────────────────────────────────────
+
 
 def _worker_activity_snapshot(worker: Any) -> dict[str, Any]:
     snapshot_fn = getattr(worker, "activity_snapshot", None)
@@ -136,6 +141,7 @@ def _find_nested_activity_value(payload: Any, key: str, *, depth: int = 0) -> st
 
 # ── Market helpers ────────────────────────────────────────────────────────────
 
+
 def _normalize_market_fetch_mode(value: str) -> str:
     normalized = value.strip().lower()
     if normalized in {"rest", "restful", "http"}:
@@ -166,6 +172,7 @@ def _resolve_market_symbols(*, default_symbol: str) -> tuple[str, ...]:
 
 
 # ── News helpers ──────────────────────────────────────────────────────────────
+
 
 def _resolve_news_source_mode(*, require_database: bool) -> str:
     configured = os.getenv("NEWS_SOURCE_MODE", "").strip().lower()

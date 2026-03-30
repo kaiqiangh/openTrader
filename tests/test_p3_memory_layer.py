@@ -140,4 +140,3 @@ async def test_memory_layer_persists_long_term_summary() -> None:
     stored = postgres_store.records["decision-3"]
     assert stored.summary["execution_decision"]["action"] == "BUY"
     assert stored.summary["guardrail"]["allowed"] is True
-

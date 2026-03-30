@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from services.news_ingestion.ingestion_service import NewsIngestionBatchResult, NewsIngestionOutcome, NormalizedNewsItem
+from services.news_ingestion.ingestion_service import (
+    NewsIngestionBatchResult,
+    NewsIngestionOutcome,
+    NormalizedNewsItem,
+)
 from services.news_ingestion.quality_metrics import NewsQualityMetrics
 from services.news_summarizer.summarizer_service import NewsSummaryArtifact
 
@@ -24,7 +28,9 @@ def _item(*, news_id: str, published_at: str) -> NormalizedNewsItem:
 def test_quality_metrics_snapshot_exposes_coverage_freshness_lag_and_error_rate() -> None:
     metrics = NewsQualityMetrics()
 
-    metrics.record_connector_cycle(sources_total=4, degraded_sources=("rss-bad", "api-bad"), now_seconds=100.0)
+    metrics.record_connector_cycle(
+        sources_total=4, degraded_sources=("rss-bad", "api-bad"), now_seconds=100.0
+    )
     metrics.record_connector_cycle(sources_total=4, degraded_sources=(), now_seconds=110.0)
 
     batch = NewsIngestionBatchResult(
@@ -32,9 +38,27 @@ def test_quality_metrics_snapshot_exposes_coverage_freshness_lag_and_error_rate(
         inserted_count=2,
         duplicate_count=1,
         outcomes=(
-            NewsIngestionOutcome(source="rss-main", source_item_id="a", inserted=True, dedupe_reason=None, item=_item(news_id="n1", published_at="2026-02-14T19:00:00Z")),
-            NewsIngestionOutcome(source="api-main", source_item_id="b", inserted=True, dedupe_reason=None, item=_item(news_id="n2", published_at="2026-02-14T19:05:00Z")),
-            NewsIngestionOutcome(source="api-main", source_item_id="c", inserted=False, dedupe_reason="duplicate_hash", item=None),
+            NewsIngestionOutcome(
+                source="rss-main",
+                source_item_id="a",
+                inserted=True,
+                dedupe_reason=None,
+                item=_item(news_id="n1", published_at="2026-02-14T19:00:00Z"),
+            ),
+            NewsIngestionOutcome(
+                source="api-main",
+                source_item_id="b",
+                inserted=True,
+                dedupe_reason=None,
+                item=_item(news_id="n2", published_at="2026-02-14T19:05:00Z"),
+            ),
+            NewsIngestionOutcome(
+                source="api-main",
+                source_item_id="c",
+                inserted=False,
+                dedupe_reason="duplicate_hash",
+                item=None,
+            ),
         ),
     )
     metrics.record_ingestion_batch(batch)

@@ -155,7 +155,9 @@ def build_runtime_worker(
         rss_feeds = _parse_csv_tokens(os.getenv("NEWS_RSS_FEEDS")) or _default_news_rss_feeds()
         fetch_timeout_seconds = max(1.0, float(os.getenv("NEWS_FETCH_TIMEOUT_SECONDS", "8.0")))
         x_enabled = _to_bool(os.getenv("NEWS_ENABLE_X_PROVIDER", "false"))
-        x_api_base_url = os.getenv("NEWS_X_API_BASE_URL", "https://api.x.com/2/tweets/search/recent")
+        x_api_base_url = os.getenv(
+            "NEWS_X_API_BASE_URL", "https://api.x.com/2/tweets/search/recent"
+        )
         x_bearer_token = os.getenv("NEWS_X_BEARER_TOKEN")
         x_query = os.getenv("NEWS_X_QUERY", "bitcoin OR ethereum OR solana")
         if runtime_engine is None:
@@ -209,11 +211,17 @@ def _build_market_worker(
     kline_poll_interval_seconds = max(1.0, float(os.getenv("KLINE_POLL_INTERVAL_SECONDS", "60")))
     kline_fetch_limit = max(1, int(os.getenv("KLINE_FETCH_LIMIT", "200")))
     ws_stale_after_seconds = max(0.0, float(os.getenv("MARKET_WS_STALE_AFTER_SECONDS", "15.0")))
-    ws_probe_interval_seconds = max(0.1, float(os.getenv("MARKET_WS_PROBE_INTERVAL_SECONDS", "5.0")))
+    ws_probe_interval_seconds = max(
+        0.1, float(os.getenv("MARKET_WS_PROBE_INTERVAL_SECONDS", "5.0"))
+    )
     exchanges = _resolve_market_exchanges()
     symbols = _resolve_market_symbols(default_symbol=settings.symbol)
 
-    state_store = SQLAlchemyRuntimeMarketStore(connection=runtime_engine) if runtime_engine is not None else None
+    state_store = (
+        SQLAlchemyRuntimeMarketStore(connection=runtime_engine)
+        if runtime_engine is not None
+        else None
+    )
     workers: list[MarketIngestionRuntimeWorker] = []
     for exchange in exchanges:
         if settings.require_database:
@@ -277,14 +285,21 @@ def _build_market_worker(
     return MultiExchangeMarketIngestionRuntimeWorker(workers=tuple(workers))
 
 
-def _build_execution_lifecycle_worker(*, broker: Any, timeout_seconds: float) -> ExecutionLifecycleWorker:
+def _build_execution_lifecycle_worker(
+    *, broker: Any, timeout_seconds: float
+) -> ExecutionLifecycleWorker:
     private_stream_enabled = _to_bool(os.getenv("EXECUTION_PRIVATE_STREAM_ENABLED", "true"))
     private_stream_exchanges = _parse_csv_tokens(os.getenv("EXECUTION_PRIVATE_STREAM_EXCHANGES"))
     if not private_stream_exchanges:
         private_stream_exchanges = _resolve_market_exchanges()
     private_watch_timeout = max(
         0.1,
-        float(os.getenv("EXECUTION_PRIVATE_STREAM_WATCH_TIMEOUT_SECONDS", str(max(0.1, timeout_seconds or 0.6)))),
+        float(
+            os.getenv(
+                "EXECUTION_PRIVATE_STREAM_WATCH_TIMEOUT_SECONDS",
+                str(max(0.1, timeout_seconds or 0.6)),
+            )
+        ),
     )
     if private_stream_enabled:
         private_stream_connector = CCXTProPrivateOrderStreamConnector(
@@ -294,7 +309,9 @@ def _build_execution_lifecycle_worker(*, broker: Any, timeout_seconds: float) ->
     else:
         private_stream_connector = NoopPrivateOrderStreamConnector()
 
-    lifecycle_queue_name = os.getenv("EXECUTION_LIFECYCLE_INTENT_QUEUE", "execution.intent.real.lifecycle").strip()
+    lifecycle_queue_name = os.getenv(
+        "EXECUTION_LIFECYCLE_INTENT_QUEUE", "execution.intent.real.lifecycle"
+    ).strip()
     if not lifecycle_queue_name:
         lifecycle_queue_name = "execution.intent.real.lifecycle"
     return ExecutionLifecycleWorker(

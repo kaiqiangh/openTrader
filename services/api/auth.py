@@ -107,18 +107,26 @@ def refresh_access_token(*, refresh_token: str, settings: APISettings) -> dict[s
             options={"require": ["exp", "sub", "type", "jti"], "verify_exp": True},
         )
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired"
+        )
     except jwt.InvalidTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid refresh token: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid refresh token: {exc}"
+        )
 
     # Verify it's a refresh token
     if payload.get("type") != "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not a refresh token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not a refresh token"
+        )
 
     # Check revocation
     jti = str(payload.get("jti", ""))
     if _is_jti_revoked(jti):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked"
+        )
 
     # Issue new token pair (rotation — old refresh token is revoked)
     _revoke_jti(jti)
@@ -232,9 +240,13 @@ def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrin
     except jwt.InvalidIssuerError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT issuer mismatch")
     except jwt.InvalidAudienceError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT audience mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT audience mismatch"
+        )
     except jwt.InvalidSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid JWT signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid JWT signature"
+        )
     except jwt.DecodeError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Malformed JWT")
     except jwt.InvalidTokenError:
@@ -255,19 +267,28 @@ def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrin
     subject = str(payload.get("sub", "")).strip()
     role = str(payload.get("role", "")).strip().lower()
     if not subject:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT missing sub claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT missing sub claim"
+        )
     if role not in {item.value for item in UserRole}:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT has invalid role claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT has invalid role claim"
+        )
 
     # Only accept access tokens for API authentication (not refresh tokens)
     token_type = payload.get("type", "access")
     if token_type != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh tokens cannot be used for API access")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh tokens cannot be used for API access",
+        )
 
     # Check if token has been revoked
     jti = payload.get("jti")
     if jti and _is_jti_revoked(str(jti)):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
+        )
 
     return AuthPrincipal(user_id=subject, role=UserRole(role))
 
@@ -279,7 +300,13 @@ def _validate_token_lifetime(*, payload: dict[str, object], settings: APISetting
 
     iat = payload.get("iat")
     not_before = payload.get("nbf")
-    issued_at = iat if isinstance(iat, (int, float)) else not_before if isinstance(not_before, (int, float)) else None
+    issued_at = (
+        iat
+        if isinstance(iat, (int, float))
+        else not_before
+        if isinstance(not_before, (int, float))
+        else None
+    )
     if issued_at is not None:
         lifetime_seconds = int(exp) - int(issued_at)
         max_lifetime_seconds = settings.jwt_max_lifetime_hours * 3600
@@ -295,7 +322,13 @@ def _warn_if_long_lived(*, payload: dict[str, object]) -> None:
     exp = payload.get("exp")
     iat = payload.get("iat")
     not_before = payload.get("nbf")
-    issued_at = iat if isinstance(iat, (int, float)) else not_before if isinstance(not_before, (int, float)) else None
+    issued_at = (
+        iat
+        if isinstance(iat, (int, float))
+        else not_before
+        if isinstance(not_before, (int, float))
+        else None
+    )
     if isinstance(exp, (int, float)) and isinstance(issued_at, (int, float)):
         lifetime_seconds = int(exp) - int(issued_at)
         if lifetime_seconds > 900:

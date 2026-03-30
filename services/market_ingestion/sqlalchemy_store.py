@@ -24,7 +24,9 @@ class SQLiteTimeseriesStore:
         if isinstance(connection, Connection):
             self._engine = connection.engine
             return
-        raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+        raise TypeError(
+            "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+        )
 
     async def upsert_orderbook_snapshot(self, row: dict[str, Any]) -> None:
         snapshot_time = _as_iso(row.get("snapshot_time")) or _utc_now_iso()
@@ -60,7 +62,9 @@ class SQLiteTimeseriesStore:
 
     async def upsert_kline(self, row: dict[str, Any]) -> None:
         interval = _normalize_interval(row)
-        open_time = _as_iso(row.get("open_time")) or _as_iso(row.get("open_time_ms")) or _utc_now_iso()
+        open_time = (
+            _as_iso(row.get("open_time")) or _as_iso(row.get("open_time_ms")) or _utc_now_iso()
+        )
 
         self._execute(
             """

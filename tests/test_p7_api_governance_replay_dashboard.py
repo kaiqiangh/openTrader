@@ -1,22 +1,28 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
 from services.agent_orchestrator.memory_layer import DecisionMemoryRecord
-from services.agent_orchestrator.replay_service import AgentMessageRecord, AgentRunRecord, DecisionTraceRecord
+from services.agent_orchestrator.replay_service import (
+    AgentMessageRecord,
+    AgentRunRecord,
+    DecisionTraceRecord,
+)
 from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
 from services.llm_gateway.persistence import LLMCallRecord
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
+
 def _settings() -> APISettings:
     return make_test_settings()
+
 
 def _seed_replay_data(state) -> str:
     decision_id = "438f7b8d-9725-4af6-b57d-7a88221e22f3"
@@ -82,6 +88,7 @@ def _seed_replay_data(state) -> str:
         persisted_at="2026-02-14T19:00:02Z",
     )
     return decision_id
+
 
 def test_governance_usage_and_breach_history_endpoints() -> None:
     settings = _settings()
@@ -165,6 +172,7 @@ def test_governance_usage_and_breach_history_endpoints() -> None:
     assert call_items[0]["status"] == "quota_blocked"
     assert call_items[1]["status"] == "succeeded"
 
+
 def test_governance_breaches_can_include_failed_calls() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
@@ -203,6 +211,7 @@ def test_governance_breaches_can_include_failed_calls() -> None:
     assert items[0]["reason"] == "timeout"
     assert items[0]["decision_id"] == "e5938b40-f2c6-4299-b4fa-56f1cf187dd2"
 
+
 def test_replay_request_and_retrieval_endpoints() -> None:
     settings = _settings()
     state = build_default_state(default_mode=settings.default_mode)
@@ -224,11 +233,15 @@ def test_replay_request_and_retrieval_endpoints() -> None:
     assert replay_request["result"]["deterministic_digest"]
 
     request_id = replay_request["request_id"]
-    request_detail = client.get(f"/replay/requests/{request_id}", headers=_auth_headers(viewer_token))
+    request_detail = client.get(
+        f"/replay/requests/{request_id}", headers=_auth_headers(viewer_token)
+    )
     assert request_detail.status_code == 200
     assert request_detail.json()["request_id"] == request_id
 
-    decision_detail = client.get(f"/replay/decisions/{decision_id}", headers=_auth_headers(viewer_token))
+    decision_detail = client.get(
+        f"/replay/decisions/{decision_id}", headers=_auth_headers(viewer_token)
+    )
     assert decision_detail.status_code == 200
     assert decision_detail.json()["decision_id"] == decision_id
     assert decision_detail.json()["status"] == "RISK_APPROVED"
@@ -239,9 +252,12 @@ def test_replay_request_and_retrieval_endpoints() -> None:
     assert catalog_payload["decisions"][0]["decision_id"] == decision_id
     assert catalog_payload["requests"][0]["request_id"] == request_id
 
+
 def test_replay_decision_not_found_returns_404() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
     viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
@@ -250,6 +266,7 @@ def test_replay_decision_not_found_returns_404() -> None:
         headers=_auth_headers(viewer_token),
     )
     assert response.status_code == 404
+
 
 def test_dashboard_shell_routes_render_navigation_and_live_sections() -> None:
     settings = _settings()

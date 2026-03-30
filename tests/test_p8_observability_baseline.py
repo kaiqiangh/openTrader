@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -12,8 +11,10 @@ from services.shared.runtime.structured_logging import StructuredLogger
 from services.shared.runtime.trace_context import build_traceparent, parse_traceparent
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _settings() -> APISettings:
     return make_test_settings()
+
 
 def test_structured_logger_emits_required_schema() -> None:
     captured: list[str] = []
@@ -38,10 +39,13 @@ def test_structured_logger_emits_required_schema() -> None:
     assert payload["mode"] == "MOCK"
     assert "timestamp" in payload
 
+
 def test_api_metrics_endpoint_and_trace_headers() -> None:
     settings = _settings()
     token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     incoming = build_traceparent(trace_id="0123456789abcdef0123456789abcdef")
@@ -58,4 +62,3 @@ def test_api_metrics_endpoint_and_trace_headers() -> None:
     assert "open_trader_http_requests_total" in body
     assert 'service="api"' in body
     assert "open_trader_http_request_duration_seconds_bucket" in body
-

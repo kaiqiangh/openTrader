@@ -89,7 +89,9 @@ class XProviderConnector:
                         "provider": "x",
                         "author_id": author_id,
                         "language": str(item.get("lang", "en")).strip().lower() or "en",
-                        "public_metrics": item.get("public_metrics") if isinstance(item.get("public_metrics"), Mapping) else {},
+                        "public_metrics": item.get("public_metrics")
+                        if isinstance(item.get("public_metrics"), Mapping)
+                        else {},
                     },
                 }
             )
@@ -103,7 +105,9 @@ def _short_title(text_value: str) -> str:
     return value[:93].rstrip() + "..."
 
 
-def _default_fetch_json(url: str, headers: Mapping[str, str], timeout_seconds: float) -> Mapping[str, Any]:
+def _default_fetch_json(
+    url: str, headers: Mapping[str, str], timeout_seconds: float
+) -> Mapping[str, Any]:
     try:
         with httpx.Client(timeout=timeout_seconds, verify=True) as client:
             response = client.get(url, headers=dict(headers))
@@ -111,7 +115,9 @@ def _default_fetch_json(url: str, headers: Mapping[str, str], timeout_seconds: f
             raw = response.text
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text
-        raise XProviderConnectorError(f"X provider HTTP {exc.response.status_code}: {detail}") from exc
+        raise XProviderConnectorError(
+            f"X provider HTTP {exc.response.status_code}: {detail}"
+        ) from exc
     except httpx.HTTPError as exc:
         raise XProviderConnectorError(f"X provider connection error: {exc}") from exc
 

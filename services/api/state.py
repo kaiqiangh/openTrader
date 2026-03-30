@@ -14,7 +14,13 @@ from services.agent_orchestrator.replay_service import (
     DecisionTraceRecord,
 )
 from services.llm_gateway.persistence import LLMCallRecord
-from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder, RiskControlEvent, RiskControlPlane
+from services.oms import (
+    PortfolioSnapshot,
+    PositionState,
+    ReconciliationOrder,
+    RiskControlEvent,
+    RiskControlPlane,
+)
 
 _VALID_MODES = {"MOCK", "REAL"}
 _VALID_STATES = {"ENABLED", "DISABLED", "PAUSED"}
@@ -271,7 +277,9 @@ class ControlPlaneState:
         self.strategies[key] = updated
         return updated
 
-    def list_orders(self, *, status: str | None = None, mode: str | None = None) -> tuple[ReconciliationOrder, ...]:
+    def list_orders(
+        self, *, status: str | None = None, mode: str | None = None
+    ) -> tuple[ReconciliationOrder, ...]:
         status_filter = status.strip().upper() if status else None
         mode_filter = mode.strip().upper() if mode else None
         items: list[ReconciliationOrder] = []
@@ -283,7 +291,9 @@ class ControlPlaneState:
             items.append(order)
         return tuple(items)
 
-    def list_positions(self, *, mode: str | None = None, symbol: str | None = None) -> tuple[PositionState, ...]:
+    def list_positions(
+        self, *, mode: str | None = None, symbol: str | None = None
+    ) -> tuple[PositionState, ...]:
         mode_filter = mode.strip().upper() if mode else None
         symbol_filter = symbol.strip().upper() if symbol else None
         items: list[PositionState] = []
@@ -333,7 +343,9 @@ class ControlPlaneState:
         actor: str,
         cooldown_seconds: int | None = None,
     ) -> RiskControlEvent:
-        self.risk_controls.trip_circuit_breaker(reason=reason, actor=actor, cooldown_seconds=cooldown_seconds)
+        self.risk_controls.trip_circuit_breaker(
+            reason=reason, actor=actor, cooldown_seconds=cooldown_seconds
+        )
         return self._last_risk_event()
 
     def reset_circuit_breaker(self, *, reason: str, actor: str) -> RiskControlEvent:
@@ -369,9 +381,13 @@ class ControlPlaneState:
 
             aggregate["total_calls"] = int(aggregate["total_calls"]) + 1
             if record.created_at.startswith(date_window):
-                aggregate["daily_tokens"] = int(aggregate["daily_tokens"]) + int(record.total_tokens)
+                aggregate["daily_tokens"] = int(aggregate["daily_tokens"]) + int(
+                    record.total_tokens
+                )
             if record.created_at.startswith(month_window):
-                aggregate["monthly_cost"] = float(aggregate["monthly_cost"]) + float(record.estimated_cost)
+                aggregate["monthly_cost"] = float(aggregate["monthly_cost"]) + float(
+                    record.estimated_cost
+                )
 
             status = str(record.response_payload.get("status", "")).strip().lower()
             if status == "quota_blocked":
@@ -481,7 +497,10 @@ class ControlPlaneState:
             if agent_filter and record.agent_name != agent_filter:
                 continue
 
-            response_status = str(record.response_payload.get("status", "succeeded")).strip().lower() or "succeeded"
+            response_status = (
+                str(record.response_payload.get("status", "succeeded")).strip().lower()
+                or "succeeded"
+            )
             if status_filter and response_status != status_filter:
                 continue
 
@@ -560,7 +579,9 @@ class ControlPlaneState:
         items.sort(key=lambda item: item.requested_at, reverse=True)
         return tuple(items[:safe_limit])
 
-    def list_news_items(self, *, symbol: str | None = None, limit: int = 50) -> tuple[NewsPanelItem, ...]:
+    def list_news_items(
+        self, *, symbol: str | None = None, limit: int = 50
+    ) -> tuple[NewsPanelItem, ...]:
         symbol_filter = symbol.strip().upper() if symbol else None
         safe_limit = max(1, int(limit))
 
@@ -630,7 +651,9 @@ class ControlPlaneState:
         records: list[NewsImpactRecord] = []
         for symbol, row in grouped.items():
             headline_count = int(row["headline_count"])
-            avg_sentiment = 0.0 if headline_count == 0 else float(row["sentiment_total"]) / headline_count
+            avg_sentiment = (
+                0.0 if headline_count == 0 else float(row["sentiment_total"]) / headline_count
+            )
             records.append(
                 NewsImpactRecord(
                     symbol=symbol,
@@ -642,7 +665,10 @@ class ControlPlaneState:
                 )
             )
 
-        records.sort(key=lambda item: (item.symbol != "GLOBAL", item.headline_count, item.max_relevance), reverse=True)
+        records.sort(
+            key=lambda item: (item.symbol != "GLOBAL", item.headline_count, item.max_relevance),
+            reverse=True,
+        )
         return tuple(records[:safe_limit])
 
     def list_notification_preferences(
@@ -708,10 +734,18 @@ class ControlPlaneState:
             "generated_at": _utc_now_iso(),
         }
         merged = {**defaults, **self.notification_metrics}
-        merged["totals"] = {**defaults["totals"], **dict(self.notification_metrics.get("totals", {}))}
-        merged["suppression"] = {**defaults["suppression"], **dict(self.notification_metrics.get("suppression", {}))}
+        merged["totals"] = {
+            **defaults["totals"],
+            **dict(self.notification_metrics.get("totals", {})),
+        }
+        merged["suppression"] = {
+            **defaults["suppression"],
+            **dict(self.notification_metrics.get("suppression", {})),
+        }
         merged["gateway_status"] = dict(self.notification_metrics.get("gateway_status", {}))
-        merged["retry_attempt_histogram"] = dict(self.notification_metrics.get("retry_attempt_histogram", {}))
+        merged["retry_attempt_histogram"] = dict(
+            self.notification_metrics.get("retry_attempt_histogram", {})
+        )
         generated_at = str(self.notification_metrics.get("generated_at", "")).strip()
         merged["generated_at"] = generated_at or _utc_now_iso()
         return merged
@@ -1089,7 +1123,7 @@ def _trim_preview(value: str, *, limit: int = 180) -> str:
     text = value.strip().replace("\n", " ")
     if len(text) <= limit:
         return text
-    return f"{text[:limit - 3]}..."
+    return f"{text[: limit - 3]}..."
 
 
 def _utc_now_iso() -> str:

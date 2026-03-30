@@ -21,7 +21,9 @@ def _settings() -> APISettings:
 
 def test_allowed_origin_receives_cors_headers() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get(
@@ -35,7 +37,9 @@ def test_allowed_origin_receives_cors_headers() -> None:
 
 def test_disallowed_origin_does_not_receive_cors_headers() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get(

@@ -6,7 +6,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from services.api.auth import require_admin, require_operator, require_viewer
-from services.api.dependencies import get_api_settings, get_control_plane_repository, get_control_plane_state
+from services.api.dependencies import (
+    get_api_settings,
+    get_control_plane_repository,
+    get_control_plane_state,
+)
 from services.api.models import (
     AuthPrincipal,
     ExecutionMode,
@@ -120,7 +124,9 @@ def get_latest_orderbook_snapshot(
     exchange: str | None = Query(default=None),
 ) -> OrderBookSnapshotResponse:
     if repository is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found"
+        )
     try:
         payload = repository.latest_orderbook_snapshot(symbol=symbol, exchange=exchange)
     except Exception as exc:
@@ -129,7 +135,9 @@ def get_latest_orderbook_snapshot(
             detail="market data repository unavailable",
         ) from exc
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No orderbook snapshot found"
+        )
     return _orderbook_snapshot_model(payload)
 
 
@@ -141,7 +149,9 @@ def get_latest_portfolio_snapshot(
 ) -> PortfolioSnapshotResponse:
     snapshot = state.latest_snapshot(mode=mode)
     if snapshot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No portfolio snapshot found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No portfolio snapshot found"
+        )
     return _snapshot_model(snapshot)
 
 
@@ -188,7 +198,9 @@ def get_latest_signals(
             ) from exc
         return SignalListResponse(items=[_signal_model(item) for item in payload])
 
-    summaries = sorted(state.replay_summaries.values(), key=lambda item: item.persisted_at, reverse=True)[:limit]
+    summaries = sorted(
+        state.replay_summaries.values(), key=lambda item: item.persisted_at, reverse=True
+    )[:limit]
     items: list[SignalRecordResponse] = []
     for summary in summaries:
         execution_decision = summary.summary.get("execution_decision", {})
@@ -266,8 +278,12 @@ def get_pipeline_health(
                     healthy=bool(row.get("healthy", False)),
                     status=str(row.get("status", "")),
                     records_total=int(row.get("records_total", 0) or 0),
-                    latest_at=(str(row.get("latest_at")) if row.get("latest_at") is not None else None),
-                    age_seconds=(float(row["age_seconds"]) if row.get("age_seconds") is not None else None),
+                    latest_at=(
+                        str(row.get("latest_at")) if row.get("latest_at") is not None else None
+                    ),
+                    age_seconds=(
+                        float(row["age_seconds"]) if row.get("age_seconds") is not None else None
+                    ),
                     stale_after_seconds=float(row.get("stale_after_seconds", 0.0) or 0.0),
                     detail=(str(row.get("detail")) if row.get("detail") is not None else None),
                 )
@@ -276,7 +292,9 @@ def get_pipeline_health(
     return PipelineHealthResponse(
         generated_at=str(payload.get("generated_at", "")),
         overall_healthy=bool(payload.get("overall_healthy", False)),
-        mode_filter=(str(payload.get("mode_filter")) if payload.get("mode_filter") is not None else None),
+        mode_filter=(
+            str(payload.get("mode_filter")) if payload.get("mode_filter") is not None else None
+        ),
         stages=stages,
     )
 
@@ -415,8 +433,12 @@ def list_notification_preferences(
     try:
         items = state.list_notification_preferences(user_id=user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    return NotificationPreferenceListResponse(items=[_notification_preference_model(item) for item in items])
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    return NotificationPreferenceListResponse(
+        items=[_notification_preference_model(item) for item in items]
+    )
 
 
 @router.put("/notifications/preferences/{user_id}", response_model=NotificationPreferenceResponse)
@@ -437,7 +459,9 @@ def upsert_notification_preference(
             actor=principal.user_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     if repository is not None:
         try:
             repository.upsert_notification_preference(updated)
@@ -456,9 +480,13 @@ def delete_notification_preference(
     try:
         deleted = state.delete_notification_preference(user_id=user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification preference not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Notification preference not found"
+        )
     if repository is not None:
         try:
             repository.delete_notification_preference(user_id=user_id)
@@ -484,10 +512,15 @@ def get_notification_metrics(
             retryable_total=int(totals.get("retryable_total", 0)),
             dlq_total=int(totals.get("dlq_total", 0)),
         ),
-        suppression={str(key): int(value) for key, value in dict(snapshot.get("suppression", {})).items()},
-        gateway_status={str(key): int(value) for key, value in dict(snapshot.get("gateway_status", {})).items()},
+        suppression={
+            str(key): int(value) for key, value in dict(snapshot.get("suppression", {})).items()
+        },
+        gateway_status={
+            str(key): int(value) for key, value in dict(snapshot.get("gateway_status", {})).items()
+        },
         retry_attempt_histogram={
-            str(key): int(value) for key, value in dict(snapshot.get("retry_attempt_histogram", {})).items()
+            str(key): int(value)
+            for key, value in dict(snapshot.get("retry_attempt_histogram", {})).items()
         },
         generated_at=str(snapshot.get("generated_at", "")),
     )
@@ -508,7 +541,9 @@ def list_notification_deliveries(
         status=status_filter,
         severity=severity,
     )
-    return NotificationDeliveryListResponse(items=[_notification_delivery_model(item) for item in items])
+    return NotificationDeliveryListResponse(
+        items=[_notification_delivery_model(item) for item in items]
+    )
 
 
 @router.get("/notifications/traces", response_model=NotificationTraceListResponse)
@@ -697,7 +732,9 @@ def _news_impact_model(item: NewsImpactRecord) -> NewsImpactRecordResponse:
     )
 
 
-def _notification_preference_model(item: NotificationPreferenceRecord) -> NotificationPreferenceResponse:
+def _notification_preference_model(
+    item: NotificationPreferenceRecord,
+) -> NotificationPreferenceResponse:
     return NotificationPreferenceResponse(
         user_id=item.user_id,
         min_severity=item.min_severity,
@@ -709,7 +746,9 @@ def _notification_preference_model(item: NotificationPreferenceRecord) -> Notifi
     )
 
 
-def _notification_delivery_model(item: NotificationDeliveryRecord) -> NotificationDeliveryRecordResponse:
+def _notification_delivery_model(
+    item: NotificationDeliveryRecord,
+) -> NotificationDeliveryRecordResponse:
     return NotificationDeliveryRecordResponse(
         notification_event_id=item.notification_event_id,
         trace_id=item.trace_id,

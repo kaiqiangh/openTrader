@@ -7,7 +7,6 @@ All test files should import from here instead of hand-rolling HS256 tokens.
 from __future__ import annotations
 
 import base64
-import json
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -30,10 +29,14 @@ def get_test_rsa_keys() -> tuple[str, str]:
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         ).decode()
-        _TEST_PUBLIC_KEY = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        ).decode()
+        _TEST_PUBLIC_KEY = (
+            private_key.public_key()
+            .public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            .decode()
+        )
     return _TEST_PRIVATE_KEY, _TEST_PUBLIC_KEY
 
 

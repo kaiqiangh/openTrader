@@ -27,7 +27,9 @@ class AesGcmKeyEncryptor:
     def __post_init__(self) -> None:
         key = _decode_base64(self.encryption_key_base64)
         if len(key) != _KEY_BYTES:
-            raise KeyEncryptionError("ENCRYPTION_KEY_BASE64 must decode to exactly 32 bytes for AES-256-GCM")
+            raise KeyEncryptionError(
+                "ENCRYPTION_KEY_BASE64 must decode to exactly 32 bytes for AES-256-GCM"
+            )
         object.__setattr__(self, "_key_bytes", key)
         object.__setattr__(self, "_cipher", AESGCM(key))
 

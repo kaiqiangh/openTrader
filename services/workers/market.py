@@ -20,7 +20,9 @@ def _first_level_price(levels: Any) -> float:
     return float(first.get("price", 0.0) or 0.0)
 
 
-def _build_order_book_payload(*, base_price: float, sequence: int, timestamp_ms: int) -> dict[str, Any]:
+def _build_order_book_payload(
+    *, base_price: float, sequence: int, timestamp_ms: int
+) -> dict[str, Any]:
     bid_0 = round(base_price - 0.5, 4)
     ask_0 = round(base_price + 0.5, 4)
     return {

@@ -7,14 +7,12 @@ Supports TLS, authentication, and multiple recipients.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import smtplib
 from dataclasses import dataclass
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Any
 
 from services.notification_service.models import DeliveryResult, NotificationMessage
 from services.shared.runtime.env_loader import load_dotenv_file
@@ -154,8 +152,8 @@ def _render_email(message: NotificationMessage) -> tuple[str, str, str]:
             <p style="color: #495057; line-height: 1.6;">{message.body}</p>
         </div>
         <div style="margin-top: 16px; padding: 12px; background: #f1f3f5; border-radius: 8px; font-size: 13px; color: #6c757d;">
-            <p style="margin: 4px 0;"><strong>Trace:</strong> {message.metadata.get('trace_id', 'n/a')}</p>
-            <p style="margin: 4px 0;"><strong>Decision:</strong> {message.metadata.get('decision_id', 'n/a')}</p>
+            <p style="margin: 4px 0;"><strong>Trace:</strong> {message.metadata.get("trace_id", "n/a")}</p>
+            <p style="margin: 4px 0;"><strong>Decision:</strong> {message.metadata.get("decision_id", "n/a")}</p>
         </div>
     </body></html>
     """
@@ -179,7 +177,9 @@ def _send_smtp(
     msg.attach(MIMEText(body_html, "html"))
 
     if config.use_tls:
-        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=config.timeout_seconds) as server:
+        with smtplib.SMTP(
+            config.smtp_host, config.smtp_port, timeout=config.timeout_seconds
+        ) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()
@@ -187,7 +187,9 @@ def _send_smtp(
                 server.login(config.smtp_username, config.smtp_password)
             server.sendmail(config.from_address, recipients, msg.as_string())
     else:
-        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=config.timeout_seconds) as server:
+        with smtplib.SMTP(
+            config.smtp_host, config.smtp_port, timeout=config.timeout_seconds
+        ) as server:
             if config.smtp_username and config.smtp_password:
                 server.login(config.smtp_username, config.smtp_password)
             server.sendmail(config.from_address, recipients, msg.as_string())

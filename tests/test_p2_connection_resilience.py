@@ -1,4 +1,7 @@
-from services.market_ingestion.connection_resilience import BackoffConfig, ConnectionResilienceManager
+from services.market_ingestion.connection_resilience import (
+    BackoffConfig,
+    ConnectionResilienceManager,
+)
 
 
 def test_is_stale_based_on_last_heartbeat() -> None:

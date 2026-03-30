@@ -135,7 +135,9 @@ async def test_orchestrator_worker_runner_consumes_market_event_and_publishes_in
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is_provided(tmp_path: Path) -> None:
+async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is_provided(
+    tmp_path: Path,
+) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-orchestrator.db'}")
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(
@@ -149,8 +151,12 @@ async def test_orchestrator_worker_runner_persists_memory_when_runtime_engine_is
 
     assert worked is True
     with engine.connect() as connection:
-        summary_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_memory")).scalar_one()
-        slot_count = connection.execute(text("SELECT COUNT(*) FROM runtime_decision_slots")).scalar_one()
+        summary_count = connection.execute(
+            text("SELECT COUNT(*) FROM runtime_decision_memory")
+        ).scalar_one()
+        slot_count = connection.execute(
+            text("SELECT COUNT(*) FROM runtime_decision_slots")
+        ).scalar_one()
         trace_count = connection.execute(text("SELECT COUNT(*) FROM decision_traces")).scalar_one()
         run_count = connection.execute(text("SELECT COUNT(*) FROM agent_runs")).scalar_one()
         message_count = connection.execute(text("SELECT COUNT(*) FROM agent_messages")).scalar_one()
@@ -191,12 +197,16 @@ async def test_orchestrator_worker_runner_persists_decision_news_links_when_news
 
     assert worked is True
     with engine.connect() as connection:
-        link_count = connection.execute(text("SELECT COUNT(*) FROM decision_news_links")).scalar_one()
+        link_count = connection.execute(
+            text("SELECT COUNT(*) FROM decision_news_links")
+        ).scalar_one()
     assert link_count == 1
 
 
 @pytest.mark.asyncio
-async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_engine_is_provided(tmp_path: Path) -> None:
+async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_engine_is_provided(
+    tmp_path: Path,
+) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-market.db'}")
     with engine.begin() as connection:
         connection.execute(
@@ -248,12 +258,16 @@ async def test_market_worker_runner_persists_orderbook_snapshot_when_runtime_eng
 
     assert worked is True
     with engine.connect() as connection:
-        snapshot_count = connection.execute(text("SELECT COUNT(*) FROM orderbook_snapshots")).scalar_one()
+        snapshot_count = connection.execute(
+            text("SELECT COUNT(*) FROM orderbook_snapshots")
+        ).scalar_one()
     assert snapshot_count >= 1
 
 
 @pytest.mark.asyncio
-async def test_simulation_worker_runner_consumes_execution_intent_and_publishes_oms_events() -> None:
+async def test_simulation_worker_runner_consumes_execution_intent_and_publishes_oms_events() -> (
+    None
+):
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(settings=_settings(worker="simulation"), broker=broker)
     await broker.publish(
@@ -310,6 +324,7 @@ async def test_news_worker_runner_uses_real_rss_mode_when_database_is_required(
     monkeypatch.setenv("NEWS_SOURCE_MODE", "mock")
     monkeypatch.setenv("NEWS_RSS_FEEDS", "https://news.example.com/rss")
     from services.workers import helpers as _helpers
+
     monkeypatch.setattr(_helpers, "_http_get_text", lambda url, timeout_seconds: rss_xml)
 
     settings = RuntimeWorkerSettings(
@@ -373,7 +388,9 @@ def test_parse_rss_items_bounds_source_item_id_for_long_links() -> None:
 
 
 @pytest.mark.asyncio
-async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(tmp_path: Path) -> None:
+async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
+    tmp_path: Path,
+) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-oms.db'}")
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(
@@ -437,7 +454,9 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
             ),
             {"order_id": persisted_order_id},
         ).scalar_one()
-        position_count = connection.execute(text("SELECT COUNT(*) FROM positions WHERE mode = 'MOCK'")).scalar_one()
+        position_count = connection.execute(
+            text("SELECT COUNT(*) FROM positions WHERE mode = 'MOCK'")
+        ).scalar_one()
         snapshot_count = connection.execute(
             text("SELECT COUNT(*) FROM portfolio_snapshots")
         ).scalar_one()
@@ -450,7 +469,9 @@ async def test_oms_worker_runner_persists_state_when_runtime_engine_is_provided(
 
 
 @pytest.mark.asyncio
-async def test_news_worker_runner_persists_items_tags_and_summary_when_runtime_engine_is_provided(tmp_path: Path) -> None:
+async def test_news_worker_runner_persists_items_tags_and_summary_when_runtime_engine_is_provided(
+    tmp_path: Path,
+) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'runtime-news.db'}")
     broker = InMemoryTopicBroker.from_topology_file("config/rabbitmq/topology.json")
     build = build_runtime_worker(
@@ -471,21 +492,32 @@ async def test_news_worker_runner_persists_items_tags_and_summary_when_runtime_e
     assert summary_count >= 1
 
 
-def test_runtime_worker_main_fails_fast_when_database_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runtime_worker_main_fails_fast_when_database_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def _raise_runtime_db_error() -> None:
         raise RuntimeDatabaseConfigError("database unavailable")
 
-    monkeypatch.setattr("services.workers.settings._database.create_runtime_engine_from_env", _raise_runtime_db_error)
+    monkeypatch.setattr(
+        "services.workers.settings._database.create_runtime_engine_from_env",
+        _raise_runtime_db_error,
+    )
 
-    exit_code = runtime_main.main(["--worker", "news", "--validate-only", "--broker-backend", "inmemory"])
+    exit_code = runtime_main.main(
+        ["--worker", "news", "--validate-only", "--broker-backend", "inmemory"]
+    )
 
     assert exit_code == 1
 
 
-def test_runtime_worker_main_rejects_inmemory_broker_under_runtime_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runtime_worker_main_rejects_inmemory_broker_under_runtime_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_REQUIRE_DATABASE", "true")
 
-    exit_code = runtime_main.main(["--worker", "market", "--validate-only", "--broker-backend", "inmemory"])
+    exit_code = runtime_main.main(
+        ["--worker", "market", "--validate-only", "--broker-backend", "inmemory"]
+    )
 
     assert exit_code == 1
 

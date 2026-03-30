@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -9,15 +8,20 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
 
 def _settings() -> APISettings:
     return make_test_settings()
 
+
 def test_liveness_is_public_readiness_requires_auth() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     liveness = client.get("/health/liveness")
@@ -28,18 +32,24 @@ def test_liveness_is_public_readiness_requires_auth() -> None:
     # Readiness now requires authentication (security hardening)
     assert readiness.status_code == 401
 
+
 def test_metadata_requires_authentication() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get("/metadata")
     assert response.status_code == 401
 
+
 def test_viewer_can_read_control_endpoints() -> None:
     settings = _settings()
     token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     mode_response = client.get("/control/mode", headers=_auth_headers(token))
@@ -53,11 +63,14 @@ def test_viewer_can_read_control_endpoints() -> None:
     assert strategies_response.status_code == 200
     assert isinstance(strategies_response.json()["items"], list)
 
+
 def test_viewer_cannot_update_mode_but_operator_can() -> None:
     settings = _settings()
     viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
     operator_token = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     viewer_attempt = client.put(
@@ -81,10 +94,13 @@ def test_viewer_cannot_update_mode_but_operator_can() -> None:
     assert mode_history.json()["items"][0]["mode"] == "REAL"
     assert mode_history.json()["items"][0]["reason"] == "switch for validation"
 
+
 def test_operator_can_update_strategy_state() -> None:
     settings = _settings()
     token = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.put(

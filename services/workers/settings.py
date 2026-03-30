@@ -90,7 +90,9 @@ def _resolve_runtime_engine(*, settings: RuntimeWorkerSettings) -> Engine | None
     with runtime_engine.connect() as connection:
         value = connection.exec_driver_sql("SELECT 1").scalar_one()
         if value != 1:
-            raise _database.RuntimeDatabaseConfigError("runtime database connectivity check returned an unexpected response")
+            raise _database.RuntimeDatabaseConfigError(
+                "runtime database connectivity check returned an unexpected response"
+            )
     return runtime_engine
 
 

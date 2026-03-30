@@ -29,7 +29,9 @@ def _db_url() -> str:
     database = os.getenv("POSTGRES_DB", "open_trader").strip() or "open_trader"
     user = os.getenv("POSTGRES_USER", "open_trader").strip() or "open_trader"
     password = os.getenv("POSTGRES_PASSWORD", "change_me")
-    return f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{database}"
+    return (
+        f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{database}"
+    )
 
 
 def run_migrations_offline() -> None:

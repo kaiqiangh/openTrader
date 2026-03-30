@@ -78,7 +78,9 @@ class CoreRiskRuleEngine:
             side=normalized_order.side,
             quantity=normalized_order.quantity,
         )
-        current_quantity = Decimal(str(current_position.quantity)) if current_position is not None else _ZERO
+        current_quantity = (
+            Decimal(str(current_position.quantity)) if current_position is not None else _ZERO
+        )
         projected_quantity = current_quantity + signed_quantity
 
         order_price = Decimal(str(normalized_order.price))
@@ -93,7 +95,9 @@ class CoreRiskRuleEngine:
 
         equity = Decimal(str(account_equity_usd))
         if equity <= _EPSILON:
-            projected_leverage = Decimal("Infinity") if projected_total_exposure > _EPSILON else _ZERO
+            projected_leverage = (
+                Decimal("Infinity") if projected_total_exposure > _EPSILON else _ZERO
+            )
         else:
             projected_leverage = projected_total_exposure / equity
 
@@ -183,7 +187,9 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
     mode = order.mode.strip().upper()
     symbol = order.symbol.strip().upper()
     side = order.side.strip().upper()
-    quantity = abs(Decimal(str(order.quantity)) if isinstance(order.quantity, float) else order.quantity)
+    quantity = abs(
+        Decimal(str(order.quantity)) if isinstance(order.quantity, float) else order.quantity
+    )
     price = Decimal(str(order.price)) if isinstance(order.price, float) else order.price
 
     if not mode:

@@ -99,7 +99,9 @@ class SQLAlchemyRuntimeOMSStateStore:
 
     _RUNTIME_EXCHANGE_NAME = "runtime_mock"
 
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -184,7 +186,9 @@ class SQLAlchemyRuntimeOMSStateStore:
                 "price": float(order.average_price) if order.average_price is not None else None,
                 "quantity": float(order.requested_quantity),
                 "filled_quantity": float(order.filled_quantity),
-                "average_price": float(order.average_price) if order.average_price is not None else None,
+                "average_price": float(order.average_price)
+                if order.average_price is not None
+                else None,
                 "created_at": created_at,
                 "updated_at": now_iso,
             },
@@ -337,7 +341,13 @@ class SQLAlchemyRuntimeOMSStateStore:
             """,
             {"mode": position.mode, "symbol_id": symbol_id},
         )
-        side = "LONG" if float(position.quantity) > 0 else "SHORT" if float(position.quantity) < 0 else "FLAT"
+        side = (
+            "LONG"
+            if float(position.quantity) > 0
+            else "SHORT"
+            if float(position.quantity) < 0
+            else "FLAT"
+        )
         closed_at = position.updated_at if position.status.upper() == "CLOSED" else None
         if existing is None:
             self._db.execute(
@@ -677,7 +687,9 @@ class SQLAlchemyRuntimeOMSStateStore:
 class SQLAlchemyNewsItemStore:
     """News item dedupe store backed by sqlite or SQLAlchemy."""
 
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -774,7 +786,9 @@ class SQLAlchemyNewsItemStore:
 
 
 class SQLAlchemyNewsTagStore:
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -815,7 +829,9 @@ class SQLAlchemyNewsTagStore:
 
 
 class SQLAlchemyNewsSummaryStore:
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -910,7 +926,9 @@ class _StoreConnection:
         if isinstance(connection, Connection):
             self._engine = connection.engine
             return
-        raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+        raise TypeError(
+            "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+        )
 
     def execute(self, statement: str, params: Mapping[str, Any]) -> None:
         if self._sqlite_connection is not None:
@@ -980,7 +998,11 @@ def _as_iso(value: Any) -> str | None:
         timestamp_ms = int(value)
     except (TypeError, ValueError):
         return None
-    return datetime.fromtimestamp(timestamp_ms / 1000.0, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.fromtimestamp(timestamp_ms / 1000.0, tz=timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def _normalize_levels(value: Any) -> list[dict[str, float]]:

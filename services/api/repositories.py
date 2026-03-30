@@ -54,35 +54,57 @@ class ControlPlaneRepository:
 
         self._load_optional(loader=lambda: self._hydrate_mode_and_strategies(state), default=None)
         state.orders = self._load_optional(loader=lambda: self._list_orders(limit=1000), default=[])
-        state.positions = self._load_optional(loader=lambda: self._list_positions(limit=1000), default=[])
+        state.positions = self._load_optional(
+            loader=lambda: self._list_positions(limit=1000), default=[]
+        )
         state.portfolio_snapshots = self._load_optional(
             loader=lambda: self._list_portfolio_snapshots(limit=1000),
             default=[],
         )
 
-        state.llm_call_records = self._load_optional(loader=lambda: self._list_llm_calls(limit=5000), default=[])
+        state.llm_call_records = self._load_optional(
+            loader=lambda: self._list_llm_calls(limit=5000), default=[]
+        )
         state.llm_quota_limits = self._load_optional(loader=self._load_llm_quota_limits, default={})
 
-        state.replay_traces = self._load_optional(loader=lambda: self._load_replay_traces(limit=500), default={})
+        state.replay_traces = self._load_optional(
+            loader=lambda: self._load_replay_traces(limit=500), default={}
+        )
         state.replay_agent_runs = self._load_optional(
-            loader=lambda: self._load_replay_agent_runs(decision_ids=tuple(state.replay_traces.keys())),
+            loader=lambda: self._load_replay_agent_runs(
+                decision_ids=tuple(state.replay_traces.keys())
+            ),
             default={},
         )
         state.replay_agent_messages = self._load_optional(
-            loader=lambda: self._load_replay_agent_messages(agent_run_ids=tuple(state.replay_agent_runs.keys())),
+            loader=lambda: self._load_replay_agent_messages(
+                agent_run_ids=tuple(state.replay_agent_runs.keys())
+            ),
             default={},
         )
         state.replay_llm_calls = self._load_optional(
-            loader=lambda: self._load_replay_llm_calls(decision_ids=tuple(state.replay_traces.keys())),
+            loader=lambda: self._load_replay_llm_calls(
+                decision_ids=tuple(state.replay_traces.keys())
+            ),
             default={},
         )
-        state.replay_summaries = self._load_optional(loader=lambda: self._load_replay_summaries(limit=500), default={})
-        state.replay_requests = self._load_optional(loader=lambda: self._load_replay_requests(limit=500), default={})
+        state.replay_summaries = self._load_optional(
+            loader=lambda: self._load_replay_summaries(limit=500), default={}
+        )
+        state.replay_requests = self._load_optional(
+            loader=lambda: self._load_replay_requests(limit=500), default={}
+        )
 
-        state.news_items = self._load_optional(loader=lambda: self._list_news_items(limit=500), default=[])
-        state.news_summaries = self._load_optional(loader=lambda: self._list_news_summaries(limit=200), default=[])
+        state.news_items = self._load_optional(
+            loader=lambda: self._list_news_items(limit=500), default=[]
+        )
+        state.news_summaries = self._load_optional(
+            loader=lambda: self._list_news_summaries(limit=200), default=[]
+        )
 
-        notification_preferences = self._load_optional(loader=self._list_notification_preferences, default={})
+        notification_preferences = self._load_optional(
+            loader=self._list_notification_preferences, default={}
+        )
         if notification_preferences:
             state.notification_preferences = notification_preferences
         state.notification_delivery_logs = self._load_optional(
@@ -326,7 +348,9 @@ class ControlPlaneRepository:
                 "status": record.status,
                 "requested_by": record.requested_by,
                 "requested_at": record.requested_at,
-                "result_json": json.dumps(_replay_result_to_payload(record.result), ensure_ascii=True),
+                "result_json": json.dumps(
+                    _replay_result_to_payload(record.result), ensure_ascii=True
+                ),
             },
         )
 
@@ -423,7 +447,9 @@ class ControlPlaneRepository:
                 snapshot_time=str(row.get("snapshot_time", "")),
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
                 total_balance_usd=Decimal(str(float(row.get("total_balance_usd", 0.0) or 0.0))),
-                available_balance_usd=Decimal(str(float(row.get("available_balance_usd", 0.0) or 0.0))),
+                available_balance_usd=Decimal(
+                    str(float(row.get("available_balance_usd", 0.0) or 0.0))
+                ),
                 locked_balance_usd=Decimal(str(float(row.get("locked_balance_usd", 0.0) or 0.0))),
                 unrealized_pnl=Decimal(str(float(row.get("unrealized_pnl", 0.0) or 0.0))),
                 realized_pnl_total=Decimal(str(float(row.get("realized_pnl_total", 0.0) or 0.0))),
@@ -775,7 +801,9 @@ class ControlPlaneRepository:
                 requested_quantity=Decimal(str(float(row.get("requested_quantity", 0.0) or 0.0))),
                 status=str(row.get("status", "OPEN") or "OPEN"),
                 filled_quantity=Decimal(str(float(row.get("filled_quantity", 0.0) or 0.0))),
-                average_price=Decimal(str(row["average_price"])) if row.get("average_price") is not None else None,
+                average_price=Decimal(str(row["average_price"]))
+                if row.get("average_price") is not None
+                else None,
             )
             for row in rows
         ]
@@ -811,7 +839,9 @@ class ControlPlaneRepository:
             for row in rows
         ]
 
-    def _list_portfolio_snapshots(self, *, limit: int, mode: str | None = None) -> list[PortfolioSnapshot]:
+    def _list_portfolio_snapshots(
+        self, *, limit: int, mode: str | None = None
+    ) -> list[PortfolioSnapshot]:
         where_clause = ""
         params: dict[str, Any] = {"limit": max(1, int(limit))}
         if mode:
@@ -832,7 +862,9 @@ class ControlPlaneRepository:
                 snapshot_time=str(row.get("snapshot_time", "")),
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
                 total_balance_usd=Decimal(str(float(row.get("total_balance_usd", 0.0) or 0.0))),
-                available_balance_usd=Decimal(str(float(row.get("available_balance_usd", 0.0) or 0.0))),
+                available_balance_usd=Decimal(
+                    str(float(row.get("available_balance_usd", 0.0) or 0.0))
+                ),
                 locked_balance_usd=Decimal(str(float(row.get("locked_balance_usd", 0.0) or 0.0))),
                 unrealized_pnl=Decimal(str(float(row.get("unrealized_pnl", 0.0) or 0.0))),
                 realized_pnl_total=Decimal(str(float(row.get("realized_pnl_total", 0.0) or 0.0))),
@@ -943,8 +975,12 @@ class ControlPlaneRepository:
                 decision_id=str(row.get("decision_id", "")),
                 agent_name=str(row.get("agent_name", "")),
                 input_ref=(str(row.get("input_ref")) if row.get("input_ref") is not None else None),
-                output_ref=(str(row.get("output_ref")) if row.get("output_ref") is not None else None),
-                latency_ms=(float(row["latency_ms"]) if row.get("latency_ms") is not None else None),
+                output_ref=(
+                    str(row.get("output_ref")) if row.get("output_ref") is not None else None
+                ),
+                latency_ms=(
+                    float(row["latency_ms"]) if row.get("latency_ms") is not None else None
+                ),
                 status=str(row.get("status", "")),
                 started_at=str(row.get("started_at", _utc_now_iso())),
                 completed_at=(
@@ -1202,9 +1238,21 @@ class ControlPlaneRepository:
             payload[user_id] = NotificationPreferenceRecord(
                 user_id=user_id,
                 min_severity=str(row.get("min_severity", "INFO")),
-                gateways=tuple(str(item) for item in _safe_json_list(row.get("gateways_json")) if str(item).strip()),
-                strategy_ids=tuple(str(item) for item in _safe_json_list(row.get("strategy_ids_json")) if str(item).strip()),
-                event_types=tuple(str(item) for item in _safe_json_list(row.get("event_types_json")) if str(item).strip()),
+                gateways=tuple(
+                    str(item)
+                    for item in _safe_json_list(row.get("gateways_json"))
+                    if str(item).strip()
+                ),
+                strategy_ids=tuple(
+                    str(item)
+                    for item in _safe_json_list(row.get("strategy_ids_json"))
+                    if str(item).strip()
+                ),
+                event_types=tuple(
+                    str(item)
+                    for item in _safe_json_list(row.get("event_types_json"))
+                    if str(item).strip()
+                ),
                 updated_at=str(row.get("updated_at", _utc_now_iso())),
                 updated_by=str(row.get("updated_by", "system")),
             )
@@ -1286,7 +1334,9 @@ class ControlPlaneRepository:
             gateway_key = f"{item.gateway}:{status}"
             gateway_status[gateway_key] = gateway_status.get(gateway_key, 0) + 1
             attempt_bucket = str(max(1, int(item.attempt)))
-            retry_attempt_histogram[attempt_bucket] = retry_attempt_histogram.get(attempt_bucket, 0) + 1
+            retry_attempt_histogram[attempt_bucket] = (
+                retry_attempt_histogram.get(attempt_bucket, 0) + 1
+            )
         totals["received_total"] = totals["dispatched_total"]
         return {
             "totals": totals,

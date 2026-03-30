@@ -58,7 +58,9 @@ class BinanceHTTPOrderBookClient:
                 raw = response.text
         except httpx.HTTPStatusError as exc:  # pragma: no cover - tested through monkeypatch
             detail = exc.response.text
-            raise BinanceHTTPAdapterError(f"Binance HTTP {exc.response.status_code}: {detail}") from exc
+            raise BinanceHTTPAdapterError(
+                f"Binance HTTP {exc.response.status_code}: {detail}"
+            ) from exc
         except httpx.HTTPError as exc:  # pragma: no cover - tested through monkeypatch
             raise BinanceHTTPAdapterError(f"Binance connection error: {exc}") from exc
 

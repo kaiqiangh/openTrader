@@ -15,11 +15,15 @@ class AdapterConfigurationError(ValueError):
 
 
 class RestOrderBookClient(Protocol):
-    async def fetch_order_book(self, symbol: str, limit: int | None = None) -> Mapping[str, Any]: ...
+    async def fetch_order_book(
+        self, symbol: str, limit: int | None = None
+    ) -> Mapping[str, Any]: ...
 
 
 class WsOrderBookClient(Protocol):
-    async def watch_order_book(self, symbol: str, limit: int | None = None) -> Mapping[str, Any]: ...
+    async def watch_order_book(
+        self, symbol: str, limit: int | None = None
+    ) -> Mapping[str, Any]: ...
 
 
 @dataclass(slots=True)

@@ -7,8 +7,7 @@ from services.notification_service.settings import load_notification_worker_sett
 def test_api_settings_loads_jwt_keys_from_dotenv(tmp_path, monkeypatch) -> None:
     dotenv = tmp_path / ".env"
     dotenv.write_text(
-        "JWT_PRIVATE_KEY=test-private-key-pem\n"
-        "JWT_PUBLIC_KEY=test-public-key-pem\n",
+        "JWT_PRIVATE_KEY=test-private-key-pem\nJWT_PUBLIC_KEY=test-public-key-pem\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -28,8 +27,7 @@ def test_api_settings_loads_jwt_keys_from_dotenv(tmp_path, monkeypatch) -> None:
 def test_notification_settings_loads_telegram_secrets_from_dotenv(tmp_path, monkeypatch) -> None:
     dotenv = tmp_path / ".env"
     dotenv.write_text(
-        "TELEGRAM_BOT_TOKEN=bot-from-dotenv\n"
-        "TELEGRAM_DEFAULT_CHAT_ID=chat-from-dotenv\n",
+        "TELEGRAM_BOT_TOKEN=bot-from-dotenv\nTELEGRAM_DEFAULT_CHAT_ID=chat-from-dotenv\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)

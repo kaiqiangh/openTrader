@@ -12,7 +12,9 @@ def _ts(value: str) -> datetime:
 def test_kill_switch_blocks_orders_and_emits_events() -> None:
     controls = RiskControlPlane(circuit_breaker_threshold=3, circuit_breaker_cooldown_seconds=60)
 
-    controls.enable_kill_switch(reason="operator request", actor="ops", at=_ts("2026-02-14T16:30:00Z"))
+    controls.enable_kill_switch(
+        reason="operator request", actor="ops", at=_ts("2026-02-14T16:30:00Z")
+    )
     allowed = controls.evaluate_order_allowed(now=_ts("2026-02-14T16:30:05Z"))
 
     assert allowed.allowed is False
@@ -25,16 +27,22 @@ def test_kill_switch_blocks_orders_and_emits_events() -> None:
 def test_circuit_breaker_trips_after_threshold_failures_and_resets() -> None:
     controls = RiskControlPlane(circuit_breaker_threshold=2, circuit_breaker_cooldown_seconds=30)
 
-    controls.record_failure(reason="exchange disconnect", actor="runner", at=_ts("2026-02-14T16:31:00Z"))
+    controls.record_failure(
+        reason="exchange disconnect", actor="runner", at=_ts("2026-02-14T16:31:00Z")
+    )
     first_check = controls.evaluate_order_allowed(now=_ts("2026-02-14T16:31:01Z"))
     assert first_check.allowed is True
 
-    controls.record_failure(reason="exchange disconnect", actor="runner", at=_ts("2026-02-14T16:31:05Z"))
+    controls.record_failure(
+        reason="exchange disconnect", actor="runner", at=_ts("2026-02-14T16:31:05Z")
+    )
     second_check = controls.evaluate_order_allowed(now=_ts("2026-02-14T16:31:06Z"))
     assert second_check.allowed is False
     assert "circuit_breaker" in second_check.blocked_by
 
-    controls.reset_circuit_breaker(reason="operator reset", actor="ops", at=_ts("2026-02-14T16:31:10Z"))
+    controls.reset_circuit_breaker(
+        reason="operator reset", actor="ops", at=_ts("2026-02-14T16:31:10Z")
+    )
     final_check = controls.evaluate_order_allowed(now=_ts("2026-02-14T16:31:11Z"))
     assert final_check.allowed is True
 

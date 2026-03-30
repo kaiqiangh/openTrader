@@ -7,7 +7,10 @@ from typing import Any
 
 from services.notification_service.event_intake import NotificationEventIntake
 from services.notification_service.gateway_dispatch import GatewayDispatcher
-from services.notification_service.observability import NotificationObservabilityCollector, utc_now_iso
+from services.notification_service.observability import (
+    NotificationObservabilityCollector,
+    utc_now_iso,
+)
 from services.notification_service.models import NotificationProcessingResult
 from services.notification_service.policy_router import NotificationPolicyRouter
 
@@ -80,7 +83,9 @@ class NotificationService:
                 completed_at=dispatch_completed_at,
             )
 
-        processing_result = NotificationProcessingResult(event=event, messages=messages, results=results)
+        processing_result = NotificationProcessingResult(
+            event=event, messages=messages, results=results
+        )
 
         if self._persist_fn is not None:
             try:

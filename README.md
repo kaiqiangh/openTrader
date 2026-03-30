@@ -2,6 +2,7 @@
 
 <div align="center">
 
+![CI](https://github.com/kaiqiangh/openTrader/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
 ![Go](https://img.shields.io/badge/go-1.23+-cyan.svg)

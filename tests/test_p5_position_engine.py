@@ -4,7 +4,12 @@ from decimal import Decimal
 
 import pytest
 
-from services.oms.position_engine import PositionEngine, PositionEngineError, PositionFill, PositionState
+from services.oms.position_engine import (
+    PositionEngine,
+    PositionEngineError,
+    PositionFill,
+    PositionState,
+)
 
 
 def test_position_engine_opens_long_position_from_first_buy_fill() -> None:

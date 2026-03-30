@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from services.agent_orchestrator.contracts import PlannerDecision, RiskAssessment, RiskSignal, StrategyConfig
+from services.agent_orchestrator.contracts import (
+    PlannerDecision,
+    RiskAssessment,
+    RiskSignal,
+    StrategyConfig,
+)
 
 
 class RiskAgent:

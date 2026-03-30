@@ -11,7 +11,9 @@ from services.news_summarizer.summarizer_service import NewsSummaryArtifact
 from services.shared.runtime.broker import InMemoryTopicBroker
 
 
-def _summary(*, text: str = "BTC momentum remains positive", source_news_ids: tuple[str, ...] = ("n1", "n2")) -> NewsSummaryArtifact:
+def _summary(
+    *, text: str = "BTC momentum remains positive", source_news_ids: tuple[str, ...] = ("n1", "n2")
+) -> NewsSummaryArtifact:
     return NewsSummaryArtifact(
         summary_id=str(uuid.uuid4()),
         symbol_scope="BTC",

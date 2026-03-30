@@ -9,7 +9,10 @@ import uuid
 from services.agent_orchestrator.contracts import OrchestrationResult, StrategyConfig
 from services.agent_orchestrator.orchestrator import AgentOrchestrator
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
-from services.market_ingestion.connection_resilience import BackoffConfig, ConnectionResilienceManager
+from services.market_ingestion.connection_resilience import (
+    BackoffConfig,
+    ConnectionResilienceManager,
+)
 from services.market_ingestion.contracts import OrderBookDelta, OrderBookSnapshot
 from services.market_ingestion.exchange_adapter import CCXTIngestionAdapter
 from services.market_ingestion.gap_detection import GapDetectionModule
@@ -80,7 +83,9 @@ class MarketIngestionRuntimeWorker:
         self.state_store = state_store
         self.kline_client = kline_client
         self.kline_intervals = tuple(
-            interval.strip() for interval in kline_intervals if interval is not None and interval.strip()
+            interval.strip()
+            for interval in kline_intervals
+            if interval is not None and interval.strip()
         )
         self.kline_poll_interval_seconds = max(1.0, float(kline_poll_interval_seconds))
         self.kline_fetch_limit = max(1, int(kline_fetch_limit))
@@ -99,7 +104,9 @@ class MarketIngestionRuntimeWorker:
         self._resilience: ConnectionResilienceManager | None = None
         self._metrics: MarketPipelineMetrics | None = None
         if self._websocket_integrity_enabled:
-            self._sync_engine = OrderBookSyncEngine(exchange=self.adapter.exchange, symbol=self.symbol)
+            self._sync_engine = OrderBookSyncEngine(
+                exchange=self.adapter.exchange, symbol=self.symbol
+            )
             self._gap_detector = GapDetectionModule()
             self._resilience = ConnectionResilienceManager(
                 config=BackoffConfig(stale_after_seconds=max(0.1, self.ws_stale_after_seconds))
@@ -160,7 +167,9 @@ class MarketIngestionRuntimeWorker:
         except Exception as exc:  # noqa: BLE001 - websocket errors are expected and trigger fallback.
             if self._resilience is not None:
                 backoff = self._resilience.record_disconnect(now_seconds=time.monotonic())
-                self._next_ws_probe_monotonic = time.monotonic() + max(self.ws_probe_interval_seconds, backoff)
+                self._next_ws_probe_monotonic = time.monotonic() + max(
+                    self.ws_probe_interval_seconds, backoff
+                )
             if self._metrics is not None:
                 self._metrics.record_reconnect(now_seconds=time.time())
             if self.notification_bridge is not None:
@@ -236,7 +245,9 @@ class MarketIngestionRuntimeWorker:
             "exchange": self.adapter.exchange,
             "symbol": self.symbol,
             "pipeline_metrics": self._metrics.snapshot(now_seconds=time.time()),
-            "current_sequence": self._sync_engine.current_sequence if self._sync_engine is not None else None,
+            "current_sequence": self._sync_engine.current_sequence
+            if self._sync_engine is not None
+            else None,
         }
 
     def activity_snapshot(self) -> dict[str, Any]:
@@ -306,7 +317,9 @@ class MultiExchangeMarketIngestionRuntimeWorker:
         return {
             "workers_total": len(self.workers),
             "workers": [
-                worker.activity_snapshot() if hasattr(worker, "activity_snapshot") else {"exchange": worker.adapter.exchange}
+                worker.activity_snapshot()
+                if hasattr(worker, "activity_snapshot")
+                else {"exchange": worker.adapter.exchange}
                 for worker in self.workers
             ],
         }

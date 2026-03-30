@@ -52,7 +52,9 @@ def update_mode(
     repository: Any | None = Depends(get_control_plane_repository),
 ) -> ModeResponse:
     old_mode = state.mode
-    changed, changed_at = state.set_mode(mode=body.mode.value, actor=principal.user_id, reason=body.reason)
+    changed, changed_at = state.set_mode(
+        mode=body.mode.value, actor=principal.user_id, reason=body.reason
+    )
     if changed and repository is not None:
         try:
             repository.persist_mode_change(

@@ -4,7 +4,9 @@ from services.news_ingestion.ingestion_service import InMemoryNewsItemStore, New
 from services.news_ingestion.source_connectors import NewsSourceRecord
 
 
-def _record(*, source: str, source_item_id: str, title: str, content: str, url: str) -> NewsSourceRecord:
+def _record(
+    *, source: str, source_item_id: str, title: str, content: str, url: str
+) -> NewsSourceRecord:
     return NewsSourceRecord(
         source=source,
         source_item_id=source_item_id,

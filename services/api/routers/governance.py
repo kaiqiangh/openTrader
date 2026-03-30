@@ -64,7 +64,9 @@ def list_llm_calls(
         limit=limit,
     )
     is_admin = principal.role == UserRole.ADMIN
-    return LLMCallLogListResponse(items=[_call_model(item, include_previews=is_admin) for item in items])
+    return LLMCallLogListResponse(
+        items=[_call_model(item, include_previews=is_admin) for item in items]
+    )
 
 
 def _usage_model(item: LLMUsageRecord) -> LLMUsageRecordResponse:
@@ -99,7 +101,9 @@ def _breach_model(item: LLMBreachRecord) -> LLMBreachRecordResponse:
     )
 
 
-def _call_model(item: LLMCallLogRecord, *, include_previews: bool = False) -> LLMCallLogRecordResponse:
+def _call_model(
+    item: LLMCallLogRecord, *, include_previews: bool = False
+) -> LLMCallLogRecordResponse:
     return LLMCallLogRecordResponse(
         llm_call_id=item.llm_call_id,
         trace_id=item.trace_id,

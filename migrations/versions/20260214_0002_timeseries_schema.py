@@ -46,7 +46,9 @@ def upgrade() -> None:
         sa.Column("best_bid", sa.Numeric(36, 18), nullable=False),
         sa.Column("best_ask", sa.Numeric(36, 18), nullable=False),
         sa.Column("spread_bps", sa.Numeric(10, 4), nullable=False),
-        sa.PrimaryKeyConstraint("snapshot_time", "exchange", "symbol", name="pk_orderbook_snapshots"),
+        sa.PrimaryKeyConstraint(
+            "snapshot_time", "exchange", "symbol", name="pk_orderbook_snapshots"
+        ),
     )
 
     op.create_index("idx_klines_lookup", "klines", ["exchange", "symbol", "interval", "time"])

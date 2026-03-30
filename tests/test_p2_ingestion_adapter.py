@@ -51,7 +51,9 @@ class _RestOnlyClient:
 
 class _FailingWsClient:
     async def watch_order_book(self, symbol: str, limit: int | None = None) -> dict:
-        raise AssertionError(f"ws client should not be called for rest fetch mode: {symbol} {limit}")
+        raise AssertionError(
+            f"ws client should not be called for rest fetch mode: {symbol} {limit}"
+        )
 
 
 @pytest.mark.asyncio

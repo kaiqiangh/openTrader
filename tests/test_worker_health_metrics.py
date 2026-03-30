@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import threading
 import urllib.request
 
 from services.workers.health import WorkerHealthServer
@@ -12,7 +11,9 @@ from services.shared.runtime.prometheus import PrometheusRegistry
 
 def test_health_server_serves_metrics() -> None:
     registry = PrometheusRegistry()
-    registry.inc_counter(name="test_counter", help_text="Test counter", label_values={"svc": "test"})
+    registry.inc_counter(
+        name="test_counter", help_text="Test counter", label_values={"svc": "test"}
+    )
     registry.observe_histogram(name="test_histogram", help_text="Test histogram", value=0.5)
 
     server = WorkerHealthServer(port=18999, metrics_render=registry.render)

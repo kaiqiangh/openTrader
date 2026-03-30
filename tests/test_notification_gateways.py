@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from services.notification_service.models import DeliveryResult, NotificationMessage, NotificationSeverity
+from services.notification_service.models import NotificationMessage, NotificationSeverity
 
 
 def _make_message(**overrides: object) -> NotificationMessage:
@@ -59,7 +59,9 @@ class TestEmailGateway:
         from services.notification_service.email_gateway import EmailGatewayConfig
 
         with pytest.raises(ValueError, match="smtp_host"):
-            EmailGatewayConfig(smtp_host="", from_address="a@b.com", default_recipients=("x@y.com",))
+            EmailGatewayConfig(
+                smtp_host="", from_address="a@b.com", default_recipients=("x@y.com",)
+            )
 
 
 class TestWebhookGateway:
@@ -94,7 +96,11 @@ class TestGatewayDispatchWithNewGateways:
         """Test that webhook gateway integrates with GatewayDispatcher."""
         from unittest.mock import MagicMock, patch
         from services.notification_service.gateway_dispatch import GatewayDispatcher
-        from services.notification_service.webhook_gateway import WebhookGateway, WebhookGatewayConfig, WebhookResponse
+        from services.notification_service.webhook_gateway import (
+            WebhookGateway,
+            WebhookGatewayConfig,
+            WebhookResponse,
+        )
 
         gateway = WebhookGateway(config=WebhookGatewayConfig(url="https://example.com/hook"))
 
@@ -116,7 +122,11 @@ class TestGatewayDispatchWithNewGateways:
         """Test that 503 is retried and eventually succeeds."""
         from unittest.mock import MagicMock, patch
         from services.notification_service.gateway_dispatch import GatewayDispatcher
-        from services.notification_service.webhook_gateway import WebhookGateway, WebhookGatewayConfig, WebhookResponse
+        from services.notification_service.webhook_gateway import (
+            WebhookGateway,
+            WebhookGatewayConfig,
+            WebhookResponse,
+        )
 
         gateway = WebhookGateway(config=WebhookGatewayConfig(url="https://example.com/hook"))
 
@@ -126,7 +136,9 @@ class TestGatewayDispatchWithNewGateways:
                 WebhookResponse(status_code=200),
             ]
 
-            dispatcher = GatewayDispatcher(gateways={"webhook": gateway}, max_attempts=3, backoff_base_seconds=0.0)
+            dispatcher = GatewayDispatcher(
+                gateways={"webhook": gateway}, max_attempts=3, backoff_base_seconds=0.0
+            )
             msg = _make_message(gateway="webhook")
             event = MagicMock()
             event.notification_event_id = "evt-1"

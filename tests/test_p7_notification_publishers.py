@@ -118,7 +118,9 @@ async def test_notification_bridge_publishes_from_strategy_and_oms_events() -> N
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_and_simulation_worker_emit_notification_events_when_bridge_attached() -> None:
+async def test_orchestrator_and_simulation_worker_emit_notification_events_when_bridge_attached() -> (
+    None
+):
     capture = _CapturePublisher()
     bridge = NotificationEventBridge(publisher=capture)
 
@@ -131,7 +133,9 @@ async def test_orchestrator_and_simulation_worker_emit_notification_events_when_
     result = await worker.run_once(timeout_seconds=0.0)
 
     assert result is not None
-    notify_events = [item for item in capture.messages if item["routing_key"] == "notify.events.raw"]
+    notify_events = [
+        item for item in capture.messages if item["routing_key"] == "notify.events.raw"
+    ]
     assert len(notify_events) >= 2
 
 
@@ -139,15 +143,19 @@ def test_risk_observability_emits_notification_events() -> None:
     collector = RiskObservabilityCollector()
     collector.record_control_events(
         events=(
-            type("RiskControlEvent", (), {
-                "event_type": "risk.kill_switch.enabled",
-                "control": "kill_switch",
-                "status": "enabled",
-                "reason": "manual",
-                "actor": "ops",
-                "metadata": {},
-                "occurred_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            })(),
+            type(
+                "RiskControlEvent",
+                (),
+                {
+                    "event_type": "risk.kill_switch.enabled",
+                    "control": "kill_switch",
+                    "status": "enabled",
+                    "reason": "manual",
+                    "actor": "ops",
+                    "metadata": {},
+                    "occurred_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                },
+            )(),
         )
     )
 

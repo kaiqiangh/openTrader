@@ -6,7 +6,6 @@ and builder functions (the 0%-coverage modules).
 
 from __future__ import annotations
 
-import os
 from argparse import Namespace
 from decimal import Decimal
 
@@ -25,6 +24,7 @@ class TestToBool:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _to_bool
+
         return _to_bool
 
     @pytest.mark.parametrize("raw", ["true", "True", "TRUE", "1", "yes", "y", "on", "  true  "])
@@ -47,6 +47,7 @@ class TestParseCsvTokens:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _parse_csv_tokens
+
         return _parse_csv_tokens
 
     def test_none_returns_empty(self, fn) -> None:
@@ -77,6 +78,7 @@ class TestSafeMapping:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _safe_mapping
+
         return _safe_mapping
 
     def test_dict_passthrough(self, fn) -> None:
@@ -100,6 +102,7 @@ class TestSafeList:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _safe_list
+
         return _safe_list
 
     def test_list_passthrough(self, fn) -> None:
@@ -117,6 +120,7 @@ class TestNormalizeMarketFetchMode:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _normalize_market_fetch_mode
+
         return _normalize_market_fetch_mode
 
     @pytest.mark.parametrize("raw", ["rest", "Rest", "REST", "restful", "http", "  rest  "])
@@ -137,12 +141,14 @@ class TestTimeHelpers:
 
     def test_utc_now_ms_returns_int(self) -> None:
         from services.workers.helpers import _utc_now_ms
+
         result = _utc_now_ms()
         assert isinstance(result, int)
         assert result > 1_700_000_000_000  # sane epoch
 
     def test_utc_now_iso_ends_with_z(self) -> None:
         from services.workers.helpers import _utc_now_iso
+
         result = _utc_now_iso()
         assert result.endswith("Z")
         assert "T" in result
@@ -154,34 +160,40 @@ class TestWorkerActivitySnapshot:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _worker_activity_snapshot
+
         return _worker_activity_snapshot
 
     def test_no_attribute(self, fn) -> None:
         class Bare:
             pass
+
         assert fn(Bare()) == {}
 
     def test_non_callable(self, fn) -> None:
         class AttrOnly:
             activity_snapshot = "not_callable"
+
         assert fn(AttrOnly()) == {}
 
     def test_raises_returns_empty(self, fn) -> None:
         class Boom:
             def activity_snapshot(self):
                 raise RuntimeError("boom")
+
         assert fn(Boom()) == {}
 
     def test_returns_non_mapping(self, fn) -> None:
         class ReturnsList:
             def activity_snapshot(self):
                 return [1, 2, 3]
+
         assert fn(ReturnsList()) == {}
 
     def test_returns_mapping(self, fn) -> None:
         class Good:
             def activity_snapshot(self):
                 return {"trace_id": "abc"}
+
         assert fn(Good()) == {"trace_id": "abc"}
 
 
@@ -191,6 +203,7 @@ class TestCorrelationFromActivity:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _correlation_from_activity
+
         return _correlation_from_activity
 
     def test_flat_mapping(self, fn) -> None:
@@ -218,6 +231,7 @@ class TestMaybeUuid:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _maybe_uuid
+
         return _maybe_uuid
 
     def test_valid_uuid(self, fn) -> None:
@@ -245,9 +259,12 @@ class TestParseArgs:
     @pytest.fixture()
     def parse(self):
         from services.workers.settings import _parse_args
+
         return _parse_args
 
-    @pytest.mark.parametrize("worker", ["market", "orchestrator", "simulation", "oms", "news", "execution_lifecycle"])
+    @pytest.mark.parametrize(
+        "worker", ["market", "orchestrator", "simulation", "oms", "news", "execution_lifecycle"]
+    )
     def test_valid_worker_choices(self, parse, worker: str) -> None:
         ns = parse(["--worker", worker])
         assert ns.worker == worker
@@ -295,6 +312,7 @@ class TestLoadRuntimeWorkerSettings:
     @pytest.fixture()
     def load(self):
         from services.workers.settings import load_runtime_worker_settings
+
         return load_runtime_worker_settings
 
     @staticmethod
@@ -328,15 +346,17 @@ class TestLoadRuntimeWorkerSettings:
         assert settings.require_database is True
 
     def test_explicit_overrides_applied(self, load) -> None:
-        settings = load(self._make_ns(
-            worker="orchestrator",
-            broker_backend="inmemory",
-            mode="REAL",
-            symbol="ETH/USDT",
-            strategy_id="custom",
-            once=True,
-            validate_only=True,
-        ))
+        settings = load(
+            self._make_ns(
+                worker="orchestrator",
+                broker_backend="inmemory",
+                mode="REAL",
+                symbol="ETH/USDT",
+                strategy_id="custom",
+                once=True,
+                validate_only=True,
+            )
+        )
         assert settings.worker == "orchestrator"
         assert settings.broker_backend == "inmemory"
         assert settings.mode == "REAL"
@@ -362,7 +382,14 @@ class TestLoadRuntimeWorkerSettings:
         assert settings.symbol == "ETH/USDT"
 
     def test_worker_choices_all_accepted(self, load) -> None:
-        for worker in ("market", "orchestrator", "simulation", "oms", "news", "execution_lifecycle"):
+        for worker in (
+            "market",
+            "orchestrator",
+            "simulation",
+            "oms",
+            "news",
+            "execution_lifecycle",
+        ):
             settings = load(self._make_ns(worker=worker))
             assert settings.worker == worker
 
@@ -375,6 +402,7 @@ class TestValidateRuntimeBackendPolicy:
             RuntimeWorkerSettings,
             _validate_runtime_backend_policy,
         )
+
         settings = RuntimeWorkerSettings(
             worker="market",
             broker_backend="inmemory",
@@ -399,6 +427,7 @@ class TestValidateRuntimeBackendPolicy:
             RuntimeWorkerSettings,
             _validate_runtime_backend_policy,
         )
+
         settings = RuntimeWorkerSettings(
             worker="market",
             broker_backend="inmemory",
@@ -429,6 +458,7 @@ class TestBuildRuntimeBroker:
 
     def test_inmemory_backend(self, tmp_path) -> None:
         from services.workers.builders import build_runtime_broker
+
         topo = tmp_path / "topology.json"
         topo.write_text("{}")
         broker = build_runtime_broker(backend="inmemory", topology_path=str(topo))
@@ -436,11 +466,13 @@ class TestBuildRuntimeBroker:
 
     def test_invalid_backend_raises(self) -> None:
         from services.workers.builders import build_runtime_broker
+
         with pytest.raises(ValueError, match="RUNTIME_BROKER_BACKEND"):
             build_runtime_broker(backend="kafka", topology_path="nonexistent.json")
 
     def test_backend_is_case_insensitive(self, tmp_path) -> None:
         from services.workers.builders import build_runtime_broker
+
         topo = tmp_path / "topology.json"
         topo.write_text("{}")
         broker = build_runtime_broker(backend="  InMemory  ", topology_path=str(topo))
@@ -458,6 +490,7 @@ class TestResolveRequestedQuantity:
     @pytest.fixture()
     def fn(self):
         from services.workers.helpers import _resolve_requested_quantity
+
         return _resolve_requested_quantity
 
     def test_none_raises(self, fn) -> None:
@@ -495,37 +528,44 @@ class TestNewsHelpers:
 
     def test_default_rss_feeds_non_empty(self) -> None:
         from services.workers.helpers import _default_news_rss_feeds
+
         feeds = _default_news_rss_feeds()
         assert len(feeds) >= 2
         assert all(f.startswith("http") for f in feeds)
 
     def test_resolve_news_source_mode_require_db(self) -> None:
         from services.workers.helpers import _resolve_news_source_mode
+
         assert _resolve_news_source_mode(require_database=True) == "real"
 
     def test_resolve_news_source_mode_no_db(self) -> None:
         from services.workers.helpers import _resolve_news_source_mode
+
         assert _resolve_news_source_mode(require_database=False) == "mock"
 
     def test_resolve_news_source_mode_invalid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from services.workers.helpers import _resolve_news_source_mode
+
         monkeypatch.setenv("NEWS_SOURCE_MODE", "invalid")
         with pytest.raises(ValueError, match="NEWS_SOURCE_MODE"):
             _resolve_news_source_mode(require_database=False)
 
     def test_infer_source_name(self) -> None:
         from services.workers.helpers import _infer_source_name
+
         assert _infer_source_name("https://www.coindesk.com/rss") == "coindesk.com"
         assert _infer_source_name("https://cointelegraph.com/rss") == "cointelegraph.com"
 
     def test_build_source_item_id_deterministic(self) -> None:
         from services.workers.helpers import _build_source_item_id
+
         id1 = _build_source_item_id(source="test", link="https://example.com/a")
         id2 = _build_source_item_id(source="test", link="https://example.com/a")
         assert id1 == id2
 
     def test_build_source_item_id_truncates_long(self) -> None:
         from services.workers.helpers import _build_source_item_id
+
         long_link = "https://example.com/" + "a" * 200
         result = _build_source_item_id(source="src", link=long_link)
         # Should be hashed, so bounded length

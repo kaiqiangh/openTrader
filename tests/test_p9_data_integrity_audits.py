@@ -112,7 +112,7 @@ def test_p9_integrity_kline_reconstruction_fault_detection() -> None:
     bars = [
         KlineBar(1_700_000_000_000, 10.0, 11.0, 9.5, 10.4, 100.0),
         KlineBar(1_700_000_120_000, 10.4, 11.2, 10.0, 10.9, 120.0),  # missing 1_700_000_060_000
-        KlineBar(1_700_000_150_000, 10.9, 11.0, 10.5, 10.7, 90.0),   # interval mismatch (30s)
+        KlineBar(1_700_000_150_000, 10.9, 11.0, 10.5, 10.7, 90.0),  # interval mismatch (30s)
     ]
 
     result = validator.validate(bars)

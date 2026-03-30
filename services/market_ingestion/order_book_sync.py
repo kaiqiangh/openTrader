@@ -44,7 +44,11 @@ class OrderBookSyncEngine:
             raise OrderBookNotInitializedError("Call load_snapshot before apply_delta")
 
         self._validate_scope(delta.exchange, delta.symbol)
-        if self._sequence is not None and delta.sequence_start is not None and delta.sequence_end is not None:
+        if (
+            self._sequence is not None
+            and delta.sequence_start is not None
+            and delta.sequence_end is not None
+        ):
             expected = self._sequence + 1
             if delta.sequence_end < expected:
                 return False

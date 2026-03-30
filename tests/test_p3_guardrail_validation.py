@@ -55,7 +55,9 @@ def _risk(approved: bool = True) -> RiskAssessment:
     )
 
 
-def _decision(action: str = "BUY", quantity: float = 0.05, confidence: float = 0.6) -> ExecutionDecision:
+def _decision(
+    action: str = "BUY", quantity: float = 0.05, confidence: float = 0.6
+) -> ExecutionDecision:
     return ExecutionDecision(
         action=action,  # type: ignore[arg-type]
         quantity=quantity,
@@ -65,7 +67,9 @@ def _decision(action: str = "BUY", quantity: float = 0.05, confidence: float = 0
     )
 
 
-def _market_context(symbol: str = "BTC/USDT", mid_price: float = 42_000.0) -> dict[str, float | str]:
+def _market_context(
+    symbol: str = "BTC/USDT", mid_price: float = 42_000.0
+) -> dict[str, float | str]:
     return {
         "symbol": symbol,
         "mid_price": mid_price,
@@ -134,7 +138,12 @@ def test_guardrail_rejects_leverage_breach() -> None:
     layer = GuardrailValidationLayer()
     result = layer.validate(
         strategy=_strategy(),
-        market_context={"symbol": "BTC/USDT", "mid_price": 42_000.0, "current_position": 0.1, "equity_usd": 500},
+        market_context={
+            "symbol": "BTC/USDT",
+            "mid_price": 42_000.0,
+            "current_position": 0.1,
+            "equity_usd": 500,
+        },
         plan=_plan(),
         risk=_risk(),
         decision=_decision(action="BUY", quantity=0.5),

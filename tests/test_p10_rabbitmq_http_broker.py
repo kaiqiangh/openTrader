@@ -6,7 +6,10 @@ from typing import Any
 
 import pytest
 
-from services.shared.runtime.rabbitmq_http_broker import RabbitMQHTTPBrokerError, RabbitMQHTTPTopicBroker
+from services.shared.runtime.rabbitmq_http_broker import (
+    RabbitMQHTTPBrokerError,
+    RabbitMQHTTPTopicBroker,
+)
 
 
 def _write_topology(tmp_path: Path, payload: dict[str, Any]) -> Path:
@@ -21,8 +24,16 @@ async def test_publish_resolves_exchange_from_topology(tmp_path: Path) -> None:
         tmp_path,
         {
             "bindings": [
-                {"exchange": "market.events", "queue": "market.canonical", "routing_key": "market.canonical"},
-                {"exchange": "notify.events", "queue": "notify.events.raw", "routing_key": "notify.#"},
+                {
+                    "exchange": "market.events",
+                    "queue": "market.canonical",
+                    "routing_key": "market.canonical",
+                },
+                {
+                    "exchange": "notify.events",
+                    "queue": "notify.events.raw",
+                    "routing_key": "notify.#",
+                },
             ]
         },
     )
@@ -58,7 +69,9 @@ async def test_publish_resolves_exchange_from_topology(tmp_path: Path) -> None:
         fetch_fn=lambda *args: [],
     )
 
-    await broker.publish(routing_key="market.canonical", message={"event_type": "market.canonical.orderbook_delta"})
+    await broker.publish(
+        routing_key="market.canonical", message={"event_type": "market.canonical.orderbook_delta"}
+    )
 
     assert captured["exchange_name"] == "market.events"
     assert captured["routing_key"] == "market.canonical"
@@ -98,15 +111,25 @@ async def test_consume_declares_missing_queue_on_queue_not_found(tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_topology_declares_exchanges_queues_and_bindings_once(tmp_path: Path) -> None:
+async def test_bootstrap_topology_declares_exchanges_queues_and_bindings_once(
+    tmp_path: Path,
+) -> None:
     topology_path = _write_topology(
         tmp_path,
         {
             "exchanges": [{"name": "market.events"}, {"name": "notify.events"}],
             "queues": [{"name": "market.canonical"}, {"name": "notify.events.raw"}],
             "bindings": [
-                {"exchange": "market.events", "queue": "market.canonical", "routing_key": "market.canonical"},
-                {"exchange": "notify.events", "queue": "notify.events.raw", "routing_key": "notify.#"},
+                {
+                    "exchange": "market.events",
+                    "queue": "market.canonical",
+                    "routing_key": "market.canonical",
+                },
+                {
+                    "exchange": "notify.events",
+                    "queue": "notify.events.raw",
+                    "routing_key": "notify.#",
+                },
             ],
         },
     )

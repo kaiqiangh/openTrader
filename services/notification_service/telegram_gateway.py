@@ -61,7 +61,9 @@ class TelegramGateway:
         self._sender = sender or _default_sender
 
     async def send(self, message: NotificationMessage) -> DeliveryResult:
-        target_chat_id = _resolve_chat_id(message=message, default_chat_id=self.config.default_chat_id)
+        target_chat_id = _resolve_chat_id(
+            message=message, default_chat_id=self.config.default_chat_id
+        )
         text = render_telegram_message_text(message)
 
         response = await self._sender(
@@ -185,7 +187,9 @@ def _send_http_request(
 
     try:
         with httpx.Client(timeout=timeout_seconds, verify=True) as client:
-            response = client.post(url, content=payload, headers={"Content-Type": "application/json"})
+            response = client.post(
+                url, content=payload, headers={"Content-Type": "application/json"}
+            )
             body = _decode_json(response.text)
             status_code = int(response.status_code)
             return TelegramSendResult(status_code=status_code, body=body)

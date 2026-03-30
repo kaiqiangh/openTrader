@@ -8,8 +8,6 @@ import logging
 import time
 import uuid
 
-logger = logging.getLogger(__name__)
-
 from services.llm_gateway.contracts import (
     GatewaySettings,
     LLMMetricsSink,
@@ -22,6 +20,8 @@ from services.llm_gateway.contracts import (
 )
 from services.llm_gateway.persistence import LLMCallRecord, LLMCallStore
 from services.llm_gateway.quota import LLMQuotaStore
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProviderClient(Protocol):
@@ -390,7 +390,10 @@ class LLMGateway:
                     },
                 )
 
-        if limits.daily_token_limit is not None and projected_daily_total > limits.daily_token_limit:
+        if (
+            limits.daily_token_limit is not None
+            and projected_daily_total > limits.daily_token_limit
+        ):
             reason = "daily_token_limit_exceeded"
             projected_cost = self._minimum_projected_cost(
                 ordered_aliases=ordered_aliases,

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from services.simulation_execution.safety_guard import MockModeSafetyGuard, SimulationSafetyViolation
+from services.simulation_execution.safety_guard import (
+    MockModeSafetyGuard,
+    SimulationSafetyViolation,
+)
 
 
 def test_mock_mode_safety_guard_accepts_mock_queue() -> None:

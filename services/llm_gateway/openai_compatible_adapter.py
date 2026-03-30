@@ -66,9 +66,13 @@ class OpenAICompatibleClient:
                 response = client.post(url, content=body, headers=headers)
                 response.raise_for_status()
                 raw = response.text
-        except httpx.HTTPStatusError as exc:  # pragma: no cover - exercised through monkeypatch tests
+        except (
+            httpx.HTTPStatusError
+        ) as exc:  # pragma: no cover - exercised through monkeypatch tests
             detail = exc.response.text
-            raise LLMProviderError(f"LLM provider HTTP {exc.response.status_code}: {detail}") from exc
+            raise LLMProviderError(
+                f"LLM provider HTTP {exc.response.status_code}: {detail}"
+            ) from exc
         except httpx.HTTPError as exc:  # pragma: no cover - exercised through monkeypatch tests
             raise LLMProviderError(f"LLM provider connection error: {exc}") from exc
 

@@ -9,10 +9,12 @@ from fastapi.testclient import TestClient
 from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
-from tests.jwt_test_helpers import encode_jwt_rs256, get_test_rsa_keys, make_test_settings
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
+
 
 def _settings() -> APISettings:
     return make_test_settings()
+
 
 def test_jwt_issuer_mismatch_is_rejected() -> None:
     settings = _settings()
@@ -22,11 +24,14 @@ def test_jwt_issuer_mismatch_is_rejected() -> None:
         settings=settings,
         iss="unexpected-issuer",
     )
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get("/metadata", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
+
 
 def test_jwt_audience_mismatch_is_rejected() -> None:
     settings = _settings()
@@ -36,11 +41,14 @@ def test_jwt_audience_mismatch_is_rejected() -> None:
         settings=settings,
         aud="unexpected-audience",
     )
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get("/metadata", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
+
 
 def test_rs256_rejects_hs256_tokens() -> None:
     """When RS256 is configured, HS256 tokens should be rejected (SEC-026)."""
@@ -63,7 +71,9 @@ def test_rs256_rejects_hs256_tokens() -> None:
         algorithm="HS256",
     )
 
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.get("/metadata", headers={"Authorization": f"Bearer {hs256_token}"})
@@ -76,4 +86,3 @@ def test_security_suite_has_runbook_references() -> None:
     assert "docs/runbooks/exchange-outage.md" in readme
     assert "docs/runbooks/llm-quota-breach.md" in readme
     assert "docs/runbooks/risk-incident.md" in readme
-

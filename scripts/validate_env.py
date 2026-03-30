@@ -78,14 +78,24 @@ def main() -> int:
 
     if notify_enabled and default_gateway == "telegram":
         if _is_placeholder_secret(os.getenv("TELEGRAM_BOT_TOKEN")):
-            print("TELEGRAM_BOT_TOKEN is required when NOTIFY_ENABLED=true and NOTIFY_DEFAULT_GATEWAY=telegram")
+            print(
+                "TELEGRAM_BOT_TOKEN is required when NOTIFY_ENABLED=true and NOTIFY_DEFAULT_GATEWAY=telegram"
+            )
             return 1
         if _is_placeholder_secret(os.getenv("TELEGRAM_DEFAULT_CHAT_ID")):
-            print("TELEGRAM_DEFAULT_CHAT_ID is required when NOTIFY_ENABLED=true and NOTIFY_DEFAULT_GATEWAY=telegram")
+            print(
+                "TELEGRAM_DEFAULT_CHAT_ID is required when NOTIFY_ENABLED=true and NOTIFY_DEFAULT_GATEWAY=telegram"
+            )
             return 1
 
-    if notify_enabled and consumer_backend == "rabbitmq_http" and not os.getenv("NOTIFY_RABBITMQ_HTTP_API_URL"):
-        print("NOTIFY_RABBITMQ_HTTP_API_URL is required when NOTIFY_ENABLED=true and rabbitmq_http backend is selected")
+    if (
+        notify_enabled
+        and consumer_backend == "rabbitmq_http"
+        and not os.getenv("NOTIFY_RABBITMQ_HTTP_API_URL")
+    ):
+        print(
+            "NOTIFY_RABBITMQ_HTTP_API_URL is required when NOTIFY_ENABLED=true and rabbitmq_http backend is selected"
+        )
         return 1
 
     exchange_default = os.getenv("EXCHANGE_DEFAULT", "").strip().lower()
@@ -94,7 +104,9 @@ def main() -> int:
         return 1
 
     market_exchanges = tuple(
-        token.strip().lower() for token in os.getenv("MARKET_EXCHANGES", "").split(",") if token.strip()
+        token.strip().lower()
+        for token in os.getenv("MARKET_EXCHANGES", "").split(",")
+        if token.strip()
     )
     if not market_exchanges:
         print("MARKET_EXCHANGES must include at least one exchange")
@@ -103,7 +115,11 @@ def main() -> int:
         print("MARKET_EXCHANGES entries must be binance or bitget")
         return 1
 
-    market_symbols = tuple(token.strip().upper() for token in os.getenv("MARKET_SYMBOLS", "").split(",") if token.strip())
+    market_symbols = tuple(
+        token.strip().upper()
+        for token in os.getenv("MARKET_SYMBOLS", "").split(",")
+        if token.strip()
+    )
     if not market_symbols:
         print("MARKET_SYMBOLS must include at least one symbol")
         return 1
@@ -133,7 +149,11 @@ def main() -> int:
         print("ORDERBOOK_SNAPSHOT_INTERVAL_SECONDS must be a positive number")
         return 1
 
-    kline_intervals = tuple(token.strip().lower() for token in os.getenv("KLINE_INTERVALS", "").split(",") if token.strip())
+    kline_intervals = tuple(
+        token.strip().lower()
+        for token in os.getenv("KLINE_INTERVALS", "").split(",")
+        if token.strip()
+    )
     if not kline_intervals:
         print("KLINE_INTERVALS must include at least one interval")
         return 1
@@ -188,7 +208,9 @@ def main() -> int:
         return 1
 
     if not _is_valid_aes256_key(os.getenv("ENCRYPTION_KEY_BASE64", "")):
-        print("ENCRYPTION_KEY_BASE64 must be a valid base64 string that decodes to 32 bytes (AES-256-GCM key)")
+        print(
+            "ENCRYPTION_KEY_BASE64 must be a valid base64 string that decodes to 32 bytes (AES-256-GCM key)"
+        )
         return 1
     print("Environment validation passed")
     return 0
@@ -216,7 +238,9 @@ def _validate_litellm_model_binding(*, base_url: str, model: str) -> str | None:
     if not normalized_base or not normalized_model:
         return None
     if "api.deepseek.com" in normalized_base and normalized_model.startswith("deepseek/"):
-        return "LITELLM_MODEL must be deepseek-chat when LITELLM_BASE_URL points to api.deepseek.com"
+        return (
+            "LITELLM_MODEL must be deepseek-chat when LITELLM_BASE_URL points to api.deepseek.com"
+        )
     return None
 
 

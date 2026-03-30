@@ -50,10 +50,20 @@ class BinanceSpotExecutionAdapter:
     """Safe default path used when real dispatch is disabled."""
 
     def create_order(self, *, payload: dict[str, Any]) -> DispatchOutcome:
-        return _simulated_outcome(exchange="binance", route="binance.spot.orders.create", status="submitted", payload=payload)
+        return _simulated_outcome(
+            exchange="binance",
+            route="binance.spot.orders.create",
+            status="submitted",
+            payload=payload,
+        )
 
     def cancel_order(self, *, payload: dict[str, Any]) -> DispatchOutcome:
-        return _simulated_outcome(exchange="binance", route="binance.spot.orders.cancel", status="canceled", payload=payload)
+        return _simulated_outcome(
+            exchange="binance",
+            route="binance.spot.orders.cancel",
+            status="canceled",
+            payload=payload,
+        )
 
     def get_order_status(self, *, payload: dict[str, Any]) -> DispatchOutcome:
         return _simulated_outcome(
@@ -68,10 +78,17 @@ class BitgetSpotExecutionAdapter:
     """Safe default path used when real dispatch is disabled."""
 
     def create_order(self, *, payload: dict[str, Any]) -> DispatchOutcome:
-        return _simulated_outcome(exchange="bitget", route="bitget.spot.orders.create", status="submitted", payload=payload)
+        return _simulated_outcome(
+            exchange="bitget",
+            route="bitget.spot.orders.create",
+            status="submitted",
+            payload=payload,
+        )
 
     def cancel_order(self, *, payload: dict[str, Any]) -> DispatchOutcome:
-        return _simulated_outcome(exchange="bitget", route="bitget.spot.orders.cancel", status="canceled", payload=payload)
+        return _simulated_outcome(
+            exchange="bitget", route="bitget.spot.orders.cancel", status="canceled", payload=payload
+        )
 
     def get_order_status(self, *, payload: dict[str, Any]) -> DispatchOutcome:
         return _simulated_outcome(
@@ -89,7 +106,9 @@ class BinanceSignedSpotExecutionAdapter:
         self.base_url = os.getenv("BINANCE_BASE_URL", "https://api.binance.com").rstrip("/")
         self.api_key = os.getenv("BINANCE_API_KEY", "").strip()
         self.api_secret = os.getenv("BINANCE_API_SECRET", "").strip()
-        self.timeout_seconds = max(0.1, float(os.getenv("INTERNAL_EXECUTION_HTTP_TIMEOUT_SECONDS", "10.0")))
+        self.timeout_seconds = max(
+            0.1, float(os.getenv("INTERNAL_EXECUTION_HTTP_TIMEOUT_SECONDS", "10.0"))
+        )
         self.recv_window_ms = max(1000, int(os.getenv("BINANCE_RECV_WINDOW_MS", "5000")))
         if not self.api_key or not self.api_secret:
             raise InternalDispatchValidationError(
@@ -139,8 +158,15 @@ class BinanceSignedSpotExecutionAdapter:
             request_params["orderId"] = exchange_order_id
         if client_order_id:
             request_params["origClientOrderId"] = client_order_id
-        response = self._signed_request(method="DELETE", path="/api/v3/order", params=request_params)
-        order_id = str(response.get("orderId") or exchange_order_id or client_order_id or _resolve_order_id(payload))
+        response = self._signed_request(
+            method="DELETE", path="/api/v3/order", params=request_params
+        )
+        order_id = str(
+            response.get("orderId")
+            or exchange_order_id
+            or client_order_id
+            or _resolve_order_id(payload)
+        )
         return DispatchOutcome(
             order_id=order_id,
             status=_normalize_exchange_status(response.get("status"), fallback="canceled"),
@@ -165,7 +191,12 @@ class BinanceSignedSpotExecutionAdapter:
         if client_order_id:
             request_params["origClientOrderId"] = client_order_id
         response = self._signed_request(method="GET", path="/api/v3/order", params=request_params)
-        order_id = str(response.get("orderId") or exchange_order_id or client_order_id or _resolve_order_id(payload))
+        order_id = str(
+            response.get("orderId")
+            or exchange_order_id
+            or client_order_id
+            or _resolve_order_id(payload)
+        )
         return DispatchOutcome(
             order_id=order_id,
             status=_normalize_exchange_status(response.get("status"), fallback="submitted"),
@@ -179,7 +210,9 @@ class BinanceSignedSpotExecutionAdapter:
             },
         )
 
-    def _signed_request(self, *, method: str, path: str, params: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _signed_request(
+        self, *, method: str, path: str, params: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
         ordered: list[tuple[str, str]] = []
         for key, value in params.items():
             if value is None:
@@ -202,7 +235,14 @@ class BinanceSignedSpotExecutionAdapter:
         ).hexdigest()
         url = f"{self.base_url}{path}?{query}&signature={signature}"
         headers = {"X-MBX-APIKEY": self.api_key}
-        parsed = _request_json(url=url, method=method.upper(), body=None, headers=headers, timeout_seconds=self.timeout_seconds, provider="Binance")
+        parsed = _request_json(
+            url=url,
+            method=method.upper(),
+            body=None,
+            headers=headers,
+            timeout_seconds=self.timeout_seconds,
+            provider="Binance",
+        )
         if not isinstance(parsed, Mapping):
             raise InternalDispatchUpstreamError("Binance response must be a JSON object")
         if parsed.get("code") is not None and parsed.get("msg"):
@@ -221,7 +261,9 @@ class BitgetSignedSpotExecutionAdapter:
         self.api_key = os.getenv("BITGET_API_KEY", "").strip()
         self.api_secret = os.getenv("BITGET_API_SECRET", "").strip()
         self.passphrase = os.getenv("BITGET_API_PASSPHRASE", "").strip()
-        self.timeout_seconds = max(0.1, float(os.getenv("INTERNAL_EXECUTION_HTTP_TIMEOUT_SECONDS", "10.0")))
+        self.timeout_seconds = max(
+            0.1, float(os.getenv("INTERNAL_EXECUTION_HTTP_TIMEOUT_SECONDS", "10.0"))
+        )
         if not self.api_key or not self.api_secret or not self.passphrase:
             raise InternalDispatchValidationError(
                 "missing Bitget credentials for real dispatch; set BITGET_API_KEY, BITGET_API_SECRET, BITGET_API_PASSPHRASE"
@@ -302,7 +344,12 @@ class BitgetSignedSpotExecutionAdapter:
             body=body,
         )
         response_data = _bitget_data_object(response)
-        order_id = str(response_data.get("orderId") or exchange_order_id or client_order_id or _resolve_order_id(payload))
+        order_id = str(
+            response_data.get("orderId")
+            or exchange_order_id
+            or client_order_id
+            or _resolve_order_id(payload)
+        )
         return DispatchOutcome(
             order_id=order_id,
             status="canceled",
@@ -340,7 +387,9 @@ class BitgetSignedSpotExecutionAdapter:
             row = data
         else:
             row = {}
-        order_id = str(row.get("orderId") or exchange_order_id or client_order_id or _resolve_order_id(payload))
+        order_id = str(
+            row.get("orderId") or exchange_order_id or client_order_id or _resolve_order_id(payload)
+        )
         return DispatchOutcome(
             order_id=order_id,
             status=_normalize_exchange_status(row.get("status"), fallback="submitted"),
@@ -378,7 +427,9 @@ class BitgetSignedSpotExecutionAdapter:
         timestamp = str(int(time.time() * 1000))
         prehash = f"{timestamp}{method.upper()}{request_path}{payload_text}"
         signature = base64.b64encode(
-            hmac.new(self.api_secret.encode("utf-8"), prehash.encode("utf-8"), digestmod=hashlib.sha256).digest()
+            hmac.new(
+                self.api_secret.encode("utf-8"), prehash.encode("utf-8"), digestmod=hashlib.sha256
+            ).digest()
         ).decode("utf-8")
 
         url = f"{self.base_url}{request_path}"
@@ -391,12 +442,21 @@ class BitgetSignedSpotExecutionAdapter:
             "locale": "en-US",
             "Content-Type": "application/json",
         }
-        parsed = _request_json(url=url, method=method.upper(), body=body, headers=headers, timeout_seconds=self.timeout_seconds, provider="Bitget")
+        parsed = _request_json(
+            url=url,
+            method=method.upper(),
+            body=body,
+            headers=headers,
+            timeout_seconds=self.timeout_seconds,
+            provider="Bitget",
+        )
         if not isinstance(parsed, Mapping):
             raise InternalDispatchUpstreamError("Bitget response must be a JSON object")
         code = str(parsed.get("code", "")).strip()
         if code not in {"", "00000", "0"}:
-            logger.warning("Bitget upstream error code=%s msg=%s", code, parsed.get("msg", "unknown error"))
+            logger.warning(
+                "Bitget upstream error code=%s msg=%s", code, parsed.get("msg", "unknown error")
+            )
             raise InternalDispatchUpstreamError(f"Bitget order rejected (code={code})")
         return parsed
 
@@ -469,7 +529,9 @@ def validate_create_order_fields(
         return
 
 
-def get_spot_adapter(exchange: str, *, enable_real_dispatch: bool | None = None) -> SpotExecutionAdapter:
+def get_spot_adapter(
+    exchange: str, *, enable_real_dispatch: bool | None = None
+) -> SpotExecutionAdapter:
     normalized = normalize_exchange(exchange)
     use_real_dispatch = _resolve_real_dispatch(enable_real_dispatch)
     if normalized == "binance":
@@ -494,7 +556,9 @@ def _to_bool(raw: str) -> bool:
     return normalized in {"1", "true", "yes", "on"}
 
 
-def _simulated_outcome(*, exchange: str, route: str, status: str, payload: dict[str, Any]) -> DispatchOutcome:
+def _simulated_outcome(
+    *, exchange: str, route: str, status: str, payload: dict[str, Any]
+) -> DispatchOutcome:
     order_id = _resolve_order_id(payload)
     return DispatchOutcome(
         order_id=order_id,
@@ -619,7 +683,15 @@ def _bitget_data_object(parsed: Mapping[str, Any]) -> Mapping[str, Any]:
     return {}
 
 
-def _request_json(*, url: str, method: str, body: bytes | None, headers: dict[str, str], timeout_seconds: float, provider: str) -> Any:
+def _request_json(
+    *,
+    url: str,
+    method: str,
+    body: bytes | None,
+    headers: dict[str, str],
+    timeout_seconds: float,
+    provider: str,
+) -> Any:
     try:
         with httpx.Client(timeout=timeout_seconds, verify=True) as client:
             response = client.request(method, url, content=body, headers=headers)
@@ -627,7 +699,9 @@ def _request_json(*, url: str, method: str, body: bytes | None, headers: dict[st
             raw = response.text
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text
-        raise InternalDispatchUpstreamError(f"{provider} HTTP {exc.response.status_code}: {detail}") from exc
+        raise InternalDispatchUpstreamError(
+            f"{provider} HTTP {exc.response.status_code}: {detail}"
+        ) from exc
     except httpx.HTTPError as exc:
         raise InternalDispatchUpstreamError(f"{provider} connection error: {exc}") from exc
 

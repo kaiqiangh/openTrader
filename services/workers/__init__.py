@@ -36,7 +36,10 @@ def __getattr__(name: str):  # pragma: no cover - compatibility shim for lazy im
         "RuntimeWorkerSettings": ("services.workers.settings", "RuntimeWorkerSettings"),
         "RuntimeWorkerBuildResult": ("services.workers.settings", "RuntimeWorkerBuildResult"),
         "RuntimeWorkerRunner": ("services.workers.settings", "RuntimeWorkerRunner"),
-        "load_runtime_worker_settings": ("services.workers.settings", "load_runtime_worker_settings"),
+        "load_runtime_worker_settings": (
+            "services.workers.settings",
+            "load_runtime_worker_settings",
+        ),
         # Worker runners
         "MarketWorkerRunner": ("services.workers.market", "MarketWorkerRunner"),
         "OrchestratorWorkerRunner": ("services.workers.orchestrator", "OrchestratorWorkerRunner"),

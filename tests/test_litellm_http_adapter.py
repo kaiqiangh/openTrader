@@ -19,7 +19,9 @@ class _FakeHTTPResponse:
 
 
 class _FakeClient:
-    def __init__(self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]) -> None:
+    def __init__(
+        self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]
+    ) -> None:
         self._response = response
         self._captured = captured
         self._timeout = timeout
@@ -41,13 +43,16 @@ class _FakeClient:
 def _make_fake_client_cls(response, captured):
     class _FakeClientCls:
         def __init__(self, **kwargs):
-            self._inner = _FakeClient(kwargs.get("timeout"), kwargs.get("verify"), response, captured)
+            self._inner = _FakeClient(
+                kwargs.get("timeout"), kwargs.get("verify"), response, captured
+            )
 
         def __enter__(self):
             return self._inner
 
         def __exit__(self, exc_type, exc, tb):
             return False
+
     return _FakeClientCls
 
 

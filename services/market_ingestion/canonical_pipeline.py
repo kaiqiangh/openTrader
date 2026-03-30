@@ -14,7 +14,9 @@ class CanonicalPublisher(Protocol):
 
 
 class CanonicalNormalizationPipeline:
-    def __init__(self, *, publisher: CanonicalPublisher, service_name: str = "market_ingestion") -> None:
+    def __init__(
+        self, *, publisher: CanonicalPublisher, service_name: str = "market_ingestion"
+    ) -> None:
         self.publisher = publisher
         self.service_name = service_name
 
@@ -69,7 +71,9 @@ class CanonicalNormalizationPipeline:
 
         first_open = bars[0].open_time_ms if bars else "na"
         last_open = bars[-1].open_time_ms if bars else "na"
-        idempotency_key = f"market.canonical.kline_validation:{exchange}:{symbol}:{first_open}:{last_open}"
+        idempotency_key = (
+            f"market.canonical.kline_validation:{exchange}:{symbol}:{first_open}:{last_open}"
+        )
         envelope = self._build_envelope(
             event_type="market.canonical.kline_validation",
             mode=mode,

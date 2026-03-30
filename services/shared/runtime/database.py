@@ -84,11 +84,17 @@ def _build_database_url(source: Mapping[str, str]) -> str:
     if not password:
         raise RuntimeError("POSTGRES_PASSWORD must be set (got empty or default)")
     if not host:
-        raise RuntimeDatabaseConfigError("POSTGRES_HOST must be set when DATABASE_URL is not provided")
+        raise RuntimeDatabaseConfigError(
+            "POSTGRES_HOST must be set when DATABASE_URL is not provided"
+        )
     if not db_name:
-        raise RuntimeDatabaseConfigError("POSTGRES_DB must be set when DATABASE_URL is not provided")
+        raise RuntimeDatabaseConfigError(
+            "POSTGRES_DB must be set when DATABASE_URL is not provided"
+        )
     if not user:
-        raise RuntimeDatabaseConfigError("POSTGRES_USER must be set when DATABASE_URL is not provided")
+        raise RuntimeDatabaseConfigError(
+            "POSTGRES_USER must be set when DATABASE_URL is not provided"
+        )
     encoded_password = quote_plus(password)
     return f"postgresql+psycopg://{user}:{encoded_password}@{host}:{port}/{db_name}"
 

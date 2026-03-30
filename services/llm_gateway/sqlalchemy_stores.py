@@ -14,7 +14,9 @@ from services.llm_gateway.quota import LLMQuotaStore, QuotaLimits, QuotaUsage
 
 
 class SQLiteLLMCallStore:
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -76,7 +78,9 @@ class SQLiteLLMCallStore:
 
 
 class SQLiteLLMQuotaStore(LLMQuotaStore):
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -95,7 +99,9 @@ class SQLiteLLMQuotaStore(LLMQuotaStore):
         if row is None:
             return QuotaLimits(daily_token_limit=None, monthly_cost_limit=None, is_hard_limit=False)
         return QuotaLimits(
-            daily_token_limit=int(row["daily_token_limit"]) if row["daily_token_limit"] is not None else None,
+            daily_token_limit=int(row["daily_token_limit"])
+            if row["daily_token_limit"] is not None
+            else None,
             monthly_cost_limit=float(row["monthly_cost_limit"])
             if row["monthly_cost_limit"] is not None
             else None,
@@ -243,7 +249,9 @@ class _StoreConnection:
         if isinstance(connection, Connection):
             self._engine = connection.engine
             return
-        raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+        raise TypeError(
+            "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+        )
 
     def execute(self, statement: str, params: Mapping[str, Any]) -> None:
         if self._sqlite_connection is not None:

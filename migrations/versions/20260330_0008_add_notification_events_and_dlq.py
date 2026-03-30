@@ -29,7 +29,12 @@ def upgrade() -> None:
         sa.Column("body", sa.Text(), nullable=False),
         sa.Column("payload_json", sa.Text(), nullable=True),
         sa.Column("idempotency_key", sa.Text(), nullable=True),
-        sa.Column("emitted_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "emitted_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint(
             "severity IN ('INFO','WARNING','CRITICAL')",
             name="ck_notification_events_severity",
@@ -59,7 +64,9 @@ def upgrade() -> None:
         sa.Column("failure_reason", sa.Text(), nullable=False),
         sa.Column("failed_attempts", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("last_error", sa.Text(), nullable=True),
-        sa.Column("moved_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "moved_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+        ),
     )
     op.create_index(
         "idx_notification_dlq_event_id",

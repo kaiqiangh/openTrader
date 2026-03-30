@@ -31,7 +31,3 @@ def test_aes_gcm_encryptor_detects_tampered_ciphertext() -> None:
     tampered = ciphertext[:-4] + "ABCD"
     with pytest.raises(KeyEncryptionError):
         encryptor.decrypt(tampered)
-
-
-
-

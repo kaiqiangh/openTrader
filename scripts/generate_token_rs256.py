@@ -21,9 +21,17 @@ import time
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate an RS256-signed JWT")
     parser.add_argument("--user-id", required=True, help="Subject (user id) for the token")
-    parser.add_argument("--role", required=True, choices=["viewer", "operator", "admin"], help="Role claim")
-    parser.add_argument("--key-file", default=None, help="Path to PEM private key file (overrides JWT_PRIVATE_KEY env)")
-    parser.add_argument("--ttl", type=int, default=3600, help="Token TTL in seconds (default: 3600)")
+    parser.add_argument(
+        "--role", required=True, choices=["viewer", "operator", "admin"], help="Role claim"
+    )
+    parser.add_argument(
+        "--key-file",
+        default=None,
+        help="Path to PEM private key file (overrides JWT_PRIVATE_KEY env)",
+    )
+    parser.add_argument(
+        "--ttl", type=int, default=3600, help="Token TTL in seconds (default: 3600)"
+    )
     args = parser.parse_args()
 
     # Resolve private key
@@ -35,7 +43,10 @@ def main() -> None:
         private_key_pem = os.environ.get("JWT_PRIVATE_KEY")
 
     if not private_key_pem:
-        print("error: no private key provided (set JWT_PRIVATE_KEY or use --key-file)", file=sys.stderr)
+        print(
+            "error: no private key provided (set JWT_PRIVATE_KEY or use --key-file)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     issuer = os.environ.get("JWT_ISSUER", "opentrader")

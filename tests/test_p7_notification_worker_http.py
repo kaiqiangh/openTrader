@@ -11,7 +11,9 @@ async def test_rabbitmq_http_consumer_declares_missing_queue_once() -> None:
     fetch_calls = 0
     declared_queues: list[str] = []
 
-    def _fetch(api_base_url: str, username: str, password: str, queue_name: str, timeout: float) -> list[dict]:
+    def _fetch(
+        api_base_url: str, username: str, password: str, queue_name: str, timeout: float
+    ) -> list[dict]:
         nonlocal fetch_calls
         _ = (api_base_url, username, password, queue_name, timeout)
         fetch_calls += 1
@@ -22,7 +24,9 @@ async def test_rabbitmq_http_consumer_declares_missing_queue_once() -> None:
             )
         return []
 
-    def _declare(api_base_url: str, username: str, password: str, queue_name: str, timeout: float) -> None:
+    def _declare(
+        api_base_url: str, username: str, password: str, queue_name: str, timeout: float
+    ) -> None:
         _ = (api_base_url, username, password, timeout)
         declared_queues.append(queue_name)
 
@@ -45,7 +49,9 @@ async def test_rabbitmq_http_consumer_declares_missing_queue_once() -> None:
 
 @pytest.mark.asyncio
 async def test_rabbitmq_http_consumer_raises_non_404_poll_errors() -> None:
-    def _fetch(api_base_url: str, username: str, password: str, queue_name: str, timeout: float) -> list[dict]:
+    def _fetch(
+        api_base_url: str, username: str, password: str, queue_name: str, timeout: float
+    ) -> list[dict]:
         _ = (api_base_url, username, password, queue_name, timeout)
         raise RabbitMQHTTPPollingError(status_code=500, body='{"error":"internal"}')
 

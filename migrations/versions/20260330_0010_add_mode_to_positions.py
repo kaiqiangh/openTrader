@@ -20,7 +20,9 @@ def upgrade() -> None:
     if _table_exists("positions") and not _column_exists("positions", "mode"):
         op.add_column(
             "positions",
-            sa.Column("mode", sa.String(length=8), nullable=False, server_default=sa.text("'MOCK'")),
+            sa.Column(
+                "mode", sa.String(length=8), nullable=False, server_default=sa.text("'MOCK'")
+            ),
         )
         if not _constraint_exists("positions", "ck_positions_mode"):
             op.create_check_constraint("ck_positions_mode", "positions", "mode IN ('MOCK','REAL')")
@@ -52,7 +54,9 @@ def _constraint_exists(table_name: str, constraint_name: str) -> bool:
     if not _table_exists(table_name):
         return False
     inspector = sa.inspect(op.get_bind())
-    return any(item.get("name") == constraint_name for item in inspector.get_check_constraints(table_name))
+    return any(
+        item.get("name") == constraint_name for item in inspector.get_check_constraints(table_name)
+    )
 
 
 def _index_exists(table_name: str, index_name: str) -> bool:

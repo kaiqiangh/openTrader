@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from services.news_ingestion.ingestion_service import NormalizedNewsItem
 from services.news_ingestion.tagging_relevance import NewsTag
-from services.news_summarizer.summarizer_service import InMemoryNewsSummaryStore, RollingNewsSummarizer
+from services.news_summarizer.summarizer_service import (
+    InMemoryNewsSummaryStore,
+    RollingNewsSummarizer,
+)
 
 
 def _item(*, news_id: str, title: str, body: str) -> NormalizedNewsItem:
@@ -21,7 +24,9 @@ def _item(*, news_id: str, title: str, body: str) -> NormalizedNewsItem:
     )
 
 
-def _tag(*, news_id: str, symbol: str | None, topic: str, relevance: float, sentiment: float) -> NewsTag:
+def _tag(
+    *, news_id: str, symbol: str | None, topic: str, relevance: float, sentiment: float
+) -> NewsTag:
     return NewsTag(
         news_id=news_id,
         symbol=symbol,

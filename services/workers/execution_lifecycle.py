@@ -78,7 +78,9 @@ class PrivateOrderStreamConnector(Protocol):
 
 
 class OrderStatusPoller(Protocol):
-    async def fetch_status(self, *, order: TrackedLifecycleOrder) -> LifecycleStatusSnapshot | None: ...
+    async def fetch_status(
+        self, *, order: TrackedLifecycleOrder
+    ) -> LifecycleStatusSnapshot | None: ...
 
 
 class NoopPrivateOrderStreamConnector:
@@ -142,10 +144,14 @@ class CCXTProPrivateOrderStreamConnector:
             if client is None:
                 continue
             try:
-                orders = await self._watch_orders(client=client, symbol=symbol, timeout_seconds=request_timeout)
+                orders = await self._watch_orders(
+                    client=client, symbol=symbol, timeout_seconds=request_timeout
+                )
             except Exception:  # noqa: BLE001 - private-stream errors trigger REST fallback path
                 continue
-            snapshots.extend(_normalize_ccxt_orders(exchange=exchange, symbol=symbol, orders=orders))
+            snapshots.extend(
+                _normalize_ccxt_orders(exchange=exchange, symbol=symbol, orders=orders)
+            )
         return tuple(snapshots)
 
     async def _watch_orders(self, *, client: Any, symbol: str, timeout_seconds: float) -> Any:
@@ -249,7 +255,9 @@ class ExecutionLifecycleWorker:
         max_tracked_orders: int = 10_000,
     ) -> None:
         self.broker = broker
-        self.private_stream_connector = private_stream_connector or NoopPrivateOrderStreamConnector()
+        self.private_stream_connector = (
+            private_stream_connector or NoopPrivateOrderStreamConnector()
+        )
         self.status_poller = status_poller or SignedRESTOrderStatusPoller()
         self.intent_queue_name = intent_queue_name
         self.stream_stale_after_seconds = max(0.0, float(stream_stale_after_seconds))
@@ -268,7 +276,9 @@ class ExecutionLifecycleWorker:
     async def run_once(self, *, timeout_seconds: float) -> bool:
         did_work = False
 
-        intent = await self.broker.consume(queue_name=self.intent_queue_name, timeout_seconds=timeout_seconds)
+        intent = await self.broker.consume(
+            queue_name=self.intent_queue_name, timeout_seconds=timeout_seconds
+        )
         if intent is not None:
             tracked = self._track_execution_intent(intent)
             did_work = tracked is not None
@@ -325,7 +335,12 @@ class ExecutionLifecycleWorker:
         symbol = str(payload.get("symbol", "")).strip().upper()
         action = str(payload.get("action", "")).strip().upper()
         quantity = abs(float(payload.get("quantity", 0.0) or 0.0))
-        if not idempotency_key or not exchange or not symbol or action not in {"BUY", "SELL", "CLOSE"}:
+        if (
+            not idempotency_key
+            or not exchange
+            or not symbol
+            or action not in {"BUY", "SELL", "CLOSE"}
+        ):
             return None
         if quantity <= 0:
             return None
@@ -517,7 +532,11 @@ class ExecutionLifecycleWorker:
         symbol = snapshot.symbol.strip().upper()
         if not symbol:
             return None
-        candidates = [order for order in self._tracked_orders.values() if order.exchange == exchange and order.symbol == symbol]
+        candidates = [
+            order
+            for order in self._tracked_orders.values()
+            if order.exchange == exchange and order.symbol == symbol
+        ]
         if len(candidates) == 1:
             return candidates[0]
         return None
@@ -556,14 +575,20 @@ class ExecutionLifecycleWorker:
         return payload
 
 
-def _snapshot_from_dispatch_outcome(*, order: TrackedLifecycleOrder, outcome: Any) -> LifecycleStatusSnapshot:
-    raw_response = outcome.raw_response if isinstance(getattr(outcome, "raw_response", None), Mapping) else {}
+def _snapshot_from_dispatch_outcome(
+    *, order: TrackedLifecycleOrder, outcome: Any
+) -> LifecycleStatusSnapshot:
+    raw_response = (
+        outcome.raw_response if isinstance(getattr(outcome, "raw_response", None), Mapping) else {}
+    )
     exchange_response = raw_response.get("exchange_response")
     if not isinstance(exchange_response, Mapping):
         exchange_response = {}
     normalized_exchange = order.exchange.strip().lower()
 
-    status = _normalize_status(getattr(outcome, "status", exchange_response.get("status", "submitted")))
+    status = _normalize_status(
+        getattr(outcome, "status", exchange_response.get("status", "submitted"))
+    )
     exchange_order_id = _strip_or_none(exchange_response.get("orderId")) or order.exchange_order_id
     client_order_id = _strip_or_none(exchange_response.get("clientOrderId")) or _strip_or_none(
         exchange_response.get("clientOid")
@@ -571,8 +596,12 @@ def _snapshot_from_dispatch_outcome(*, order: TrackedLifecycleOrder, outcome: An
     if client_order_id is None:
         client_order_id = order.client_order_id
 
-    filled_quantity_total = _extract_filled_quantity_total(exchange=normalized_exchange, response=exchange_response)
-    average_price = _extract_average_price(exchange=normalized_exchange, response=exchange_response, filled=filled_quantity_total)
+    filled_quantity_total = _extract_filled_quantity_total(
+        exchange=normalized_exchange, response=exchange_response
+    )
+    average_price = _extract_average_price(
+        exchange=normalized_exchange, response=exchange_response, filled=filled_quantity_total
+    )
     fee_total = _extract_fee_total(exchange=normalized_exchange, response=exchange_response)
 
     return LifecycleStatusSnapshot(
@@ -588,7 +617,9 @@ def _snapshot_from_dispatch_outcome(*, order: TrackedLifecycleOrder, outcome: An
     )
 
 
-def _normalize_ccxt_orders(*, exchange: str, symbol: str, orders: Any) -> tuple[LifecycleStatusSnapshot, ...]:
+def _normalize_ccxt_orders(
+    *, exchange: str, symbol: str, orders: Any
+) -> tuple[LifecycleStatusSnapshot, ...]:
     if isinstance(orders, Mapping):
         values: list[Any] = []
         maybe_orders = orders.get("orders")
@@ -609,7 +640,9 @@ def _normalize_ccxt_orders(*, exchange: str, symbol: str, orders: Any) -> tuple[
         filled = max(0.0, _to_float(item.get("filled"), default=0.0))
         if status == "submitted" and filled > 0.0:
             status = "partially_filled"
-        average_price = _positive_or_none(item.get("average")) or _positive_or_none(item.get("price"))
+        average_price = _positive_or_none(item.get("average")) or _positive_or_none(
+            item.get("price")
+        )
         fee_total = _extract_ccxt_fee_total(item)
         snapshots.append(
             LifecycleStatusSnapshot(
@@ -727,12 +760,16 @@ def _extract_filled_quantity_total(*, exchange: str, response: Mapping[str, Any]
     return max(0.0, _first_positive_float(response, "filled", "filledQty", "executedQty"))
 
 
-def _extract_average_price(*, exchange: str, response: Mapping[str, Any], filled: float) -> float | None:
+def _extract_average_price(
+    *, exchange: str, response: Mapping[str, Any], filled: float
+) -> float | None:
     if exchange == "binance":
         cumulative_quote = _to_float(response.get("cummulativeQuoteQty"), default=0.0)
         if filled > 0 and cumulative_quote > 0:
             return cumulative_quote / filled
-        return _positive_or_none(response.get("price")) or _positive_or_none(response.get("avgPrice"))
+        return _positive_or_none(response.get("price")) or _positive_or_none(
+            response.get("avgPrice")
+        )
     if exchange == "bitget":
         data = _bitget_status_data(response)
         return _first_positive_or_none(data, "priceAvg", "avgPrice", "dealAvgPrice", "price")

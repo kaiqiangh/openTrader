@@ -58,7 +58,9 @@ class BitgetHTTPOrderBookClient:
                 raw = response.text
         except httpx.HTTPStatusError as exc:  # pragma: no cover - tested through monkeypatch
             detail = exc.response.text
-            raise BitgetHTTPAdapterError(f"Bitget HTTP {exc.response.status_code}: {detail}") from exc
+            raise BitgetHTTPAdapterError(
+                f"Bitget HTTP {exc.response.status_code}: {detail}"
+            ) from exc
         except httpx.HTTPError as exc:  # pragma: no cover - tested through monkeypatch
             raise BitgetHTTPAdapterError(f"Bitget connection error: {exc}") from exc
 
@@ -70,7 +72,9 @@ class BitgetHTTPOrderBookClient:
         if not isinstance(parsed, Mapping):
             raise BitgetHTTPAdapterError("Bitget depth response must be a JSON object")
         if str(parsed.get("code", "")).strip() not in {"", "00000", "0"}:
-            raise BitgetHTTPAdapterError(f"Bitget depth response returned error code: {parsed.get('code')}")
+            raise BitgetHTTPAdapterError(
+                f"Bitget depth response returned error code: {parsed.get('code')}"
+            )
 
         raw_data = parsed.get("data")
         if isinstance(raw_data, list):
@@ -115,7 +119,9 @@ class BitgetHTTPOrderBookClient:
         if not isinstance(parsed, Mapping):
             raise BitgetHTTPAdapterError("Bitget kline response must be a JSON object")
         if str(parsed.get("code", "")).strip() not in {"", "00000", "0"}:
-            raise BitgetHTTPAdapterError(f"Bitget kline response returned error code: {parsed.get('code')}")
+            raise BitgetHTTPAdapterError(
+                f"Bitget kline response returned error code: {parsed.get('code')}"
+            )
         rows = parsed.get("data")
         if not isinstance(rows, list):
             raise BitgetHTTPAdapterError("Bitget kline response data must be a list")

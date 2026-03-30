@@ -73,7 +73,9 @@ def test_internal_execution_dispatch_returns_503_when_no_bridge_key(monkeypatch)
 
 def test_internal_execution_dispatch_accepts_valid_payload_with_key(monkeypatch) -> None:
     client = _app_with_bridge_key(monkeypatch)
-    response = client.post("/internal/execution/dispatch", json=_bridge_payload(), headers=_auth_headers())
+    response = client.post(
+        "/internal/execution/dispatch", json=_bridge_payload(), headers=_auth_headers()
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -82,7 +84,9 @@ def test_internal_execution_dispatch_accepts_valid_payload_with_key(monkeypatch)
     assert payload["raw_response"]["accepted"] is True
 
 
-def test_internal_execution_dispatch_rejects_missing_authorization_when_key_configured(monkeypatch) -> None:
+def test_internal_execution_dispatch_rejects_missing_authorization_when_key_configured(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("REAL_EXECUTION_BRIDGE_API_KEY", "bridge-key")
     app = create_app(settings=_settings(), state=build_default_state(default_mode="MOCK"))
     client = TestClient(app)
@@ -107,7 +111,9 @@ def test_internal_execution_dispatch_accepts_authorization_when_key_configured(m
     assert response.json()["status"] == "submitted"
 
 
-def test_internal_execution_dispatch_rejects_missing_trigger_for_stop_market_order(monkeypatch) -> None:
+def test_internal_execution_dispatch_rejects_missing_trigger_for_stop_market_order(
+    monkeypatch,
+) -> None:
     client = _app_with_bridge_key(monkeypatch)
     payload = _bridge_payload()
     payload["order_type"] = "STOP_MARKET"
@@ -119,7 +125,9 @@ def test_internal_execution_dispatch_rejects_missing_trigger_for_stop_market_ord
     assert "trigger_price must be positive" in response.json()["detail"]
 
 
-def test_internal_execution_dispatch_status_operation_requires_order_identifier(monkeypatch) -> None:
+def test_internal_execution_dispatch_status_operation_requires_order_identifier(
+    monkeypatch,
+) -> None:
     client = _app_with_bridge_key(monkeypatch)
     payload = _status_payload()
     payload["exchange_order_id"] = ""
@@ -128,24 +136,33 @@ def test_internal_execution_dispatch_status_operation_requires_order_identifier(
     response = client.post("/internal/execution/dispatch", json=payload, headers=_auth_headers())
 
     assert response.status_code == 422
-    assert "status operation requires exchange_order_id or client_order_id" in response.json()["detail"]
+    assert (
+        "status operation requires exchange_order_id or client_order_id"
+        in response.json()["detail"]
+    )
 
 
 def test_internal_execution_dispatch_status_operation_returns_order_state(monkeypatch) -> None:
     client = _app_with_bridge_key(monkeypatch)
-    response = client.post("/internal/execution/dispatch", json=_status_payload(), headers=_auth_headers())
+    response = client.post(
+        "/internal/execution/dispatch", json=_status_payload(), headers=_auth_headers()
+    )
 
     assert response.status_code == 200
     assert response.json()["status"] == "submitted"
 
 
-def test_internal_execution_dispatch_rejects_real_mode_when_exchange_credentials_missing(monkeypatch) -> None:
+def test_internal_execution_dispatch_rejects_real_mode_when_exchange_credentials_missing(
+    monkeypatch,
+) -> None:
     client = _app_with_bridge_key(monkeypatch)
     monkeypatch.setenv("INTERNAL_EXECUTION_REAL_DISPATCH", "true")
     monkeypatch.delenv("BINANCE_API_KEY", raising=False)
     monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
 
-    response = client.post("/internal/execution/dispatch", json=_bridge_payload(), headers=_auth_headers())
+    response = client.post(
+        "/internal/execution/dispatch", json=_bridge_payload(), headers=_auth_headers()
+    )
 
     assert response.status_code == 422
     assert "missing Binance credentials" in response.json()["detail"]

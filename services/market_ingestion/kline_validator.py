@@ -41,9 +41,7 @@ class KlineReconstructionValidator:
             max_oc = max(bar.open, bar.close)
             min_oc = min(bar.open, bar.close)
             if bar.high < max_oc or bar.low > min_oc or bar.low > bar.high:
-                errors.append(
-                    f"Kline high/low consistency violated at {bar.open_time_ms}"
-                )
+                errors.append(f"Kline high/low consistency violated at {bar.open_time_ms}")
             if bar.volume < 0:
                 errors.append(f"Kline volume must be non-negative at {bar.open_time_ms}")
 
@@ -55,9 +53,7 @@ class KlineReconstructionValidator:
             if gap <= 0:
                 continue
             if gap % self.interval_ms != 0:
-                errors.append(
-                    f"Kline interval mismatch between {prev_open} and {curr_open}"
-                )
+                errors.append(f"Kline interval mismatch between {prev_open} and {curr_open}")
             if gap > self.interval_ms:
                 missing_open_times.extend(
                     list(range(prev_open + self.interval_ms, curr_open, self.interval_ms))

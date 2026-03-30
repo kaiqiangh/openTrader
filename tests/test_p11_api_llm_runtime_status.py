@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -9,8 +8,10 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
 
 def _settings() -> APISettings:
     return make_test_settings(
@@ -20,9 +21,12 @@ def _settings() -> APISettings:
         llm_deep_provider_order=("anthropic", "openai"),
     )
 
+
 def test_llm_runtime_status_endpoint_reflects_runtime_settings() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
     token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 

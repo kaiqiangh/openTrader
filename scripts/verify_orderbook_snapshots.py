@@ -113,11 +113,14 @@ def _parse_exchanges(raw: str) -> tuple[str, ...]:
     return parsed
 
 
-def _snapshot_stats(*, engine: Engine, exchange: str, symbol: str, since: datetime) -> dict[str, object]:
+def _snapshot_stats(
+    *, engine: Engine, exchange: str, symbol: str, since: datetime
+) -> dict[str, object]:
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                """
+        rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT snapshot_time
                 FROM orderbook_snapshots
                 WHERE exchange = :exchange
@@ -125,9 +128,12 @@ def _snapshot_stats(*, engine: Engine, exchange: str, symbol: str, since: dateti
                   AND snapshot_time >= :since
                 ORDER BY snapshot_time ASC
                 """
-            ),
-            {"exchange": exchange, "symbol": symbol, "since": since},
-        ).scalars().all()
+                ),
+                {"exchange": exchange, "symbol": symbol, "since": since},
+            )
+            .scalars()
+            .all()
+        )
         duplicate_timestamps = connection.execute(
             text(
                 """

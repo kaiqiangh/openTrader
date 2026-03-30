@@ -8,15 +8,19 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
 
 def _settings(*, strict_database_mode: bool) -> APISettings:
     return make_test_settings(read_only_mode=False, strict_database_mode=strict_database_mode)
 
+
 class _BrokenRepository:
     def load_state(self, *, default_mode: str):  # pragma: no cover - exercised via API paths
         raise RuntimeError(f"db unavailable for mode {default_mode}")
+
 
 class _KlineQueryFailRepository:
     def load_state(self, *, default_mode: str):
@@ -24,6 +28,7 @@ class _KlineQueryFailRepository:
 
     def list_market_klines(self, **_: object):
         raise RuntimeError("query timeout")
+
 
 def test_create_app_fails_fast_when_repository_bootstrap_fails_in_strict_mode(
     monkeypatch: pytest.MonkeyPatch,
@@ -35,6 +40,7 @@ def test_create_app_fails_fast_when_repository_bootstrap_fails_in_strict_mode(
 
     with pytest.raises(RuntimeError, match="failed to initialize control-plane repository"):
         api_app.create_app(settings=_settings(strict_database_mode=True))
+
 
 def test_create_app_falls_back_to_default_state_when_strict_mode_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
@@ -48,9 +54,12 @@ def test_create_app_falls_back_to_default_state_when_strict_mode_is_disabled(
     app = api_app.create_app(settings=settings)
     client = TestClient(app)
     viewer_token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
-    payload = client.get("/health/readiness", headers={"Authorization": f"Bearer {viewer_token}"}).json()
+    payload = client.get(
+        "/health/readiness", headers={"Authorization": f"Bearer {viewer_token}"}
+    ).json()
     assert payload["status"] == "ready"
     assert payload["mode"] == "MOCK"
+
 
 def test_health_readiness_returns_503_when_repository_refresh_fails_in_strict_mode() -> None:
     settings = _settings(strict_database_mode=True)
@@ -66,6 +75,7 @@ def test_health_readiness_returns_503_when_repository_refresh_fails_in_strict_mo
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Control-plane repository unavailable"
+
 
 def test_ops_market_klines_returns_503_when_repository_query_fails() -> None:
     settings = _settings(strict_database_mode=True)

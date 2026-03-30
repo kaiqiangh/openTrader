@@ -26,4 +26,3 @@ def test_quota_and_risk_runbooks_have_response_workflows() -> None:
         assert "Escalation" in content
         assert "Recovery Validation" in content
         assert "Post-Incident Actions" in content
-

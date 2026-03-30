@@ -65,7 +65,9 @@ class PositionEngine:
             new_average = fill.price if abs(new_quantity) > _EPSILON else Decimal("0")
         elif _same_direction(previous_quantity, signed_fill_quantity):
             new_quantity = previous_quantity + signed_fill_quantity
-            weighted_notional = (abs(previous_quantity) * previous_average) + (fill_quantity_abs * fill.price)
+            weighted_notional = (abs(previous_quantity) * previous_average) + (
+                fill_quantity_abs * fill.price
+            )
             new_average = weighted_notional / abs(new_quantity)
         else:
             closing_quantity = min(abs(previous_quantity), fill_quantity_abs)

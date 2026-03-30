@@ -115,7 +115,9 @@ async def test_memory_stores_persist_and_expire_slots(tmp_path) -> None:
     assert snapshot["plan"]["action"] == "BUY"
 
     now[0] = 111.0
-    expired_snapshot = await short_term.read_slots(mode="MOCK", strategy_id="s-1", decision_id="d-1")
+    expired_snapshot = await short_term.read_slots(
+        mode="MOCK", strategy_id="s-1", decision_id="d-1"
+    )
     assert expired_snapshot == {}
 
     record = DecisionMemoryRecord(
@@ -285,7 +287,9 @@ async def test_timeseries_store_accepts_sqlalchemy_engine(tmp_path) -> None:
         }
     )
     with engine.connect() as connection:
-        snapshot_count = connection.execute(text("SELECT COUNT(*) FROM orderbook_snapshots")).scalar_one()
+        snapshot_count = connection.execute(
+            text("SELECT COUNT(*) FROM orderbook_snapshots")
+        ).scalar_one()
         kline_count = connection.execute(text("SELECT COUNT(*) FROM klines")).scalar_one()
     assert snapshot_count == 1
     assert kline_count == 1
@@ -334,14 +338,18 @@ async def test_runtime_market_store_persists_canonical_orderbook_envelope(tmp_pa
         }
     )
     with engine.connect() as connection:
-        row = connection.execute(
-            text(
-                """
+        row = (
+            connection.execute(
+                text(
+                    """
                 SELECT exchange, symbol, best_bid, best_ask, spread_bps
                 FROM orderbook_snapshots
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
     assert row["exchange"] == "binance"
     assert row["symbol"] == "BTC/USDT"
     assert row["best_bid"] == pytest.approx(42000.0)
@@ -452,7 +460,9 @@ async def test_trace_store_persists_decision_runs_messages_and_news_links(tmp_pa
         trace_count = connection.execute(text("SELECT COUNT(*) FROM decision_traces")).scalar_one()
         run_count = connection.execute(text("SELECT COUNT(*) FROM agent_runs")).scalar_one()
         message_count = connection.execute(text("SELECT COUNT(*) FROM agent_messages")).scalar_one()
-        link_count = connection.execute(text("SELECT COUNT(*) FROM decision_news_links")).scalar_one()
+        link_count = connection.execute(
+            text("SELECT COUNT(*) FROM decision_news_links")
+        ).scalar_one()
     assert trace_count == 1
     assert run_count == 2
     assert message_count == 4

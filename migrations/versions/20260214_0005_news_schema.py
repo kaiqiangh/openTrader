@@ -28,11 +28,23 @@ def upgrade() -> None:
             sa.Column("title", sa.Text(), nullable=False),
             sa.Column("body", sa.Text(), nullable=True),
             sa.Column("published_at", sa.DateTime(timezone=True), nullable=False),
-            sa.Column("ingested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "ingested_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
             sa.Column("hash", sa.String(length=128), nullable=False),
-            sa.Column("language", sa.String(length=16), nullable=False, server_default=sa.text("'en'")),
+            sa.Column(
+                "language", sa.String(length=16), nullable=False, server_default=sa.text("'en'")
+            ),
             sa.Column("raw_payload", sa.JSON(), nullable=False),
-            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
             sa.UniqueConstraint(
                 "source",
                 "source_item_id",
@@ -63,7 +75,12 @@ def upgrade() -> None:
                 nullable=False,
                 server_default=sa.text("0"),
             ),
-            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
         )
     if not _index_exists("news_tags", "idx_news_tags_symbol_topic"):
         op.create_index("idx_news_tags_symbol_topic", "news_tags", ["symbol", "topic"])
@@ -79,7 +96,12 @@ def upgrade() -> None:
             sa.Column("window_end", sa.DateTime(timezone=True), nullable=False),
             sa.Column("summary_text", sa.Text(), nullable=False),
             sa.Column("token_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
-            sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "generated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
             sa.UniqueConstraint(
                 "symbol_scope",
                 "window_start",
@@ -116,7 +138,12 @@ def upgrade() -> None:
                     sa.ForeignKey("news_items.news_id"),
                     nullable=False,
                 ),
-                sa.Column("linked_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+                sa.Column(
+                    "linked_at",
+                    sa.DateTime(timezone=True),
+                    nullable=False,
+                    server_default=sa.text("now()"),
+                ),
                 sa.PrimaryKeyConstraint(
                     "decision_id",
                     "summary_id",
@@ -130,7 +157,12 @@ def upgrade() -> None:
                 sa.Column("decision_id", sa.Text(), nullable=False),
                 sa.Column("summary_id", sa.Text(), nullable=False),
                 sa.Column("news_id", sa.Text(), nullable=False),
-                sa.Column("linked_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+                sa.Column(
+                    "linked_at",
+                    sa.DateTime(timezone=True),
+                    nullable=False,
+                    server_default=sa.text("now()"),
+                ),
                 sa.PrimaryKeyConstraint(
                     "decision_id",
                     "summary_id",

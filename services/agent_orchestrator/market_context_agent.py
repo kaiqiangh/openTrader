@@ -43,7 +43,9 @@ class MarketContextAgent:
         quality = {
             "has_orderbook": has_orderbook,
             "has_news": not news_fallback,
-            "context_score": self._context_score(has_orderbook=has_orderbook, has_news=not news_fallback),
+            "context_score": self._context_score(
+                has_orderbook=has_orderbook, has_news=not news_fallback
+            ),
         }
         news = {
             "summary": news_summary,

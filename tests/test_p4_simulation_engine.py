@@ -10,10 +10,17 @@ from services.simulation_execution.engine import SimulationExecutionEngine, Simu
 from services.simulation_execution.worker import SimulationExecutionWorker
 
 
-def _intent_envelope(*, mode: str = "MOCK", action: str = "BUY", quantity: float = 0.2,
-                     order_type: str = "MARKET", trigger_price: float | None = None,
-                     limit_price: float | None = None, mid_price: float = 42000.0,
-                     oco_legs: list[dict] | None = None) -> dict[str, object]:
+def _intent_envelope(
+    *,
+    mode: str = "MOCK",
+    action: str = "BUY",
+    quantity: float = 0.2,
+    order_type: str = "MARKET",
+    trigger_price: float | None = None,
+    limit_price: float | None = None,
+    mid_price: float = 42000.0,
+    oco_legs: list[dict] | None = None,
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "strategy_id": "scalp-long-short",
         "symbol": "BTC/USDT",
@@ -92,7 +99,9 @@ def test_stop_market_buy_triggers_when_price_rises_to_trigger() -> None:
     engine = SimulationExecutionEngine(slippage_bps=3.0, fee_bps=5.0)
     # Mid price is 43000, trigger is 42500 → already crossed
     result = engine.execute_intent(
-        _intent_envelope(action="BUY", order_type="STOP_MARKET", trigger_price=42500.0, mid_price=43000.0)
+        _intent_envelope(
+            action="BUY", order_type="STOP_MARKET", trigger_price=42500.0, mid_price=43000.0
+        )
     )
     assert result.status == "FILLED"
     assert result.fill_price > 0
@@ -104,7 +113,9 @@ def test_stop_market_sell_triggers_when_price_falls_to_trigger() -> None:
     engine = SimulationExecutionEngine(slippage_bps=3.0, fee_bps=5.0)
     # Mid price is 41000, trigger is 41500 → already below trigger
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="STOP_MARKET", trigger_price=41500.0, mid_price=41000.0)
+        _intent_envelope(
+            action="SELL", order_type="STOP_MARKET", trigger_price=41500.0, mid_price=41000.0
+        )
     )
     assert result.status == "FILLED"
     assert result.fill_price > 0
@@ -115,7 +126,9 @@ def test_stop_market_buy_stays_submitted_when_price_below_trigger() -> None:
     engine = SimulationExecutionEngine()
     # Mid price is 42000, trigger is 43000 → not yet triggered
     result = engine.execute_intent(
-        _intent_envelope(action="BUY", order_type="STOP_MARKET", trigger_price=43000.0, mid_price=42000.0)
+        _intent_envelope(
+            action="BUY", order_type="STOP_MARKET", trigger_price=43000.0, mid_price=42000.0
+        )
     )
     assert result.status == "SUBMITTED"
     assert result.fill_price == 0.0
@@ -130,7 +143,9 @@ def test_stop_market_sell_stays_submitted_when_price_above_trigger() -> None:
     engine = SimulationExecutionEngine()
     # Mid price is 42000, trigger is 41000 → not yet triggered
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="STOP_MARKET", trigger_price=41000.0, mid_price=42000.0)
+        _intent_envelope(
+            action="SELL", order_type="STOP_MARKET", trigger_price=41000.0, mid_price=42000.0
+        )
     )
     assert result.status == "SUBMITTED"
     assert result.fill_price == 0.0
@@ -144,7 +159,9 @@ def test_take_profit_market_sell_triggers_when_price_rises() -> None:
     engine = SimulationExecutionEngine(slippage_bps=3.0, fee_bps=5.0)
     # Mid price is 44000, trigger is 43500 → already above target
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="TAKE_PROFIT_MARKET", trigger_price=43500.0, mid_price=44000.0)
+        _intent_envelope(
+            action="SELL", order_type="TAKE_PROFIT_MARKET", trigger_price=43500.0, mid_price=44000.0
+        )
     )
     assert result.status == "FILLED"
     assert result.fill_price > 0
@@ -155,7 +172,9 @@ def test_take_profit_market_sell_stays_submitted_when_below_target() -> None:
     engine = SimulationExecutionEngine()
     # Mid price is 42000, trigger is 44000 → not yet triggered
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="TAKE_PROFIT_MARKET", trigger_price=44000.0, mid_price=42000.0)
+        _intent_envelope(
+            action="SELL", order_type="TAKE_PROFIT_MARKET", trigger_price=44000.0, mid_price=42000.0
+        )
     )
     assert result.status == "SUBMITTED"
     assert result.fill_price == 0.0
@@ -166,7 +185,9 @@ def test_take_profit_market_buy_triggers_when_price_falls() -> None:
     engine = SimulationExecutionEngine(slippage_bps=3.0, fee_bps=5.0)
     # Mid price is 40000, trigger is 41000 → already below target
     result = engine.execute_intent(
-        _intent_envelope(action="BUY", order_type="TAKE_PROFIT_MARKET", trigger_price=41000.0, mid_price=40000.0)
+        _intent_envelope(
+            action="BUY", order_type="TAKE_PROFIT_MARKET", trigger_price=41000.0, mid_price=40000.0
+        )
     )
     assert result.status == "FILLED"
 
@@ -186,7 +207,9 @@ def test_stop_market_rejects_zero_trigger_price() -> None:
     engine = SimulationExecutionEngine()
     with pytest.raises(SimulationExecutionError, match="trigger_price must be positive"):
         engine.execute_intent(
-            _intent_envelope(action="BUY", order_type="STOP_MARKET", trigger_price=0.0, mid_price=42000.0)
+            _intent_envelope(
+                action="BUY", order_type="STOP_MARKET", trigger_price=0.0, mid_price=42000.0
+            )
         )
 
 
@@ -202,7 +225,9 @@ def test_oco_fills_limit_leg_when_limit_price_reached() -> None:
         {"order_type": "STOP_MARKET", "trigger_price": 41000.0},
     ]
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=44000.0, quantity=0.5)
+        _intent_envelope(
+            action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=44000.0, quantity=0.5
+        )
     )
     assert result.status == "FILLED"
     assert result.fill_price == 43500.0  # fills at limit price
@@ -225,7 +250,9 @@ def test_oco_fills_stop_leg_when_stop_triggered() -> None:
         {"order_type": "STOP_MARKET", "trigger_price": 41000.0},
     ]
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=40500.0, quantity=0.5)
+        _intent_envelope(
+            action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=40500.0, quantity=0.5
+        )
     )
     assert result.status == "FILLED"
     assert result.fill_price > 0  # filled with slippage
@@ -241,7 +268,9 @@ def test_oco_stays_submitted_when_neither_leg_triggered() -> None:
         {"order_type": "STOP_MARKET", "trigger_price": 40000.0},
     ]
     result = engine.execute_intent(
-        _intent_envelope(action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=42000.0, quantity=0.5)
+        _intent_envelope(
+            action="SELL", order_type="OCO", oco_legs=oco_legs, mid_price=42000.0, quantity=0.5
+        )
     )
     assert result.status == "SUBMITTED"
     assert result.fill_price == 0.0
@@ -261,5 +290,7 @@ def test_oco_rejects_invalid_leg_structure() -> None:
     engine = SimulationExecutionEngine()
     with pytest.raises(SimulationExecutionError, match="must be a mapping"):
         engine.execute_intent(
-            _intent_envelope(action="SELL", order_type="OCO", oco_legs=["bad", "bad"], mid_price=42000.0)
+            _intent_envelope(
+                action="SELL", order_type="OCO", oco_legs=["bad", "bad"], mid_price=42000.0
+            )
         )

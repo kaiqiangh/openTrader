@@ -42,12 +42,16 @@ class _CapturedLogger:
     def __init__(self, *, service: str) -> None:
         self.service = service
 
-    def info(self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+    def info(
+        self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         payload = {"level": "INFO", "event": event, "context": dict(context or {}), **kwargs}
         self.__class__.records.append(payload)
         return payload
 
-    def error(self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+    def error(
+        self, *, event: str, context: dict[str, Any] | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         payload = {"level": "ERROR", "event": event, "context": dict(context or {}), **kwargs}
         self.__class__.records.append(payload)
         return payload
@@ -92,7 +96,9 @@ def _settings(*, once: bool, bootstrap_topology: bool = False) -> RuntimeWorkerS
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_logs_idle_heartbeat_and_exit_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_worker_loop_logs_idle_heartbeat_and_exit_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _CapturedLogger.records = []
     monkeypatch.setattr(runtime_main, "StructuredLogger", _CapturedLogger)
     monkeypatch.setenv("RUNTIME_WORKER_IDLE_HEARTBEAT_CYCLES", "1")
@@ -106,12 +112,16 @@ async def test_worker_loop_logs_idle_heartbeat_and_exit_reason(monkeypatch: pyte
     assert "runtime.worker.started" in events
     assert "runtime.worker.idle_heartbeat" in events
     assert "runtime.worker.exited" in events
-    exit_record = next(record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited")
+    exit_record = next(
+        record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited"
+    )
     assert exit_record["context"]["reason"] == "once_no_work"
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_logs_success_cycle_and_exit_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_worker_loop_logs_success_cycle_and_exit_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _CapturedLogger.records = []
     monkeypatch.setattr(runtime_main, "StructuredLogger", _CapturedLogger)
     worker = _SequenceWorker(responses=[True])
@@ -122,7 +132,9 @@ async def test_worker_loop_logs_success_cycle_and_exit_reason(monkeypatch: pytes
     assert code == 0
     events = [record["event"] for record in _CapturedLogger.records]
     assert "runtime.worker.cycle_succeeded" in events
-    exit_record = next(record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited")
+    exit_record = next(
+        record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited"
+    )
     assert exit_record["context"]["reason"] == "once_cycle_completed"
 
 
@@ -138,7 +150,9 @@ async def test_worker_loop_logs_failure_and_exit_reason(monkeypatch: pytest.Monk
     assert code == 1
     events = [record["event"] for record in _CapturedLogger.records]
     assert "runtime.worker.cycle_failed" in events
-    exit_record = next(record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited")
+    exit_record = next(
+        record for record in _CapturedLogger.records if record["event"] == "runtime.worker.exited"
+    )
     assert exit_record["context"]["reason"] == "once_cycle_failed"
 
 
@@ -150,7 +164,9 @@ async def test_worker_loop_logs_topology_bootstrap_event(monkeypatch: pytest.Mon
     worker = _SequenceWorker(responses=[False])
     build = RuntimeWorkerBuildResult(worker=worker, broker=broker)
 
-    code = await run_worker_loop(settings=_settings(once=True, bootstrap_topology=True), build=build)
+    code = await run_worker_loop(
+        settings=_settings(once=True, bootstrap_topology=True), build=build
+    )
 
     assert code == 0
     assert broker.bootstrapped is True
@@ -159,7 +175,9 @@ async def test_worker_loop_logs_topology_bootstrap_event(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_logs_activity_snapshot_and_correlation(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_worker_loop_logs_activity_snapshot_and_correlation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _CapturedLogger.records = []
     monkeypatch.setattr(runtime_main, "StructuredLogger", _CapturedLogger)
     worker = _ActivityWorker()
@@ -168,7 +186,11 @@ async def test_worker_loop_logs_activity_snapshot_and_correlation(monkeypatch: p
     code = await run_worker_loop(settings=_settings(once=True), build=build)
 
     assert code == 0
-    success_record = next(record for record in _CapturedLogger.records if record["event"] == "runtime.worker.cycle_succeeded")
+    success_record = next(
+        record
+        for record in _CapturedLogger.records
+        if record["event"] == "runtime.worker.cycle_succeeded"
+    )
     assert success_record["trace_id"] == "trace-123"
     assert success_record["decision_id"] == "decision-456"
     assert success_record["mode"] == "MOCK"

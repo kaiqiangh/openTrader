@@ -5,7 +5,11 @@ from dataclasses import dataclass, field
 import asyncio
 from typing import Any, Protocol
 
-from services.notification_service.models import DeliveryResult, NotificationEvent, NotificationMessage
+from services.notification_service.models import (
+    DeliveryResult,
+    NotificationEvent,
+    NotificationMessage,
+)
 
 
 class NotificationGateway(Protocol):

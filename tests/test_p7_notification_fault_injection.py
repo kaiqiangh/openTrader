@@ -7,7 +7,11 @@ import pytest
 
 from services.notification_service.event_intake import NotificationEventIntake
 from services.notification_service.gateway_dispatch import GatewayDispatcher, InMemoryGateway
-from services.notification_service.models import DeliveryResult, NotificationPreference, NotificationSeverity
+from services.notification_service.models import (
+    DeliveryResult,
+    NotificationPreference,
+    NotificationSeverity,
+)
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.service import NotificationService
 

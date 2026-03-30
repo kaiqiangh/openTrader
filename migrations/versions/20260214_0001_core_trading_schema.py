@@ -25,7 +25,12 @@ def upgrade() -> None:
         sa.Column("api_key_encrypted", sa.Text(), nullable=True),
         sa.Column("api_secret_encrypted", sa.Text(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
 
     op.create_table(
@@ -36,7 +41,12 @@ def upgrade() -> None:
         sa.Column("base_asset", sa.String(length=32), nullable=False),
         sa.Column("quote_asset", sa.String(length=32), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.UniqueConstraint("exchange_id", "symbol", name="uq_symbols_exchange_symbol"),
     )
 
@@ -54,10 +64,22 @@ def upgrade() -> None:
         sa.Column("mode", sa.String(length=8), nullable=False),
         sa.Column("price", sa.Numeric(36, 18), nullable=True),
         sa.Column("quantity", sa.Numeric(36, 18), nullable=False),
-        sa.Column("filled_quantity", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
+        sa.Column(
+            "filled_quantity", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")
+        ),
         sa.Column("average_price", sa.Numeric(36, 18), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_orders_mode"),
     )
 
@@ -72,7 +94,9 @@ def upgrade() -> None:
         sa.Column("price", sa.Numeric(36, 18), nullable=False),
         sa.Column("fee", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
         sa.Column("fee_currency", sa.String(length=16), nullable=True),
-        sa.Column("filled_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "filled_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+        ),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_fills_mode"),
     )
 
@@ -84,10 +108,14 @@ def upgrade() -> None:
         sa.Column("side", sa.String(length=16), nullable=False),
         sa.Column("quantity", sa.Numeric(36, 18), nullable=False),
         sa.Column("entry_price", sa.Numeric(36, 18), nullable=False),
-        sa.Column("unrealized_pnl", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
+        sa.Column(
+            "unrealized_pnl", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")
+        ),
         sa.Column("realized_pnl", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
         sa.Column("status", sa.String(length=16), nullable=False),
-        sa.Column("opened_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "opened_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
+        ),
         sa.Column("closed_at", sa.DateTime(timezone=True), nullable=True),
     )
 
@@ -99,16 +127,31 @@ def upgrade() -> None:
         sa.Column("total_balance_usd", sa.Numeric(36, 18), nullable=False),
         sa.Column("available_balance_usd", sa.Numeric(36, 18), nullable=False),
         sa.Column("locked_balance_usd", sa.Numeric(36, 18), nullable=False),
-        sa.Column("unrealized_pnl", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
-        sa.Column("realized_pnl_today", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "unrealized_pnl", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")
+        ),
+        sa.Column(
+            "realized_pnl_today", sa.Numeric(36, 18), nullable=False, server_default=sa.text("0")
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint("mode IN ('MOCK','REAL')", name="ck_portfolio_snapshots_mode"),
     )
 
-    op.create_index("idx_orders_exchange_symbol_status", "orders", ["exchange_id", "symbol_id", "status"])
+    op.create_index(
+        "idx_orders_exchange_symbol_status", "orders", ["exchange_id", "symbol_id", "status"]
+    )
     op.create_index("idx_fills_order_id", "fills", ["order_id"])
-    op.create_index("idx_positions_exchange_symbol_status", "positions", ["exchange_id", "symbol_id", "status"])
-    op.create_index("idx_portfolio_snapshots_time_mode", "portfolio_snapshots", ["snapshot_time", "mode"])
+    op.create_index(
+        "idx_positions_exchange_symbol_status", "positions", ["exchange_id", "symbol_id", "status"]
+    )
+    op.create_index(
+        "idx_portfolio_snapshots_time_mode", "portfolio_snapshots", ["snapshot_time", "mode"]
+    )
 
 
 def downgrade() -> None:

@@ -113,7 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         lookback_minutes=args.lookback_minutes,
     )
 
-    trace_id, decision_id = _workflow_ids(seed=args.seed, symbol=args.symbol, interval=args.interval)
+    trace_id, decision_id = _workflow_ids(
+        seed=args.seed, symbol=args.symbol, interval=args.interval
+    )
     llm_response = asyncio.run(
         _run_strict_llm_call(
             engine=engine,
@@ -140,7 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     asyncio.run(_publish_market_event(envelope=market_event))
 
-    expected_order_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"sim-order:execution.intent:mock:{decision_id}"))
+    expected_order_id = str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"sim-order:execution.intent:mock:{decision_id}")
+    )
     _await_workflow_persistence(
         engine=engine,
         decision_id=decision_id,
@@ -197,9 +201,17 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     )
 
     # Legacy compatibility flags retained as aliases/no-op compatibility.
-    parser.add_argument("--require-litellm", action="store_true", help="deprecated (strict LLM is always enabled)")
-    parser.add_argument("--require-real-news", action="store_true", help="deprecated (news is read from DB only)")
-    parser.add_argument("--require-real-market", action="store_true", help="deprecated (market data is read from DB)")
+    parser.add_argument(
+        "--require-litellm", action="store_true", help="deprecated (strict LLM is always enabled)"
+    )
+    parser.add_argument(
+        "--require-real-news", action="store_true", help="deprecated (news is read from DB only)"
+    )
+    parser.add_argument(
+        "--require-real-market",
+        action="store_true",
+        help="deprecated (market data is read from DB)",
+    )
 
     return parser.parse_args(argv)
 
@@ -241,7 +253,9 @@ async def _run_strict_llm_call(
     if not base_url:
         raise RuntimeError("LITELLM_BASE_URL is required for strict workflow execution")
 
-    configured_model = os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
+    configured_model = (
+        os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat").strip() or "deepseek/deepseek-chat"
+    )
     model = _normalize_litellm_model(base_url=base_url, model=configured_model)
     timeout_seconds = max(1.0, float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0")))
     api_key = os.getenv("LITELLM_API_KEY", "").strip() or None
@@ -399,7 +413,9 @@ async def _publish_market_event(*, envelope: Mapping[str, Any]) -> None:
         username=os.getenv("RABBITMQ_DEFAULT_USER", "guest"),
         password=os.getenv("RABBITMQ_DEFAULT_PASS", "guest"),
         topology_path="config/rabbitmq/topology.json",
-        request_timeout_seconds=max(1.0, float(os.getenv("RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS", "2.0"))),
+        request_timeout_seconds=max(
+            1.0, float(os.getenv("RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS", "2.0"))
+        ),
     )
     await broker.bootstrap_topology()
     await broker.publish(routing_key="market.canonical", message=dict(envelope))
@@ -547,9 +563,7 @@ def _fetch_latest_news_context(*, engine: Engine, lookback_minutes: int) -> News
             params={},
         )
     if row is None:
-        raise RuntimeError(
-            "No news_summaries row found. Run runtime_worker_news and retry."
-        )
+        raise RuntimeError("No news_summaries row found. Run runtime_worker_news and retry.")
 
     summary_id = str(row["summary_id"])
     source_news_ids = _fetch_summary_sources(engine=engine, summary_id=summary_id)
@@ -568,7 +582,9 @@ def _fetch_summary_sources(*, engine: Engine, summary_id: str) -> list[str]:
         try:
             rows = _fetch_all(
                 engine=engine,
-                query=text(f"SELECT news_id FROM {table} WHERE summary_id = :summary_id ORDER BY news_id ASC"),
+                query=text(
+                    f"SELECT news_id FROM {table} WHERE summary_id = :summary_id ORDER BY news_id ASC"
+                ),
                 params={"summary_id": summary_id},
             )
         except SQLAlchemyError:
@@ -704,7 +720,9 @@ def _await_workflow_persistence(
     )
 
 
-def _fetch_one(*, engine: Engine, query: Any, params: Mapping[str, Any]) -> Mapping[str, Any] | None:
+def _fetch_one(
+    *, engine: Engine, query: Any, params: Mapping[str, Any]
+) -> Mapping[str, Any] | None:
     with engine.connect() as connection:
         row = connection.execute(query, dict(params)).mappings().first()
     if row is None:
@@ -836,7 +854,9 @@ def _run(cmd: list[str], *, cwd: Path) -> None:
     if proc.stdout.strip():
         print(proc.stdout.strip())
     if proc.returncode != 0:
-        raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr.strip()}")
+        raise RuntimeError(
+            f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr.strip()}"
+        )
 
 
 def _create_host_runtime_engine() -> Engine:

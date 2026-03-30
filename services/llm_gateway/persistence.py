@@ -25,4 +25,3 @@ class LLMCallRecord:
 
 class LLMCallStore(Protocol):
     async def persist_call(self, record: LLMCallRecord) -> None: ...
-

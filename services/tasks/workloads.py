@@ -279,7 +279,9 @@ def notification_digest():
             for severity, event_type, count in rows:
                 severity_str = str(severity)
                 event_str = str(event_type)
-                digest["by_severity"][severity_str] = digest["by_severity"].get(severity_str, 0) + count
+                digest["by_severity"][severity_str] = (
+                    digest["by_severity"].get(severity_str, 0) + count
+                )
                 digest["by_event_type"][event_str] = count
 
             logger.info(

@@ -83,7 +83,9 @@ class WorkerHealthServer:
         try:
             self._server = _ReuseHTTPServer(("127.0.0.1", self.port), Handler)
         except OSError:
-            logger.warning("health_server_bind_failed port=%d — continuing without health endpoint", self.port)
+            logger.warning(
+                "health_server_bind_failed port=%d — continuing without health endpoint", self.port
+            )
             return
         self._thread = threading.Thread(
             target=self._server.serve_forever,

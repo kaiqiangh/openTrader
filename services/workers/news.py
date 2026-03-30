@@ -12,8 +12,14 @@ from services.news_ingestion.source_connectors import (
     NewsSourceConnectorFramework,
     SourceConnectorRegistry,
 )
-from services.news_ingestion.tagging_relevance import InMemoryNewsTagStore, NewsTaggingRelevancePipeline
-from services.news_summarizer.summarizer_service import InMemoryNewsSummaryStore, RollingNewsSummarizer
+from services.news_ingestion.tagging_relevance import (
+    InMemoryNewsTagStore,
+    NewsTaggingRelevancePipeline,
+)
+from services.news_summarizer.summarizer_service import (
+    InMemoryNewsSummaryStore,
+    RollingNewsSummarizer,
+)
 from services.workers import helpers as _helpers
 from services.workers.helpers import (
     _default_news_rss_feeds,
@@ -76,7 +82,9 @@ class NewsWorkerRunner:
                     CallableSourceConnector(
                         connector_id="social.x",
                         connector_kind="social",
-                        fetcher=lambda since, limit: x_connector.fetch_records(since=since, limit=limit),
+                        fetcher=lambda since, limit: x_connector.fetch_records(
+                            since=since, limit=limit
+                        ),
                     )
                 )
         else:
@@ -159,7 +167,9 @@ class NewsWorkerRunner:
             }
         ]
 
-    def _fetch_rss_records(self, *, feed_url: str, since: str | None, limit: int) -> list[dict[str, Any]]:
+    def _fetch_rss_records(
+        self, *, feed_url: str, since: str | None, limit: int
+    ) -> list[dict[str, Any]]:
         _ = since
         if limit <= 0:
             return []

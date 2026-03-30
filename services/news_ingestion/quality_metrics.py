@@ -50,11 +50,15 @@ class NewsQualityMetrics:
             if self._latest_published_at_seconds is None:
                 self._latest_published_at_seconds = published_seconds
             else:
-                self._latest_published_at_seconds = max(self._latest_published_at_seconds, published_seconds)
+                self._latest_published_at_seconds = max(
+                    self._latest_published_at_seconds, published_seconds
+                )
 
     def record_summary_generated(self, summary: SummaryLagRecord) -> None:
         self._summaries_generated_total += 1
-        lag_seconds = _iso_to_unix_seconds(summary.generated_at) - _iso_to_unix_seconds(summary.window_end)
+        lag_seconds = _iso_to_unix_seconds(summary.generated_at) - _iso_to_unix_seconds(
+            summary.window_end
+        )
         self._summary_lags_seconds.append(max(0.0, lag_seconds))
 
     def record_alert(self, *, severity: str) -> None:

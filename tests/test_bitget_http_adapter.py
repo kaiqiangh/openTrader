@@ -6,7 +6,10 @@ import json
 import httpx
 import pytest
 
-from services.market_ingestion.bitget_http_adapter import BitgetHTTPAdapterError, BitgetHTTPOrderBookClient
+from services.market_ingestion.bitget_http_adapter import (
+    BitgetHTTPAdapterError,
+    BitgetHTTPOrderBookClient,
+)
 
 
 class _FakeHTTPResponse:
@@ -19,7 +22,9 @@ class _FakeHTTPResponse:
 
 
 class _FakeClient:
-    def __init__(self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]) -> None:
+    def __init__(
+        self, timeout, verify, response: _FakeHTTPResponse, captured: dict[str, Any]
+    ) -> None:
         self._response = response
         self._captured = captured
         self._timeout = timeout
@@ -46,13 +51,16 @@ class _FakeClient:
 def _make_fake_client_cls(response, captured):
     class _FakeClientCls:
         def __init__(self, **kwargs):
-            self._inner = _FakeClient(kwargs.get("timeout"), kwargs.get("verify"), response, captured)
+            self._inner = _FakeClient(
+                kwargs.get("timeout"), kwargs.get("verify"), response, captured
+            )
 
         def __enter__(self):
             return self._inner
 
         def __exit__(self, exc_type, exc, tb):
             return False
+
     return _FakeClientCls
 
 
@@ -104,8 +112,26 @@ async def test_bitget_http_adapter_fetches_klines(monkeypatch) -> None:
             "code": "00000",
             "msg": "success",
             "data": [
-                ["1739535660000", "42005.0", "42015.0", "42000.0", "42012.0", "11.0", "462000.0", "462000.0"],
-                ["1739535600000", "42000.0", "42010.0", "41990.0", "42005.0", "12.5", "525000.0", "525000.0"],
+                [
+                    "1739535660000",
+                    "42005.0",
+                    "42015.0",
+                    "42000.0",
+                    "42012.0",
+                    "11.0",
+                    "462000.0",
+                    "462000.0",
+                ],
+                [
+                    "1739535600000",
+                    "42000.0",
+                    "42010.0",
+                    "41990.0",
+                    "42005.0",
+                    "12.5",
+                    "525000.0",
+                    "525000.0",
+                ],
             ],
         }
     )

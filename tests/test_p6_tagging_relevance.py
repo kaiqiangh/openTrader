@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from services.news_ingestion.ingestion_service import NormalizedNewsItem
-from services.news_ingestion.tagging_relevance import InMemoryNewsTagStore, NewsTaggingRelevancePipeline
+from services.news_ingestion.tagging_relevance import (
+    InMemoryNewsTagStore,
+    NewsTaggingRelevancePipeline,
+)
 
 
 def _item(*, news_id: str, title: str, body: str) -> NormalizedNewsItem:

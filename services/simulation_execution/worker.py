@@ -4,7 +4,10 @@ from time import perf_counter
 from typing import Any
 
 from services.notification_service.publishers import NotificationEventBridge
-from services.simulation_execution.engine import SimulationExecutionEngine, SimulationExecutionResult
+from services.simulation_execution.engine import (
+    SimulationExecutionEngine,
+    SimulationExecutionResult,
+)
 from services.simulation_execution.metrics_tracing import SimulationExecutionMetrics, utc_now_iso
 from services.simulation_execution.mode_routing import MOCK_ROUTING_KEY
 from services.simulation_execution.safety_guard import MockModeSafetyGuard
@@ -30,7 +33,9 @@ class SimulationExecutionWorker:
         self.consume_queue = consume_queue
         self.publish_routing_key = publish_routing_key
 
-    async def run_once(self, *, timeout_seconds: float | None = 0.0) -> SimulationExecutionResult | None:
+    async def run_once(
+        self, *, timeout_seconds: float | None = 0.0
+    ) -> SimulationExecutionResult | None:
         envelope = await self.broker.consume(
             queue_name=self.consume_queue,
             timeout_seconds=timeout_seconds,

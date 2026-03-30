@@ -5,7 +5,7 @@ def test_runtime_integration_gate_script_exists_and_writes_report() -> None:
     script = Path("scripts/runtime_integration_gate.py")
     assert script.exists()
     content = script.read_text(encoding="utf-8")
-    assert "make\", \"smoke\"" in content
+    assert 'make", "smoke"' in content
     assert "artifacts/runtime_integration_gate/latest.json" in content
     assert "overall_status" in content
 

@@ -6,7 +6,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from services.agent_orchestrator.replay_service import DecisionReplayNotFoundError, DecisionReplayResult
+from services.agent_orchestrator.replay_service import (
+    DecisionReplayNotFoundError,
+    DecisionReplayResult,
+)
 from services.api.auth import require_viewer
 from services.api.dependencies import get_control_plane_repository, get_control_plane_state
 from services.api.models import (
@@ -55,7 +58,9 @@ def get_replay_request(
 ) -> ReplayRequestResponse:
     request_record = state.get_replay_request(request_id=request_id)
     if request_record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Replay request not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Replay request not found"
+        )
     return _request_model(request_record)
 
 

@@ -28,7 +28,9 @@ def test_registry_registers_and_lists_connectors() -> None:
     connector = CallableSourceConnector(
         connector_id="rss-main",
         connector_kind="rss",
-        fetcher=lambda *, since, limit: (_record(source="rss-main", source_item_id="1", title="headline"),),
+        fetcher=lambda *, since, limit: (
+            _record(source="rss-main", source_item_id="1", title="headline"),
+        ),
     )
 
     registry.register(connector)
@@ -63,21 +65,27 @@ def test_framework_fetch_cycle_aggregates_multiple_sources() -> None:
         CallableSourceConnector(
             connector_id="rss-main",
             connector_kind="rss",
-            fetcher=lambda *, since, limit: (_record(source="rss-main", source_item_id="1", title="rss"),),
+            fetcher=lambda *, since, limit: (
+                _record(source="rss-main", source_item_id="1", title="rss"),
+            ),
         )
     )
     registry.register(
         CallableSourceConnector(
             connector_id="api-main",
             connector_kind="api",
-            fetcher=lambda *, since, limit: (_record(source="api-main", source_item_id="2", title="api"),),
+            fetcher=lambda *, since, limit: (
+                _record(source="api-main", source_item_id="2", title="api"),
+            ),
         )
     )
     registry.register(
         CallableSourceConnector(
             connector_id="social-main",
             connector_kind="social",
-            fetcher=lambda *, since, limit: (_record(source="social-main", source_item_id="3", title="social"),),
+            fetcher=lambda *, since, limit: (
+                _record(source="social-main", source_item_id="3", title="social"),
+            ),
         )
     )
 

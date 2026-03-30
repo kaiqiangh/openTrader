@@ -124,7 +124,10 @@ async def test_p9_e2e_mock_flow_market_to_portfolio_snapshot() -> None:
     assert simulation_result.status == "FILLED"
 
     oms_events = await broker.drain("oms.events.order_updates")
-    assert [event["event_type"] for event in oms_events] == ["oms.order.created", "oms.order.filled"]
+    assert [event["event_type"] for event in oms_events] == [
+        "oms.order.created",
+        "oms.order.filled",
+    ]
     filled_event = oms_events[-1]
     assert filled_event["payload"]["action"] == "BUY"
 

@@ -87,7 +87,10 @@ class SimulationExecutionEngine:
                 )
             trigger_price = float(trigger_price_raw)
             triggered = self._check_trigger(
-                order_type=order_type, action=action, reference_price=reference_price, trigger_price=trigger_price
+                order_type=order_type,
+                action=action,
+                reference_price=reference_price,
+                trigger_price=trigger_price,
             )
             if not triggered:
                 # Order is waiting — return SUBMITTED status
@@ -119,7 +122,9 @@ class SimulationExecutionEngine:
 
         # --- OCO handling ---
         if order_type == "OCO":
-            return self._execute_oco(envelope=envelope, payload=payload, order_id=order_id, mode=mode)
+            return self._execute_oco(
+                envelope=envelope, payload=payload, order_id=order_id, mode=mode
+            )
 
         fill_price = self._apply_slippage(reference_price=reference_price, action=action)
         notional = quantity * fill_price
@@ -242,7 +247,12 @@ class SimulationExecutionEngine:
                 if trigger_price is None:
                     raise SimulationExecutionError(f"OCO {leg_type} leg {i} requires trigger_price")
                 tp = float(trigger_price)
-                if self._check_trigger(order_type=leg_type, action=action, reference_price=reference_price, trigger_price=tp):
+                if self._check_trigger(
+                    order_type=leg_type,
+                    action=action,
+                    reference_price=reference_price,
+                    trigger_price=tp,
+                ):
                     triggered_leg_index = i
                     break
 

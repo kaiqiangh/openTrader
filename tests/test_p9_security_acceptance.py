@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
 from fastapi.testclient import TestClient
@@ -9,11 +8,16 @@ import pytest
 from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
-from services.notification_service.settings import NotificationSettingsError, load_notification_worker_settings
+from services.notification_service.settings import (
+    NotificationSettingsError,
+    load_notification_worker_settings,
+)
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
+
 
 def _settings() -> APISettings:
     return make_test_settings()
+
 
 def _service_block(content: str, service_name: str) -> str:
     marker = f"  {service_name}:"
@@ -26,9 +30,12 @@ def _service_block(content: str, service_name: str) -> str:
         return remainder
     return remainder[: match.start()]
 
+
 def test_p9_security_acceptance_rbac_enforcement() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     viewer_token = encode_jwt_rs256(subject="viewer", role="viewer", settings=settings)
@@ -50,6 +57,7 @@ def test_p9_security_acceptance_rbac_enforcement() -> None:
     )
     assert operator_attempt.status_code == 200
     assert operator_attempt.json()["mode"] == "REAL"
+
 
 def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
@@ -75,6 +83,7 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     postgres_block = _service_block(compose, "postgres_timescaledb")
     assert "ports:" in postgres_block
     assert "127.0.0.1:5432:5432" in postgres_block
+
 
 def test_p9_security_acceptance_secret_placeholder_rejection() -> None:
     base_env = {

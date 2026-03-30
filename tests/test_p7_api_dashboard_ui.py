@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -9,15 +8,20 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
 
 def _settings() -> APISettings:
     return make_test_settings()
 
+
 def test_dashboard_routes_show_migration_notice() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
     token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
@@ -41,9 +45,12 @@ def test_dashboard_routes_show_migration_notice() -> None:
     assert notifications.status_code == 200
     assert "http://localhost:3000/notifications" in notifications.text
 
+
 def test_legacy_dashboard_static_assets_are_not_served() -> None:
     settings = _settings()
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     js = client.get("/static/dashboard_app.js")

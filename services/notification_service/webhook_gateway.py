@@ -47,8 +47,11 @@ class WebhookGateway:
         if self.config.secret:
             import hmac
             import hashlib
+
             body_bytes = json.dumps(payload, sort_keys=True).encode("utf-8")
-            signature = hmac.new(self.config.secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
+            signature = hmac.new(
+                self.config.secret.encode("utf-8"), body_bytes, hashlib.sha256
+            ).hexdigest()
             headers["X-Signature-256"] = f"sha256={signature}"
 
         try:

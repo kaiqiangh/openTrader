@@ -34,7 +34,12 @@ def upgrade() -> None:
         sa.Column("total_tokens", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("latency_ms", sa.Numeric(10, 2), nullable=False, server_default=sa.text("0")),
         sa.Column("estimated_cost", sa.Numeric(18, 8), nullable=False, server_default=sa.text("0")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
     op.create_index("idx_llm_calls_trace_id", "llm_calls", ["trace_id"])
     op.create_index(
@@ -51,7 +56,12 @@ def upgrade() -> None:
         sa.Column("date", sa.Date(), nullable=False),
         sa.Column("total_tokens", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("estimated_cost", sa.Numeric(18, 8), nullable=False, server_default=sa.text("0")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.UniqueConstraint("strategy_id", "agent_name", "date", name="uq_llm_usage_daily_scope"),
     )
 
@@ -63,8 +73,15 @@ def upgrade() -> None:
         sa.Column("month", sa.String(length=7), nullable=False),
         sa.Column("total_tokens", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("estimated_cost", sa.Numeric(18, 8), nullable=False, server_default=sa.text("0")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.UniqueConstraint("strategy_id", "agent_name", "month", name="uq_llm_usage_monthly_scope"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.UniqueConstraint(
+            "strategy_id", "agent_name", "month", name="uq_llm_usage_monthly_scope"
+        ),
     )
 
     op.create_table(
@@ -75,7 +92,12 @@ def upgrade() -> None:
         sa.Column("daily_token_limit", sa.Integer(), nullable=False),
         sa.Column("monthly_cost_limit", sa.Numeric(18, 8), nullable=False),
         sa.Column("is_hard_limit", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.UniqueConstraint("strategy_id", "agent_name", name="uq_llm_quota_limits_scope"),
     )
 

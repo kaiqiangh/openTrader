@@ -119,10 +119,14 @@ async def test_notification_dispatcher_moves_failures_to_dlq() -> None:
         dedupe_window_seconds=60.0,
         rate_limit_per_minute=10,
     )
-    dispatcher = GatewayDispatcher(gateways={"telegram": _AlwaysFailGateway(name="telegram")}, max_attempts=2)
+    dispatcher = GatewayDispatcher(
+        gateways={"telegram": _AlwaysFailGateway(name="telegram")}, max_attempts=2
+    )
     service = NotificationService(intake=intake, policy_router=router, dispatcher=dispatcher)
 
-    result = await service.process_envelope(_envelope(event_type="risk.control.risk.kill_switch.enabled"))
+    result = await service.process_envelope(
+        _envelope(event_type="risk.control.risk.kill_switch.enabled")
+    )
 
     assert result.event.severity == NotificationSeverity.CRITICAL
     assert len(result.results) == 1

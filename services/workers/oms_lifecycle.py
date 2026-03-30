@@ -6,7 +6,11 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
-from services.oms.fill_reconciliation import FillReconciliationEngine, LifecycleEvent, ReconciliationOrder
+from services.oms.fill_reconciliation import (
+    FillReconciliationEngine,
+    LifecycleEvent,
+    ReconciliationOrder,
+)
 from services.oms.portfolio_snapshot import PortfolioSnapshotEngine
 from services.oms.position_engine import PositionEngine, PositionFill, PositionState
 from services.workers.helpers import _resolve_requested_quantity, _utc_now_iso

@@ -12,7 +12,12 @@ from services.oms.risk_guards import (
     DrawdownDailyLossEvaluation,
     DrawdownDailyLossGuardEngine,
 )
-from services.oms.risk_rules import CoreRiskConfig, CoreRiskEvaluation, CoreRiskRuleEngine, ProposedOrder
+from services.oms.risk_rules import (
+    CoreRiskConfig,
+    CoreRiskEvaluation,
+    CoreRiskRuleEngine,
+    ProposedOrder,
+)
 
 
 @dataclass(frozen=True, slots=True)

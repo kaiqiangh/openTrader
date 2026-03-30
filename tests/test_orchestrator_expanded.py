@@ -5,10 +5,9 @@ TEST-001: 30+ new tests covering context assembly, risk gating, memory ops, data
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import asdict
-from typing import Any, Mapping
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -89,7 +88,9 @@ def _risk_approved(qty: float = 0.05) -> RiskAssessment:
         signals=(
             RiskSignal(name="confidence_minimum", passed=True, value=0.6, limit=0.2, message="ok"),
             RiskSignal(name="actionable_plan", passed=True, value=1.0, limit=1.0, message="ok"),
-            RiskSignal(name="notional_limit", passed=True, value=1000.0, limit=20_000.0, message="ok"),
+            RiskSignal(
+                name="notional_limit", passed=True, value=1000.0, limit=20_000.0, message="ok"
+            ),
             RiskSignal(name="position_limit", passed=True, value=0.5, limit=1.0, message="ok"),
             RiskSignal(name="drawdown_limit", passed=True, value=0.01, limit=0.15, message="ok"),
         ),
@@ -110,7 +111,9 @@ def _risk_blocked(*blocked_by: str) -> RiskAssessment:
     )
 
 
-def _decision(action: str = "BUY", quantity: float = 0.05, confidence: float = 0.6) -> ExecutionDecision:
+def _decision(
+    action: str = "BUY", quantity: float = 0.05, confidence: float = 0.6
+) -> ExecutionDecision:
     return ExecutionDecision(
         action=action,
         quantity=quantity,
@@ -284,7 +287,11 @@ class TestOrchestrationResult:
 
     def test_construction(self) -> None:
         market_ctx = MarketContextOutput(
-            context={}, microstructure={}, news={}, quality={}, notes=(),
+            context={},
+            microstructure={},
+            news={},
+            quality={},
+            notes=(),
         )
         r = OrchestrationResult(
             trace_id="t1",
@@ -297,7 +304,10 @@ class TestOrchestrationResult:
             risk=_risk_approved(),
             execution_decision=_decision(),
             guardrail=GuardrailValidationResult(
-                allowed=True, blocked_by=(), violations=(), checks={},
+                allowed=True,
+                blocked_by=(),
+                violations=(),
+                checks={},
             ),
             execution_intent=None,
         )
@@ -329,7 +339,11 @@ class TestDecisionMemorySnapshot:
 
     def test_empty_snapshot(self) -> None:
         snap = DecisionMemorySnapshot(
-            mode="MOCK", strategy_id="s1", decision_id="d1", source="empty", slots={},
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
+            source="empty",
+            slots={},
         )
         assert snap.source == "empty"
         assert len(snap.slots) == 0
@@ -595,19 +609,39 @@ class TestPlannerAgentAction:
     """Test PlannerAgent._select_action."""
 
     def test_buy_above_threshold(self) -> None:
-        assert PlannerAgent._select_action(imbalance=0.3, strategy=_strategy(planner_buy_threshold=0.2)) == "BUY"
+        assert (
+            PlannerAgent._select_action(
+                imbalance=0.3, strategy=_strategy(planner_buy_threshold=0.2)
+            )
+            == "BUY"
+        )
 
     def test_sell_below_threshold(self) -> None:
-        assert PlannerAgent._select_action(imbalance=-0.3, strategy=_strategy(planner_sell_threshold=0.2)) == "SELL"
+        assert (
+            PlannerAgent._select_action(
+                imbalance=-0.3, strategy=_strategy(planner_sell_threshold=0.2)
+            )
+            == "SELL"
+        )
 
     def test_hold_between_thresholds(self) -> None:
         assert PlannerAgent._select_action(imbalance=0.1, strategy=_strategy()) == "HOLD"
 
     def test_exact_buy_threshold(self) -> None:
-        assert PlannerAgent._select_action(imbalance=0.2, strategy=_strategy(planner_buy_threshold=0.2)) == "BUY"
+        assert (
+            PlannerAgent._select_action(
+                imbalance=0.2, strategy=_strategy(planner_buy_threshold=0.2)
+            )
+            == "BUY"
+        )
 
     def test_exact_sell_threshold(self) -> None:
-        assert PlannerAgent._select_action(imbalance=-0.2, strategy=_strategy(planner_sell_threshold=0.2)) == "SELL"
+        assert (
+            PlannerAgent._select_action(
+                imbalance=-0.2, strategy=_strategy(planner_sell_threshold=0.2)
+            )
+            == "SELL"
+        )
 
     def test_zero_imbalance_hold(self) -> None:
         assert PlannerAgent._select_action(imbalance=0.0, strategy=_strategy()) == "HOLD"
@@ -683,8 +717,12 @@ class TestNoopShortTermMemoryStore:
     async def test_write_is_noop(self) -> None:
         store = _NoopShortTermMemoryStore()
         await store.write_slot(
-            mode="MOCK", strategy_id="s1", decision_id="d1",
-            slot="test", payload={"k": "v"}, ttl_seconds=60,
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
+            slot="test",
+            payload={"k": "v"},
+            ttl_seconds=60,
         )
         # No error, no state change
 
@@ -702,8 +740,13 @@ class TestNoopLongTermMemoryStore:
     async def test_persist_is_noop(self) -> None:
         store = _NoopLongTermMemoryStore()
         rec = DecisionMemoryRecord(
-            trace_id="t1", decision_id="d1", strategy_id="s1",
-            mode="MOCK", status="OK", summary={}, lifecycle=(),
+            trace_id="t1",
+            decision_id="d1",
+            strategy_id="s1",
+            mode="MOCK",
+            status="OK",
+            summary={},
+            lifecycle=(),
             persisted_at="2024-01-01T00:00:00Z",
         )
         await store.persist_decision_summary(rec)
@@ -732,7 +775,9 @@ class TestAgentMemoryLayerDefaults:
     async def test_read_empty_memory(self) -> None:
         layer = AgentMemoryLayer()
         snapshot = await layer.read_decision_memory(
-            mode="MOCK", strategy_id="s1", decision_id="d1",
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
         )
         assert snapshot.source == "empty"
         assert snapshot.slots == {}
@@ -743,8 +788,11 @@ class TestAgentMemoryLayerDefaults:
         mock_short.read_slots = AsyncMock(return_value={})
         layer = AgentMemoryLayer(short_term_store=mock_short)
         await layer.write_decision_slot(
-            mode="MOCK", strategy_id="s1", decision_id="d1",
-            slot="test", payload={"k": "v"},
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
+            slot="test",
+            payload={"k": "v"},
         )
         mock_short.write_slot.assert_called_once()
         call_kwargs = mock_short.write_slot.call_args
@@ -758,15 +806,19 @@ class TestAgentMemoryLayerWithMockStore:
     @pytest.mark.asyncio
     async def test_read_from_short_term(self) -> None:
         mock_short = AsyncMock()
-        mock_short.read_slots = AsyncMock(return_value={
-            "context": {"mid_price": 100.0},
-            "plan": {"action": "BUY"},
-        })
+        mock_short.read_slots = AsyncMock(
+            return_value={
+                "context": {"mid_price": 100.0},
+                "plan": {"action": "BUY"},
+            }
+        )
         mock_long = AsyncMock()
         mock_long.read_decision_summary = AsyncMock(return_value=None)
         layer = AgentMemoryLayer(short_term_store=mock_short, long_term_store=mock_long)
         snapshot = await layer.read_decision_memory(
-            mode="MOCK", strategy_id="s1", decision_id="d1",
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
         )
         assert snapshot.source == "redis"
         assert "context" in snapshot.slots
@@ -778,8 +830,11 @@ class TestAgentMemoryLayerWithMockStore:
         mock_short.read_slots = AsyncMock(return_value={})
         mock_short.write_slot = AsyncMock()
         archived = DecisionMemoryRecord(
-            trace_id="t1", decision_id="d1", strategy_id="s1",
-            mode="MOCK", status="OK",
+            trace_id="t1",
+            decision_id="d1",
+            strategy_id="s1",
+            mode="MOCK",
+            status="OK",
             summary={"status": "OK", "market_context": {"mid": 50}},
             lifecycle=(),
             persisted_at="2024-01-01T00:00:00Z",
@@ -788,7 +843,9 @@ class TestAgentMemoryLayerWithMockStore:
         mock_long.read_decision_summary = AsyncMock(return_value=archived)
         layer = AgentMemoryLayer(short_term_store=mock_short, long_term_store=mock_long)
         snapshot = await layer.read_decision_memory(
-            mode="MOCK", strategy_id="s1", decision_id="d1",
+            mode="MOCK",
+            strategy_id="s1",
+            decision_id="d1",
         )
         assert snapshot.source == "postgres"
         assert "summary" in snapshot.slots
@@ -874,8 +931,11 @@ class TestAgentRuntimeMetrics:
     def test_record_success(self) -> None:
         m = AgentRuntimeMetrics()
         m.record_stage_success(
-            trace_id="t1", decision_id="d1", mode="MOCK",
-            stage="planner", latency_ms=5.0,
+            trace_id="t1",
+            decision_id="d1",
+            mode="MOCK",
+            stage="planner",
+            latency_ms=5.0,
         )
         snap = m.snapshot()
         assert snap["agent_stages"]["planner"]["runs_total"] == 1
@@ -884,8 +944,12 @@ class TestAgentRuntimeMetrics:
     def test_record_failure(self) -> None:
         m = AgentRuntimeMetrics()
         m.record_stage_failure(
-            trace_id="t1", decision_id="d1", mode="MOCK",
-            stage="risk", latency_ms=2.0, error_type="ValueError",
+            trace_id="t1",
+            decision_id="d1",
+            mode="MOCK",
+            stage="risk",
+            latency_ms=2.0,
+            error_type="ValueError",
         )
         snap = m.snapshot()
         assert snap["agent_stages"]["risk"]["failures_total"] == 1
@@ -893,8 +957,12 @@ class TestAgentRuntimeMetrics:
 
     def test_avg_latency(self) -> None:
         m = AgentRuntimeMetrics()
-        m.record_stage_success(trace_id="t1", decision_id="d1", mode="MOCK", stage="s", latency_ms=10.0)
-        m.record_stage_success(trace_id="t1", decision_id="d1", mode="MOCK", stage="s", latency_ms=20.0)
+        m.record_stage_success(
+            trace_id="t1", decision_id="d1", mode="MOCK", stage="s", latency_ms=10.0
+        )
+        m.record_stage_success(
+            trace_id="t1", decision_id="d1", mode="MOCK", stage="s", latency_ms=20.0
+        )
         snap = m.snapshot()
         assert snap["agent_stages"]["s"]["avg_latency_ms"] == 15.0
         assert snap["agent_stages"]["s"]["max_latency_ms"] == 20.0
@@ -902,10 +970,18 @@ class TestAgentRuntimeMetrics:
     def test_llm_call_tracking(self) -> None:
         m = AgentRuntimeMetrics()
         m.record_llm_call(
-            trace_id="t1", decision_id="d1", strategy_id="s1",
-            agent_name="planner", provider="openai", model="gpt-4",
-            prompt_tokens=100, completion_tokens=50, total_tokens=150,
-            latency_ms=200.0, estimated_cost=0.01, status="succeeded",
+            trace_id="t1",
+            decision_id="d1",
+            strategy_id="s1",
+            agent_name="planner",
+            provider="openai",
+            model="gpt-4",
+            prompt_tokens=100,
+            completion_tokens=50,
+            total_tokens=150,
+            latency_ms=200.0,
+            estimated_cost=0.01,
+            status="succeeded",
         )
         snap = m.snapshot()
         assert snap["llm_usage"]["totals"]["calls_total"] == 1
@@ -914,10 +990,18 @@ class TestAgentRuntimeMetrics:
     def test_llm_failed_call(self) -> None:
         m = AgentRuntimeMetrics()
         m.record_llm_call(
-            trace_id="t1", decision_id="d1", strategy_id="s1",
-            agent_name="planner", provider="openai", model="gpt-4",
-            prompt_tokens=100, completion_tokens=0, total_tokens=100,
-            latency_ms=50.0, estimated_cost=0.0, status="failed",
+            trace_id="t1",
+            decision_id="d1",
+            strategy_id="s1",
+            agent_name="planner",
+            provider="openai",
+            model="gpt-4",
+            prompt_tokens=100,
+            completion_tokens=0,
+            total_tokens=100,
+            latency_ms=50.0,
+            estimated_cost=0.0,
+            status="failed",
         )
         snap = m.snapshot()
         assert snap["llm_usage"]["totals"]["failed_calls_total"] == 1
@@ -926,8 +1010,11 @@ class TestAgentRuntimeMetrics:
         m = AgentRuntimeMetrics()
         for i in range(150):
             m.record_stage_success(
-                trace_id="t1", decision_id=f"d{i}", mode="MOCK",
-                stage="s", latency_ms=1.0,
+                trace_id="t1",
+                decision_id=f"d{i}",
+                mode="MOCK",
+                stage="s",
+                latency_ms=1.0,
             )
         snap = m.snapshot()
         assert len(snap["recent_spans"]) == 100
@@ -1093,7 +1180,9 @@ class TestExecutionDecisionAgentEdge:
         assert decision.quantity < 0
 
     def test_normalize_sell_positive_to_hold(self) -> None:
-        action, qty = ExecutionDecisionAgent._normalize_action_quantity(action="SELL", quantity=0.05)
+        action, qty = ExecutionDecisionAgent._normalize_action_quantity(
+            action="SELL", quantity=0.05
+        )
         assert action == "HOLD"
         assert qty == 0.0
 
@@ -1103,7 +1192,9 @@ class TestExecutionDecisionAgentEdge:
         assert qty == 0.0
 
     def test_normalize_close_nonzero_ok(self) -> None:
-        action, qty = ExecutionDecisionAgent._normalize_action_quantity(action="CLOSE", quantity=-0.5)
+        action, qty = ExecutionDecisionAgent._normalize_action_quantity(
+            action="CLOSE", quantity=-0.5
+        )
         assert action == "CLOSE"
         assert qty == -0.5
 

@@ -12,7 +12,10 @@ from services.agent_orchestrator.contracts import (
     RiskSignal,
     StrategyConfig,
 )
-from services.agent_orchestrator.execution_decision_agent import ExecutionDecisionAgent, ALLOWED_ACTIONS
+from services.agent_orchestrator.execution_decision_agent import (
+    ExecutionDecisionAgent,
+    ALLOWED_ACTIONS,
+)
 from services.agent_orchestrator.guardrail_validation import GuardrailValidationLayer
 from services.agent_orchestrator.risk_agent import RiskAgent
 
@@ -57,7 +60,9 @@ def _risk_approved(qty=0.05) -> RiskAssessment:
         approved_quantity=qty,
         signals=(
             RiskSignal(name="confidence_minimum", passed=True, value=0.6, limit=0.2, message="ok"),
-            RiskSignal(name="notional_limit", passed=True, value=1000.0, limit=20_000.0, message="ok"),
+            RiskSignal(
+                name="notional_limit", passed=True, value=1000.0, limit=20_000.0, message="ok"
+            ),
             RiskSignal(name="position_limit", passed=True, value=0.5, limit=1.0, message="ok"),
             RiskSignal(name="drawdown_limit", passed=True, value=0.01, limit=0.15, message="ok"),
         ),
@@ -109,34 +114,56 @@ class TestGuardrailQuantitySemantics:
     """Test _quantity_semantics_valid for each action."""
 
     def test_buy_positive_quantity_ok(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=0.1) is True
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=0.1) is True
+        )
 
     def test_buy_negative_quantity_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=-0.1) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=-0.1) is False
+        )
 
     def test_buy_zero_quantity_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=0.0) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="BUY", quantity=0.0) is False
+        )
 
     def test_sell_negative_quantity_ok(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="SELL", quantity=-0.1) is True
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="SELL", quantity=-0.1) is True
+        )
 
     def test_sell_positive_quantity_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="SELL", quantity=0.1) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="SELL", quantity=0.1) is False
+        )
 
     def test_close_nonzero_ok(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="CLOSE", quantity=-0.5) is True
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="CLOSE", quantity=-0.5)
+            is True
+        )
 
     def test_close_zero_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="CLOSE", quantity=0.0) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="CLOSE", quantity=0.0)
+            is False
+        )
 
     def test_hold_zero_ok(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="HOLD", quantity=0.0) is True
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="HOLD", quantity=0.0) is True
+        )
 
     def test_hold_nonzero_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="HOLD", quantity=0.1) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="HOLD", quantity=0.1) is False
+        )
 
     def test_unknown_action_bad(self) -> None:
-        assert GuardrailValidationLayer._quantity_semantics_valid(action="YOLO", quantity=1.0) is False
+        assert (
+            GuardrailValidationLayer._quantity_semantics_valid(action="YOLO", quantity=1.0) is False
+        )
 
 
 class TestGuardrailNotionalLimit:

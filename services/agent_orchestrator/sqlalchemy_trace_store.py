@@ -11,7 +11,11 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from services.agent_orchestrator.replay_service import AgentMessageRecord, AgentRunRecord, DecisionTraceRecord
+from services.agent_orchestrator.replay_service import (
+    AgentMessageRecord,
+    AgentRunRecord,
+    DecisionTraceRecord,
+)
 from services.llm_gateway.persistence import LLMCallRecord
 
 
@@ -27,7 +31,9 @@ class TraceAgentRun:
 
 
 class SQLAlchemyTraceStore:
-    def __init__(self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True) -> None:
+    def __init__(
+        self, *, connection: sqlite3.Connection | Engine | Connection, ensure_schema: bool = True
+    ) -> None:
         self._db = _StoreConnection(connection=connection)
         if ensure_schema:
             self._ensure_schema()
@@ -336,7 +342,9 @@ class _StoreConnection:
         if isinstance(connection, Connection):
             self._engine = connection.engine
             return
-        raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+        raise TypeError(
+            "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+        )
 
     def execute(self, statement: str, params: Mapping[str, Any]) -> None:
         if self._sqlite_connection is not None:
@@ -409,4 +417,3 @@ def _try_uuid(value: str) -> str | None:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-

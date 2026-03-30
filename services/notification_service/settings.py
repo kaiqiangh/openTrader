@@ -46,9 +46,15 @@ def load_notification_worker_settings(
     source = env if env is not None else os.environ
 
     enabled = _parse_bool(source.get("NOTIFY_ENABLED", "true"), key="NOTIFY_ENABLED")
-    default_gateway = _require_non_empty(source, "NOTIFY_DEFAULT_GATEWAY", default="telegram").strip().lower()
+    default_gateway = (
+        _require_non_empty(source, "NOTIFY_DEFAULT_GATEWAY", default="telegram").strip().lower()
+    )
     queue_name = _require_non_empty(source, "NOTIFY_QUEUE_NAME", default="notify.events.raw")
-    consumer_backend = _require_non_empty(source, "NOTIFY_CONSUMER_BACKEND", default="rabbitmq_http").strip().lower()
+    consumer_backend = (
+        _require_non_empty(source, "NOTIFY_CONSUMER_BACKEND", default="rabbitmq_http")
+        .strip()
+        .lower()
+    )
     if consumer_backend not in {"rabbitmq_http", "inmemory"}:
         raise NotificationSettingsError("NOTIFY_CONSUMER_BACKEND must be rabbitmq_http or inmemory")
     runtime_require_database = _parse_bool(
@@ -60,17 +66,27 @@ def load_notification_worker_settings(
             "NOTIFY_CONSUMER_BACKEND=inmemory is disabled when RUNTIME_REQUIRE_DATABASE=true"
         )
 
-    default_severity = _parse_severity(_require_non_empty(source, "NOTIFICATION_DEFAULT_SEVERITY", default="WARNING"))
+    default_severity = _parse_severity(
+        _require_non_empty(source, "NOTIFICATION_DEFAULT_SEVERITY", default="WARNING")
+    )
     poll_timeout_seconds = _parse_positive_float(source, "NOTIFY_POLL_TIMEOUT_SECONDS", default=1.0)
     idle_sleep_seconds = _parse_positive_float(source, "NOTIFY_IDLE_SLEEP_SECONDS", default=0.5)
-    dedupe_window_seconds = _parse_positive_float(source, "NOTIFY_DEDUPE_WINDOW_SECONDS", default=120.0)
+    dedupe_window_seconds = _parse_positive_float(
+        source, "NOTIFY_DEDUPE_WINDOW_SECONDS", default=120.0
+    )
     rate_limit_per_minute = _parse_positive_int(source, "NOTIFY_RATE_LIMIT_PER_MIN", default=30)
     max_attempts = _parse_positive_int(source, "NOTIFY_MAX_ATTEMPTS", default=3)
-    backoff_base_seconds = _parse_non_negative_float(source, "NOTIFY_BACKOFF_BASE_SECONDS", default=0.2)
+    backoff_base_seconds = _parse_non_negative_float(
+        source, "NOTIFY_BACKOFF_BASE_SECONDS", default=0.2
+    )
     backoff_multiplier = _parse_float(source, "NOTIFY_BACKOFF_MULTIPLIER", default=2.0)
     max_backoff_seconds = _parse_positive_float(source, "NOTIFY_BACKOFF_MAX_SECONDS", default=2.0)
-    gateway_timeout_seconds = _parse_positive_float(source, "NOTIFY_GATEWAY_TIMEOUT_SECONDS", default=10.0)
-    observability_max_records = _parse_positive_int(source, "NOTIFY_OBSERVABILITY_MAX_RECORDS", default=200)
+    gateway_timeout_seconds = _parse_positive_float(
+        source, "NOTIFY_GATEWAY_TIMEOUT_SECONDS", default=10.0
+    )
+    observability_max_records = _parse_positive_int(
+        source, "NOTIFY_OBSERVABILITY_MAX_RECORDS", default=200
+    )
     rabbitmq_http_api_url = _require_non_empty(
         source,
         "NOTIFY_RABBITMQ_HTTP_API_URL",
@@ -93,9 +109,13 @@ def load_notification_worker_settings(
     telegram_default_chat_id = _normalize_optional(source.get("TELEGRAM_DEFAULT_CHAT_ID"))
     if enabled and default_gateway == "telegram":
         if _is_placeholder_secret(telegram_bot_token):
-            raise NotificationSettingsError("TELEGRAM_BOT_TOKEN is required when telegram gateway is enabled")
+            raise NotificationSettingsError(
+                "TELEGRAM_BOT_TOKEN is required when telegram gateway is enabled"
+            )
         if _is_placeholder_secret(telegram_default_chat_id):
-            raise NotificationSettingsError("TELEGRAM_DEFAULT_CHAT_ID is required when telegram gateway is enabled")
+            raise NotificationSettingsError(
+                "TELEGRAM_DEFAULT_CHAT_ID is required when telegram gateway is enabled"
+            )
 
     return NotificationWorkerSettings(
         enabled=enabled,
@@ -134,7 +154,9 @@ def _parse_bool(value: str, *, key: str) -> bool:
 def _parse_severity(value: str) -> NotificationSeverity:
     normalized = value.strip().upper()
     if normalized not in {"INFO", "WARNING", "CRITICAL"}:
-        raise NotificationSettingsError("NOTIFICATION_DEFAULT_SEVERITY must be INFO/WARNING/CRITICAL")
+        raise NotificationSettingsError(
+            "NOTIFICATION_DEFAULT_SEVERITY must be INFO/WARNING/CRITICAL"
+        )
     return NotificationSeverity(normalized)
 
 

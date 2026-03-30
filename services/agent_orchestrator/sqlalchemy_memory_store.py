@@ -71,7 +71,9 @@ class SQLiteShortTermMemoryStore:
         elif isinstance(connection, Connection):
             self._engine = connection.engine
         else:
-            raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+            raise TypeError(
+                "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+            )
         self._ensure_schema()
 
     async def write_slot(
@@ -175,7 +177,9 @@ class SQLiteShortTermMemoryStore:
             self._sqlite_connection.commit()
             return
         if self._engine is None:
-            raise RuntimeError("short-term memory store was not initialized with a valid connection")
+            raise RuntimeError(
+                "short-term memory store was not initialized with a valid connection"
+            )
         with self._engine.begin() as connection:
             connection.execute(text(statement), dict(params))
 
@@ -184,7 +188,9 @@ class SQLiteShortTermMemoryStore:
             rows = self._sqlite_connection.execute(statement, params).fetchall()
             return [dict(row) for row in rows]
         if self._engine is None:
-            raise RuntimeError("short-term memory store was not initialized with a valid connection")
+            raise RuntimeError(
+                "short-term memory store was not initialized with a valid connection"
+            )
         with self._engine.connect() as connection:
             rows = connection.execute(text(statement), dict(params)).mappings().all()
             return [dict(row) for row in rows]
@@ -204,7 +210,9 @@ class SQLiteLongTermMemoryStore:
         elif isinstance(connection, Connection):
             self._engine = connection.engine
         else:
-            raise TypeError("connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection")
+            raise TypeError(
+                "connection must be sqlite3.Connection, sqlalchemy.Engine, or sqlalchemy.Connection"
+            )
         self._ensure_schema()
 
     async def persist_decision_summary(self, record: DecisionMemoryRecord) -> None:
@@ -231,7 +239,9 @@ class SQLiteLongTermMemoryStore:
                 "mode": record.mode,
                 "status": record.status,
                 "summary_json": json.dumps(record.summary, ensure_ascii=True),
-                "lifecycle_json": json.dumps([dict(item) for item in record.lifecycle], ensure_ascii=True),
+                "lifecycle_json": json.dumps(
+                    [dict(item) for item in record.lifecycle], ensure_ascii=True
+                ),
                 "persisted_at": record.persisted_at,
             },
         )
@@ -341,7 +351,11 @@ def utc_now_iso() -> str:
 
 
 def _utc_future_iso(ttl_seconds: int) -> str:
-    return datetime.fromtimestamp(
-        datetime.now(timezone.utc).timestamp() + max(ttl_seconds, 1),
-        tz=timezone.utc,
-    ).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.fromtimestamp(
+            datetime.now(timezone.utc).timestamp() + max(ttl_seconds, 1),
+            tz=timezone.utc,
+        )
+        .isoformat()
+        .replace("+00:00", "Z")
+    )

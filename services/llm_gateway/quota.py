@@ -30,4 +30,3 @@ class LLMQuotaStore(Protocol):
         added_tokens: int,
         added_cost: float,
     ) -> QuotaUsage: ...
-

@@ -6,7 +6,10 @@ import uuid
 
 import pytest
 
-from services.notification_service.settings import NotificationSettingsError, load_notification_worker_settings
+from services.notification_service.settings import (
+    NotificationSettingsError,
+    load_notification_worker_settings,
+)
 from services.notification_service.worker import (
     InMemoryNotificationEnvelopeConsumer,
     NotificationWorker,
@@ -68,7 +71,9 @@ async def test_notification_worker_inmemory_backend_processes_message() -> None:
 
     assert isinstance(worker, NotificationWorker)
     assert isinstance(worker.consumer, InMemoryNotificationEnvelopeConsumer)
-    await worker.consumer.publish(routing_key="notify.events.raw", message=_envelope(event_type="notify.risk.event"))
+    await worker.consumer.publish(
+        routing_key="notify.events.raw", message=_envelope(event_type="notify.risk.event")
+    )
 
     result = await worker.run_once()
     assert result is not None

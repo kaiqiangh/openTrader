@@ -151,4 +151,3 @@ def _format_bucket(value: float) -> str:
     if value.is_integer():
         return str(int(value))
     return f"{value:g}"
-

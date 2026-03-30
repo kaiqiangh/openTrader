@@ -7,16 +7,21 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
+
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
 
 def _settings(*, read_only_mode: bool) -> APISettings:
     return make_test_settings(read_only_mode=read_only_mode)
 
+
 def test_api_read_only_mode_blocks_non_internal_mutation_routes() -> None:
     settings = _settings(read_only_mode=True)
     token = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.put(
@@ -28,10 +33,13 @@ def test_api_read_only_mode_blocks_non_internal_mutation_routes() -> None:
     assert response.status_code == 403
     assert "read-only mode" in response.json()["detail"]
 
+
 def test_api_read_only_mode_keeps_internal_bridge_mutation_routes_available(monkeypatch) -> None:
     monkeypatch.setenv("REAL_EXECUTION_BRIDGE_API_KEY", "test-bridge-key")
     settings = _settings(read_only_mode=True)
-    app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
+    app = create_app(
+        settings=settings, state=build_default_state(default_mode=settings.default_mode)
+    )
     client = TestClient(app)
 
     response = client.post(

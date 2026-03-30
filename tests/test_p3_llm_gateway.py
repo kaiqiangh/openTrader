@@ -55,7 +55,9 @@ def _request() -> LLMRequest:
 def _settings() -> GatewaySettings:
     return GatewaySettings(
         providers={
-            "primary": ProviderSettings(alias="primary", model="gpt-4o-mini", timeout_ms=40, max_retries=1),
+            "primary": ProviderSettings(
+                alias="primary", model="gpt-4o-mini", timeout_ms=40, max_retries=1
+            ),
             "secondary": ProviderSettings(
                 alias="secondary", model="gpt-4o-mini", timeout_ms=40, max_retries=0
             ),
