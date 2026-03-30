@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -18,6 +19,8 @@ from services.api.models import (
     StrategyStateUpdateRequest,
 )
 from services.api.state import ControlPlaneState, ModeAuditRecord, StrategyRuntimeRecord
+
+_logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/control", tags=["control"])
 
@@ -58,7 +61,7 @@ def update_mode(
                 strategies=state.list_strategies(),
             )
         except Exception:
-            pass
+            _logger.warning("persist_mode_change_failed", exc_info=True)
     return ModeResponse(
         mode=ExecutionMode(state.mode),
         updated_at=changed_at,
@@ -93,7 +96,7 @@ def update_strategy_state(
         try:
             repository.upsert_strategy_state(updated)
         except Exception:
-            pass
+            _logger.warning("upsert_strategy_state_failed", exc_info=True)
     return _strategy_model(updated)
 
 

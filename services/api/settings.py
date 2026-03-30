@@ -16,7 +16,7 @@ class APISettings:
     jwt_audience: str
     cors_allowed_origins: tuple[str, ...] = ()
     llm_runtime_enabled: bool = False
-    litellm_base_url: str = ""
+    litellm_base_url: str = ""  # deprecated: use llm_base_url
     llm_quick_provider_order: tuple[str, ...] = ()
     llm_deep_provider_order: tuple[str, ...] = ()
     read_only_mode: bool = False
@@ -50,9 +50,9 @@ def load_api_settings() -> APISettings:
             os.getenv("LLM_RUNTIME_ENABLED", "false"),
             setting_name="LLM_RUNTIME_ENABLED",
         ),
-        litellm_base_url=os.getenv("LITELLM_BASE_URL", "").strip(),
-        llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "litellm")),
-        llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "litellm")),
+        litellm_base_url=os.getenv("LLM_BASE_URL", os.getenv("LITELLM_BASE_URL", "")).strip(),
+        llm_quick_provider_order=_parse_csv(os.getenv("LLM_QUICK_PROVIDER_ORDER", "default")),
+        llm_deep_provider_order=_parse_csv(os.getenv("LLM_DEEP_PROVIDER_ORDER", "default")),
         read_only_mode=_parse_bool(os.getenv("API_READ_ONLY_MODE", "false"), setting_name="API_READ_ONLY_MODE"),
         strict_database_mode=_parse_bool(
             os.getenv("API_STRICT_DATABASE_MODE", "true"),

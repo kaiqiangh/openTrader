@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 from typing import Any
 
@@ -18,6 +19,8 @@ from services.api.models import (
     ReplayRequestResponse,
 )
 from services.api.state import ControlPlaneState, ReplayRequestRecord
+
+_logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/replay", tags=["replay"])
 
@@ -40,7 +43,7 @@ async def submit_replay_request(
         try:
             repository.persist_replay_request(request_record)
         except Exception:
-            pass
+            _logger.warning("persist_replay_request_failed", exc_info=True)
     return _request_model(request_record)
 
 

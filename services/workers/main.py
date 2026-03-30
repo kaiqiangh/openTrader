@@ -28,7 +28,7 @@ from services.agent_orchestrator.sqlalchemy_memory_store import (
 from services.agent_orchestrator.sqlalchemy_trace_store import SQLAlchemyTraceStore, TraceAgentRun
 from services.llm_gateway.contracts import GatewaySettings, ProviderSettings
 from services.llm_gateway.gateway import LLMGateway
-from services.llm_gateway.litellm_http_adapter import LiteLLMHTTPProviderClient
+from services.llm_gateway.openai_compatible_adapter import OpenAICompatibleClient
 from services.llm_gateway.sqlalchemy_stores import SQLAlchemyLLMCallStore, SQLAlchemyLLMQuotaStore
 from services.market_ingestion.canonical_pipeline import CanonicalNormalizationPipeline
 from services.market_ingestion.binance_http_adapter import BinanceHTTPOrderBookClient
@@ -1064,26 +1064,26 @@ def _build_llm_runtime(
     if not _to_bool(os.getenv("LLM_RUNTIME_ENABLED", "false")):
         return None
 
-    base_url = os.getenv("LITELLM_BASE_URL", "").strip()
+    base_url = os.getenv("LLM_BASE_URL", os.getenv("LITELLM_BASE_URL", "")).strip()
     if not base_url:
         return None
 
-    timeout_seconds = max(0.1, float(os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0")))
+    timeout_seconds = max(0.1, float(os.getenv("LLM_TIMEOUT_SECONDS", os.getenv("LITELLM_TIMEOUT_SECONDS", "15.0"))))
     timeout_ms = max(1, int(timeout_seconds * 1000))
     retries = max(0, int(os.getenv("LLM_PROVIDER_MAX_RETRIES", "1")))
 
-    quick_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "litellm")))
-    deep_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "litellm")))
-    default_order = quick_order or ("litellm",)
-    normalized_litellm_model = _normalize_litellm_model(
+    quick_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_QUICK_PROVIDER_ORDER", "default")))
+    deep_order = tuple(token.lower() for token in _parse_csv_tokens(os.getenv("LLM_DEEP_PROVIDER_ORDER", "default")))
+    default_order = quick_order or ("default",)
+    normalized_model = _normalize_llm_model(
         base_url=base_url,
-        model=os.getenv("LITELLM_MODEL", "deepseek/deepseek-chat"),
+        model=os.getenv("LLM_MODEL", os.getenv("LITELLM_MODEL", "deepseek-chat")),
     )
 
     provider_aliases = _ordered_provider_aliases(default_order, deep_order)
     providers: dict[str, ProviderSettings] = {}
     for alias in provider_aliases:
-        model = _resolve_provider_model(alias=alias, litellm_model=normalized_litellm_model)
+        model = _resolve_provider_model(alias=alias, default_model=normalized_model)
         prompt_cost, completion_cost = _resolve_provider_costs(alias=alias)
         providers[alias] = ProviderSettings(
             alias=alias,
@@ -1102,9 +1102,9 @@ def _build_llm_runtime(
         retry_max_ms=max(10, int(os.getenv("LLM_GATEWAY_RETRY_MAX_MS", "2000"))),
     )
 
-    provider_client = LiteLLMHTTPProviderClient(
+    provider_client = OpenAICompatibleClient(
         base_url=base_url,
-        api_key=os.getenv("LITELLM_API_KEY"),
+        api_key=os.getenv("LLM_API_KEY", os.getenv("LITELLM_API_KEY")),
         timeout_seconds=timeout_seconds,
     )
     gateway = LLMGateway(
@@ -1133,12 +1133,12 @@ def _ordered_provider_aliases(*orders: tuple[str, ...]) -> tuple[str, ...]:
                 continue
             seen.add(alias)
             ordered.append(alias)
-    return tuple(ordered) or ("litellm",)
+    return tuple(ordered) or ("default",)
 
 
-def _resolve_provider_model(*, alias: str, litellm_model: str) -> str:
-    if alias == "litellm":
-        return litellm_model
+def _resolve_provider_model(*, alias: str, default_model: str) -> str:
+    if alias == "default":
+        return default_model
     if alias == "openai":
         return os.getenv("LLM_OPENAI_MODEL", "openai/gpt-4o-mini").strip() or "openai/gpt-4o-mini"
     if alias == "anthropic":
@@ -1147,7 +1147,7 @@ def _resolve_provider_model(*, alias: str, litellm_model: str) -> str:
             or "anthropic/claude-3-5-sonnet-20241022"
         )
     custom_model = os.getenv(f"LLM_{_provider_alias_env_token(alias)}_MODEL", "").strip()
-    return custom_model or litellm_model
+    return custom_model or default_model
 
 
 def _resolve_provider_costs(*, alias: str) -> tuple[float, float]:
@@ -1171,13 +1171,13 @@ def _provider_alias_env_token(alias: str) -> str:
     return sanitized or "LITELLM"
 
 
-def _normalize_litellm_model(*, base_url: str, model: str) -> str:
-    normalized_model = model.strip() or "deepseek/deepseek-chat"
-    parsed_host = urlparse(base_url).netloc.lower()
-    host_scope = parsed_host or base_url.lower()
-    if "api.deepseek.com" in host_scope and normalized_model.startswith("deepseek/"):
-        suffix = normalized_model.split("/", 1)[1].strip()
-        return suffix or "deepseek-chat"
+def _normalize_llm_model(*, base_url: str, model: str) -> str:
+    normalized_model = model.strip() or "deepseek-chat"
+    # Strip provider prefix for direct API calls (e.g., "deepseek/deepseek-chat" → "deepseek-chat")
+    if "/" in normalized_model:
+        parts = normalized_model.split("/", 1)
+        suffix = parts[1].strip()
+        return suffix or normalized_model
     return normalized_model
 
 

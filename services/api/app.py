@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections import deque
 from contextlib import asynccontextmanager
-from time import perf_counter
+from time import perf_counter, time
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from fastapi import FastAPI, Request
@@ -85,6 +86,49 @@ def create_app(
     app.state.control_plane_repository = resolved_repository
     app.state.prometheus_registry = PrometheusRegistry()
     app.state.structured_logger = StructuredLogger(service="api")
+    app.state._rate_limit_windows: dict[str, deque[float]] = {}
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next):
+        """Simple per-IP sliding-window rate limiter.
+
+        Limits:
+          - /internal/* endpoints: 30 req/min per IP
+          - All other endpoints: 300 req/min per IP
+        """
+        client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+        now = time()
+
+        if path.startswith("/internal/"):
+            window_seconds = 60
+            max_requests = 30
+        elif path.startswith("/health/"):
+            return await call_next(request)
+        else:
+            window_seconds = 60
+            max_requests = 300
+
+        key = f"{client_ip}:{'internal' if path.startswith('/internal/') else 'general'}"
+        windows: dict[str, deque[float]] = request.app.state._rate_limit_windows
+        bucket = windows.get(key)
+        if bucket is None:
+            bucket = deque()
+            windows[key] = bucket
+
+        cutoff = now - window_seconds
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+
+        if len(bucket) >= max_requests:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "rate limit exceeded"},
+                headers={"Retry-After": str(window_seconds)},
+            )
+        bucket.append(now)
+
+        return await call_next(request)
 
     @app.middleware("http")
     async def observability_middleware(request: Request, call_next):

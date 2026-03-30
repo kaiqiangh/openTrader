@@ -23,6 +23,7 @@ type Runner struct {
 }
 
 const consumerErrorBackoff = 500 * time.Millisecond
+const emptyQueueBackoff = 50 * time.Millisecond
 
 func (r *Runner) Run(ctx context.Context) error {
 	if r.QueueName == "" {
@@ -45,6 +46,11 @@ func (r *Runner) Run(ctx context.Context) error {
 			if errors.Is(err, consumer.ErrNoMessage) {
 				if r.Metrics != nil {
 					r.Metrics.RecordNoMessage(r.QueueName)
+				}
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(emptyQueueBackoff):
 				}
 				continue
 			}

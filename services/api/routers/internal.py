@@ -119,7 +119,10 @@ async def dispatch_execution_command(
 def _validate_bridge_api_key(request: Request) -> None:
     expected_key = os.getenv("REAL_EXECUTION_BRIDGE_API_KEY", "").strip()
     if not expected_key:
-        return
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="execution bridge not configured: REAL_EXECUTION_BRIDGE_API_KEY is required",
+        )
 
     auth_header = request.headers.get("Authorization", "").strip()
     expected_header = f"Bearer {expected_key}"

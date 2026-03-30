@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -57,6 +58,8 @@ from services.api.state import (
     NotificationTraceRecord,
 )
 from services.oms import PortfolioSnapshot, PositionState, ReconciliationOrder, RiskControlEvent
+
+_logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ops", tags=["ops"])
 
@@ -294,7 +297,7 @@ def get_llm_runtime_status(
         try:
             snapshot = repository.llm_runtime_status_snapshot()
         except Exception:
-            pass
+            _logger.warning("llm_runtime_status_snapshot_failed", exc_info=True)
     return LLMRuntimeStatusResponse(
         runtime_enabled=settings.llm_runtime_enabled,
         litellm_base_url_configured=bool(settings.litellm_base_url),
@@ -439,7 +442,7 @@ def upsert_notification_preference(
         try:
             repository.upsert_notification_preference(updated)
         except Exception:
-            pass
+            _logger.warning("upsert_notification_preference_failed", exc_info=True)
     return _notification_preference_model(updated)
 
 
@@ -460,7 +463,7 @@ def delete_notification_preference(
         try:
             repository.delete_notification_preference(user_id=user_id)
         except Exception:
-            pass
+            _logger.warning("delete_notification_preference_failed", exc_info=True)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
