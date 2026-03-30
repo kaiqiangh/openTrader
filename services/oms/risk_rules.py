@@ -141,8 +141,8 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
     mode = order.mode.strip().upper()
     symbol = order.symbol.strip().upper()
     side = order.side.strip().upper()
-    quantity = abs(float(order.quantity))
-    price = float(order.price)
+    quantity = abs(Decimal(str(order.quantity)) if isinstance(order.quantity, float) else order.quantity)
+    price = Decimal(str(order.price)) if isinstance(order.price, float) else order.price
 
     if not mode:
         raise CoreRiskRuleError("order.mode must be set")
@@ -150,9 +150,9 @@ def _validate_order(order: ProposedOrder) -> ProposedOrder:
         raise CoreRiskRuleError("order.symbol must be set")
     if side not in {"BUY", "SELL"}:
         raise CoreRiskRuleError(f"unsupported order side: {order.side}")
-    if Decimal(str(quantity)) <= _EPSILON:
+    if quantity <= _EPSILON:
         raise CoreRiskRuleError("order.quantity must be positive")
-    if Decimal(str(price)) <= _EPSILON:
+    if price <= _EPSILON:
         raise CoreRiskRuleError("order.price must be positive")
 
     return ProposedOrder(mode=mode, symbol=symbol, side=side, quantity=quantity, price=price)
