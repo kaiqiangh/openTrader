@@ -505,6 +505,13 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+    expose:
+      - "8085"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8085/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     networks:
       - internal

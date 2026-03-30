@@ -29,6 +29,7 @@ from services.workers.helpers import (
     _correlation_from_activity,
     _worker_activity_snapshot,
 )
+from services.workers.health import WorkerHealthServer
 from services.workers.settings import (
     RuntimeWorkerBuildResult,
     RuntimeWorkerSettings,
@@ -55,10 +56,45 @@ from services.shared.runtime.database import create_runtime_engine_from_env  # n
 _WORKER_SERVICE_NAME = "runtime_worker"
 
 
+def _resolve_health_port(worker_name: str) -> int:
+    """Return the health-check port for *worker_name*.
+
+    Reads ``WORKER_HEALTH_PORT`` from the environment. Falls back to
+    a deterministic default per worker type (8081-8086).
+    """
+    import os
+
+    defaults: dict[str, int] = {
+        "market": 8081,
+        "orchestrator": 8082,
+        "simulation": 8083,
+        "oms": 8084,
+        "news": 8085,
+        "execution_lifecycle": 8086,
+    }
+    return int(os.getenv("WORKER_HEALTH_PORT", str(defaults.get(worker_name, 8080))))
+
+
 async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWorkerBuildResult) -> int:
     logger = StructuredLogger(service=_WORKER_SERVICE_NAME)
     heartbeat_every = _worker_idle_heartbeat_cycles()
 
+    health_server = WorkerHealthServer(port=_resolve_health_port(settings.worker))
+    health_server.start()
+    try:
+        return await _run_worker_core(settings=settings, build=build, health_server=health_server, logger=logger, heartbeat_every=heartbeat_every)
+    finally:
+        health_server.stop()
+
+
+async def _run_worker_core(
+    *,
+    settings: RuntimeWorkerSettings,
+    build: RuntimeWorkerBuildResult,
+    health_server: WorkerHealthServer,
+    logger: StructuredLogger,
+    heartbeat_every: int,
+) -> int:
     if settings.bootstrap_topology and hasattr(build.broker, "bootstrap_topology"):
         await build.broker.bootstrap_topology()
         logger.info(
@@ -73,6 +109,7 @@ async def run_worker_loop(*, settings: RuntimeWorkerSettings, build: RuntimeWork
         )
         return 0
 
+    health_server.set_healthy(True)
     logger.info(
         event="runtime.worker.started",
         context={
