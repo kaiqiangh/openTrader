@@ -199,6 +199,69 @@ class ControlPlaneRepository:
         )
         return deleted > 0
 
+    def persist_notification_event(
+        self,
+        *,
+        notification_event_id: str,
+        trace_id: str,
+        decision_id: str,
+        event_type: str,
+        severity: str,
+        title: str,
+        body: str,
+        payload_json: str | None = None,
+        idempotency_key: str | None = None,
+        emitted_at: str,
+    ) -> None:
+        self._execute(
+            """
+            INSERT INTO notification_events
+                (notification_event_id, trace_id, decision_id, event_type, severity, title, body, payload_json, idempotency_key, emitted_at)
+            VALUES
+                (:notification_event_id, :trace_id, :decision_id, :event_type, :severity, :title, :body, :payload_json, :idempotency_key, :emitted_at)
+            ON CONFLICT (notification_event_id) DO NOTHING
+            """,
+            {
+                "notification_event_id": notification_event_id,
+                "trace_id": trace_id,
+                "decision_id": decision_id,
+                "event_type": event_type,
+                "severity": severity,
+                "title": title,
+                "body": body,
+                "payload_json": payload_json,
+                "idempotency_key": idempotency_key,
+                "emitted_at": emitted_at,
+            },
+        )
+
+    def persist_notification_dlq_entry(
+        self,
+        *,
+        notification_event_id: str,
+        gateway: str,
+        failure_reason: str,
+        failed_attempts: int,
+        last_error: str | None = None,
+        moved_at: str,
+    ) -> None:
+        self._execute(
+            """
+            INSERT INTO notification_delivery_dlq
+                (notification_event_id, gateway, failure_reason, failed_attempts, last_error, moved_at)
+            VALUES
+                (:notification_event_id, :gateway, :failure_reason, :failed_attempts, :last_error, :moved_at)
+            """,
+            {
+                "notification_event_id": notification_event_id,
+                "gateway": gateway,
+                "failure_reason": failure_reason,
+                "failed_attempts": int(failed_attempts),
+                "last_error": last_error,
+                "moved_at": moved_at,
+            },
+        )
+
     def persist_notification_delivery(self, record: NotificationDeliveryRecord) -> None:
         self._execute(
             """

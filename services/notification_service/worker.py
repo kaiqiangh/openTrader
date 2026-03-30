@@ -16,7 +16,7 @@ import json
 from services.notification_service.event_intake import NotificationEventIntake
 from services.notification_service.gateway_dispatch import GatewayDispatcher, InMemoryGateway
 from services.notification_service.models import NotificationPreference, NotificationProcessingResult
-from services.notification_service.observability import NotificationObservabilityCollector
+from services.notification_service.observability import NotificationObservabilityCollector, utc_now_iso
 from services.notification_service.policy_router import NotificationPolicyRouter
 from services.notification_service.service import NotificationService
 from services.notification_service.settings import NotificationSettingsError, NotificationWorkerSettings, load_notification_worker_settings
@@ -234,6 +234,78 @@ class NotificationWorker:
             )
 
 
+def _build_persist_fn() -> Callable[[NotificationProcessingResult], None] | None:
+    """Build a persistence callback that writes notification results to the database.
+
+    Returns None if the database is not available (graceful degradation).
+    """
+    try:
+        from services.api.repositories import ControlPlaneRepository
+        from services.api.state import NotificationDeliveryRecord
+
+        repo = ControlPlaneRepository.from_env()
+    except Exception:
+        return None
+
+    def _persist(result: NotificationProcessingResult) -> None:
+        event = result.event
+        now = utc_now_iso()
+
+        # Persist the notification event
+        try:
+            repo.persist_notification_event(
+                notification_event_id=event.notification_event_id,
+                trace_id=event.trace_id,
+                decision_id=event.decision_id,
+                event_type=event.event_type,
+                severity=event.severity.value,
+                title=event.event_type,
+                body=json.dumps(event.payload, ensure_ascii=False, default=str),
+                payload_json=json.dumps(event.payload, ensure_ascii=False, default=str),
+                idempotency_key=event.idempotency_key,
+                emitted_at=event.emitted_at,
+            )
+        except Exception:
+            pass
+
+        # Persist delivery results
+        for delivery in result.results:
+            try:
+                repo.persist_notification_delivery(
+                    NotificationDeliveryRecord(
+                        notification_event_id=event.notification_event_id,
+                        trace_id=event.trace_id,
+                        decision_id=event.decision_id,
+                        event_type=event.event_type,
+                        severity=event.severity.value,
+                        gateway=delivery.gateway,
+                        delivery_status=delivery.status,
+                        attempt=delivery.attempt,
+                        detail=delivery.detail,
+                        logged_at=now,
+                    )
+                )
+            except Exception:
+                pass
+
+        # Persist DLQ entries for failed deliveries
+        for delivery in result.results:
+            if delivery.status.strip().upper() not in {"DELIVERED"}:
+                try:
+                    repo.persist_notification_dlq_entry(
+                        notification_event_id=event.notification_event_id,
+                        gateway=delivery.gateway,
+                        failure_reason=delivery.detail or "delivery_failed",
+                        failed_attempts=delivery.attempt,
+                        last_error=delivery.detail,
+                        moved_at=now,
+                    )
+                except Exception:
+                    pass
+
+    return _persist
+
+
 def build_notification_worker_from_settings(
     *,
     settings: NotificationWorkerSettings,
@@ -244,6 +316,7 @@ def build_notification_worker_from_settings(
     gateways = {
         settings.default_gateway: _build_gateway(settings=settings),
     }
+    persist_fn = _build_persist_fn()
     service = NotificationService(
         intake=NotificationEventIntake(),
         policy_router=NotificationPolicyRouter(
@@ -267,6 +340,7 @@ def build_notification_worker_from_settings(
         observability=NotificationObservabilityCollector(
             max_records=settings.observability_max_records,
         ),
+        persist_fn=persist_fn,
     )
     consumer: NotificationEnvelopeConsumer
     if settings.consumer_backend == "inmemory":
