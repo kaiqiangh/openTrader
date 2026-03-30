@@ -32,16 +32,21 @@ class WorkerHealthServer:
 
     def __init__(self, *, port: int = 8080) -> None:
         self.port = port
-        self.healthy = True
+        self._healthy = threading.Event()
+        self._healthy.set()  # Start healthy
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        healthy_ref = self
+        healthy_event = self._healthy
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802 — http.server protocol
-                if healthy_ref.healthy:
+                if self.path != "/health":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                if healthy_event.is_set():
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(b"ok")
@@ -54,7 +59,7 @@ class WorkerHealthServer:
                 pass  # Suppress per-request logs
 
         try:
-            self._server = _ReuseHTTPServer(("0.0.0.0", self.port), Handler)
+            self._server = _ReuseHTTPServer(("127.0.0.1", self.port), Handler)
         except OSError:
             logger.warning("health_server_bind_failed port=%d — continuing without health endpoint", self.port)
             return
@@ -71,4 +76,7 @@ class WorkerHealthServer:
             self._server.shutdown()
 
     def set_healthy(self, healthy: bool) -> None:
-        self.healthy = healthy
+        if healthy:
+            self._healthy.set()
+        else:
+            self._healthy.clear()

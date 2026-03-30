@@ -4,8 +4,11 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
 import asyncio
+import logging
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from services.llm_gateway.contracts import (
     GatewaySettings,
@@ -360,6 +363,32 @@ class LLMGateway:
         projected_completion_tokens = max(int(request.max_tokens), 0)
         projected_total_tokens = projected_prompt_tokens + projected_completion_tokens
         projected_daily_total = usage.daily_tokens + projected_total_tokens
+
+        # Soft alerts at 80% and 95% of daily limit
+        if limits.daily_token_limit is not None and limits.daily_token_limit > 0:
+            utilization = projected_daily_total / limits.daily_token_limit
+            if utilization >= 0.95:
+                logger.warning(
+                    "llm_quota_soft_alert",
+                    extra={
+                        "utilization": f"{utilization:.0%}",
+                        "daily_tokens": projected_daily_total,
+                        "daily_limit": limits.daily_token_limit,
+                        "strategy_id": request.strategy_id,
+                        "agent_name": request.agent_name,
+                    },
+                )
+            elif utilization >= 0.80:
+                logger.info(
+                    "llm_quota_soft_alert",
+                    extra={
+                        "utilization": f"{utilization:.0%}",
+                        "daily_tokens": projected_daily_total,
+                        "daily_limit": limits.daily_token_limit,
+                        "strategy_id": request.strategy_id,
+                        "agent_name": request.agent_name,
+                    },
+                )
 
         if limits.daily_token_limit is not None and projected_daily_total > limits.daily_token_limit:
             reason = "daily_token_limit_exceeded"
