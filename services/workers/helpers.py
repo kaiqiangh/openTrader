@@ -171,9 +171,7 @@ def _resolve_news_source_mode(*, require_database: bool) -> str:
     configured = os.getenv("NEWS_SOURCE_MODE", "").strip().lower()
     if configured and configured not in {"real", "mock"}:
         raise ValueError("NEWS_SOURCE_MODE must be 'real' or 'mock'")
-    if require_database:
-        return "real"
-    return configured or "mock"
+    return "real" if require_database else "mock"
 
 
 def _default_news_rss_feeds() -> tuple[str, ...]:
