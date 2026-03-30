@@ -80,7 +80,7 @@ def list_positions(
     _: AuthPrincipal = Depends(require_viewer),
     state: ControlPlaneState = Depends(get_control_plane_state),
     mode: str | None = Query(default=None),
-    symbol: str | None = Query(default=None),
+    symbol: str | None = Query(default=None, pattern=r"^[A-Z0-9/]+$"),
 ) -> PositionListResponse:
     items = state.list_positions(mode=mode, symbol=symbol)
     return PositionListResponse(items=[_position_model(item) for item in items])
@@ -90,7 +90,7 @@ def list_positions(
 def get_market_klines(
     _: AuthPrincipal = Depends(require_viewer),
     repository: Any | None = Depends(get_control_plane_repository),
-    symbol: str = Query(min_length=1),
+    symbol: str = Query(min_length=1, pattern=r"^[A-Z0-9/]+$"),
     interval: str = Query(default="1m", min_length=1),
     exchange: str | None = Query(default=None),
     limit: int = Query(default=120, ge=1, le=10000),
@@ -116,7 +116,7 @@ def get_market_klines(
 def get_latest_orderbook_snapshot(
     _: AuthPrincipal = Depends(require_viewer),
     repository: Any | None = Depends(get_control_plane_repository),
-    symbol: str = Query(min_length=1),
+    symbol: str = Query(min_length=1, pattern=r"^[A-Z0-9/]+$"),
     exchange: str | None = Query(default=None),
 ) -> OrderBookSnapshotResponse:
     if repository is None:
@@ -220,7 +220,7 @@ def get_latest_trades(
     _: AuthPrincipal = Depends(require_viewer),
     repository: Any | None = Depends(get_control_plane_repository),
     mode: str | None = Query(default=None),
-    symbol: str | None = Query(default=None),
+    symbol: str | None = Query(default=None, pattern=r"^[A-Z0-9/]+$"),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> TradeListResponse:
     if repository is None:
@@ -378,7 +378,7 @@ def disable_kill_switch(
 def list_news_items(
     _: AuthPrincipal = Depends(require_viewer),
     state: ControlPlaneState = Depends(get_control_plane_state),
-    symbol: str | None = Query(default=None),
+    symbol: str | None = Query(default=None, pattern=r"^[A-Z0-9/]+$"),
     limit: int = Query(default=50, ge=1, le=500),
 ) -> NewsItemListResponse:
     items = state.list_news_items(symbol=symbol, limit=limit)

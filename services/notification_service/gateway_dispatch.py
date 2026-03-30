@@ -41,6 +41,7 @@ class GatewayDispatcher:
     backoff_multiplier: float = 2.0
     max_backoff_seconds: float = 2.0
     sleep_func: Callable[[float], Awaitable[None]] | None = None
+    dlq_persist_func: Callable[[dict[str, Any]], Awaitable[None]] | None = None
     _dlq: list[dict[str, Any]] = field(default_factory=list, init=False)
     _sleep: Callable[[float], Awaitable[None]] = field(init=False, repr=False)
 
@@ -150,13 +151,14 @@ class GatewayDispatcher:
         message: NotificationMessage,
         result: DeliveryResult,
     ) -> None:
-        self._dlq.append(
-            {
-                "event": event,
-                "message": message,
-                "result": result,
-            }
-        )
+        item = {
+            "event": event,
+            "message": message,
+            "result": result,
+        }
+        self._dlq.append(item)
+        if self.dlq_persist_func is not None:
+            asyncio.ensure_future(self.dlq_persist_func(item))
 
     async def _sleep_after_attempt(self, *, attempt: int) -> None:
         if attempt >= self.max_attempts:

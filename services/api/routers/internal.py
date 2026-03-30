@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
+import hmac
 import os
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -126,7 +127,7 @@ def _validate_bridge_api_key(request: Request) -> None:
 
     auth_header = request.headers.get("Authorization", "").strip()
     expected_header = f"Bearer {expected_key}"
-    if auth_header != expected_header:
+    if not hmac.compare_digest(auth_header, expected_header):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid bridge authorization",

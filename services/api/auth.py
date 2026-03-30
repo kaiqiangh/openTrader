@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -10,6 +11,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from services.api.dependencies import get_api_settings
 from services.api.models import AuthPrincipal, UserRole
 from services.api.settings import APISettings
+
+_logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -42,19 +45,14 @@ require_admin = require_roles(UserRole.ADMIN)
 
 
 def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrincipal:
-    # SEC-026: When RS256 is configured (public key present), ONLY accept RS256.
-    # No HS256 fallback — prevents algorithm confusion attacks.
-    # HS256 path only runs when public key is absent AND secret key is set.
+    # SEC-026: Only RS256 — no HS256 fallback prevents algorithm confusion attacks.
     if settings.jwt_public_key:
         algorithms = ["RS256"]
         key = settings.jwt_public_key
-    elif settings.jwt_secret_key:
-        algorithms = ["HS256"]
-        key = settings.jwt_secret_key
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No JWT key configured",
+            detail="No JWT public key configured — RS256 verification required",
         )
     try:
         payload = jwt.decode(
@@ -85,6 +83,9 @@ def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrin
 
     # Enforce maximum token lifetime to limit the blast radius of a leaked token.
     _validate_token_lifetime(payload=payload, settings=settings)
+
+    # T9: Warn on tokens with lifetime > 900s (15 min) — encourages short-lived tokens.
+    _warn_if_long_lived(payload=payload)
 
     # Validate not-before if present.
     now = int(datetime.now(timezone.utc).timestamp())
@@ -117,4 +118,21 @@ def _validate_token_lifetime(*, payload: dict[str, object], settings: APISetting
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="JWT lifetime exceeds maximum allowed",
+            )
+
+
+def _warn_if_long_lived(*, payload: dict[str, object]) -> None:
+    """T9: Log warning for tokens with lifetime > 900s (15 min). Encourages short-lived tokens."""
+    exp = payload.get("exp")
+    iat = payload.get("iat")
+    not_before = payload.get("nbf")
+    issued_at = iat if isinstance(iat, (int, float)) else not_before if isinstance(not_before, (int, float)) else None
+    if isinstance(exp, (int, float)) and isinstance(issued_at, (int, float)):
+        lifetime_seconds = int(exp) - int(issued_at)
+        if lifetime_seconds > 900:
+            subject = payload.get("sub", "unknown")
+            _logger.warning(
+                "Long-lived JWT detected: sub=%s lifetime_seconds=%d (recommend < 900s)",
+                subject,
+                lifetime_seconds,
             )

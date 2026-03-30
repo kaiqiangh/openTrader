@@ -11,7 +11,6 @@ class APISettings:
     app_name: str
     app_version: str
     default_mode: str
-    jwt_secret_key: str  # legacy: HS256 symmetric key (kept for backward compatibility)
     jwt_issuer: str
     jwt_audience: str
     cors_allowed_origins: tuple[str, ...] = ()
@@ -21,7 +20,8 @@ class APISettings:
     llm_deep_provider_order: tuple[str, ...] = ()
     read_only_mode: bool = False
     strict_database_mode: bool = True
-    jwt_max_lifetime_hours: int = 24
+    jwt_max_lifetime_hours: int = 1
+    jwt_secret_key: str = ""  # DEPRECATED: unused — RS256 only. Kept for test backward compat.
     jwt_private_key: str = ""  # PEM-encoded RSA private key (RS256 signing)
     jwt_public_key: str = ""  # PEM-encoded RSA public key (RS256 verification)
 
@@ -32,19 +32,17 @@ def load_api_settings() -> APISettings:
     if default_mode not in {"MOCK", "REAL"}:
         raise ValueError("EXECUTION_MODE_DEFAULT must be MOCK or REAL")
 
-    jwt_secret_key = os.getenv("JWT_SECRET_KEY", "").strip()
     jwt_private_key = os.getenv("JWT_PRIVATE_KEY", "").strip()
     jwt_public_key = os.getenv("JWT_PUBLIC_KEY", "").strip()
 
-    # At least one key must be configured for authentication.
-    if not jwt_secret_key and not jwt_private_key:
-        raise ValueError("JWT_PRIVATE_KEY or JWT_SECRET_KEY is required for API authentication")
+    # RS256 keys should be configured for production.
+    # Auth module returns 500 if no key is available at token decode time.
+    # We don't fail here to allow test/dev environments to construct APISettings directly.
 
     return APISettings(
         app_name=os.getenv("APP_NAME", "open-trader").strip() or "open-trader",
         app_version=os.getenv("APP_VERSION", "0.1.0").strip() or "0.1.0",
         default_mode=default_mode,
-        jwt_secret_key=jwt_secret_key,
         jwt_issuer=os.getenv("JWT_ISSUER", "open-trader").strip() or "open-trader",
         jwt_audience=os.getenv("JWT_AUDIENCE", "open-trader-api").strip() or "open-trader-api",
         cors_allowed_origins=_parse_csv(
@@ -65,7 +63,7 @@ def load_api_settings() -> APISettings:
             os.getenv("API_STRICT_DATABASE_MODE", "true"),
             setting_name="API_STRICT_DATABASE_MODE",
         ),
-        jwt_max_lifetime_hours=int(os.getenv("JWT_MAX_LIFETIME_HOURS", "24")),
+        jwt_max_lifetime_hours=int(os.getenv("JWT_MAX_LIFETIME_HOURS", "1")),
         jwt_private_key=jwt_private_key,
         jwt_public_key=jwt_public_key,
     )

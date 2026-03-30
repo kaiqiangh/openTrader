@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Mapping
 
 from services.agent_orchestrator.contracts import (
@@ -27,14 +28,14 @@ class GuardrailValidationLayer:
 
         symbol = str(market_context.get("symbol", ""))
         action = str(decision.action).upper()
-        quantity = float(decision.quantity)
-        confidence = float(decision.confidence)
-        mid_price = max(float(market_context.get("mid_price", 0.0)), 0.0)
-        current_position = float(market_context.get("current_position", 0.0))
+        quantity = Decimal(str(decision.quantity))
+        confidence = Decimal(str(decision.confidence))
+        mid_price = Decimal(str(max(market_context.get("mid_price", 0.0), 0.0)))
+        current_position = Decimal(str(market_context.get("current_position", 0.0)))
         projected_position = current_position + quantity
         projected_notional = abs(quantity) * mid_price
-        equity_usd = max(float(market_context.get("equity_usd", mid_price if mid_price > 0 else 1.0)), 1.0)
-        projected_leverage = abs(projected_position * mid_price) / equity_usd if mid_price > 0 else 0.0
+        equity_usd = Decimal(str(max(market_context.get("equity_usd", float(mid_price) if mid_price > 0 else 1.0), 1.0)))
+        projected_leverage = abs(projected_position * mid_price) / equity_usd if mid_price > 0 else Decimal("0")
 
         checks["action_allowed"] = action in set(strategy.allowed_actions)
         if not checks["action_allowed"]:
@@ -69,7 +70,7 @@ class GuardrailValidationLayer:
         executable_action = action in {"BUY", "SELL", "CLOSE"}
 
         checks["confidence_threshold"] = (not executable_action) or (
-            confidence >= strategy.risk_min_confidence
+            confidence >= Decimal(str(strategy.risk_min_confidence))
         )
         if not checks["confidence_threshold"]:
             violations.append(
@@ -94,7 +95,7 @@ class GuardrailValidationLayer:
             )
 
         checks["notional_limit"] = (not executable_action) or (
-            projected_notional <= strategy.risk_max_notional_usd
+            projected_notional <= Decimal(str(strategy.risk_max_notional_usd))
         )
         if not checks["notional_limit"]:
             violations.append(
@@ -109,7 +110,7 @@ class GuardrailValidationLayer:
             )
 
         checks["position_limit"] = (not executable_action) or (
-            abs(projected_position) <= strategy.risk_max_position_size
+            abs(projected_position) <= Decimal(str(strategy.risk_max_position_size))
         )
         if not checks["position_limit"]:
             violations.append(
@@ -124,7 +125,7 @@ class GuardrailValidationLayer:
             )
 
         checks["leverage_limit"] = (not executable_action) or (
-            projected_leverage <= strategy.max_leverage
+            projected_leverage <= Decimal(str(strategy.max_leverage))
         )
         if not checks["leverage_limit"]:
             violations.append(
@@ -148,14 +149,14 @@ class GuardrailValidationLayer:
         )
 
     @staticmethod
-    def _quantity_semantics_valid(*, action: str, quantity: float) -> bool:
+    def _quantity_semantics_valid(*, action: str, quantity: Decimal) -> bool:
         if action == "BUY":
-            return quantity > 0.0
+            return quantity > Decimal("0")
         if action == "SELL":
-            return quantity < 0.0
+            return quantity < Decimal("0")
         if action == "CLOSE":
-            return quantity != 0.0
+            return quantity != Decimal("0")
         if action == "HOLD":
-            return quantity == 0.0
+            return quantity == Decimal("0")
         return False
 
