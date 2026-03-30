@@ -555,7 +555,7 @@ def _snapshot_model(item: PortfolioSnapshot) -> PortfolioSnapshotResponse:
         available_balance_usd=item.available_balance_usd,
         locked_balance_usd=item.locked_balance_usd,
         unrealized_pnl=item.unrealized_pnl,
-        realized_pnl_today=item.realized_pnl_today,
+        realized_pnl_total=item.realized_pnl_total,
     )
 
 

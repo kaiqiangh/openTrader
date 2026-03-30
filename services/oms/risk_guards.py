@@ -58,7 +58,7 @@ class DrawdownDailyLossGuardEngine:
         else:
             drawdown_pct = max(0.0, (peak_equity - current_equity) / peak_equity)
 
-        pnl_reference = float(daily_pnl_usd) if daily_pnl_usd is not None else float(snapshot.realized_pnl_today)
+        pnl_reference = float(daily_pnl_usd) if daily_pnl_usd is not None else float(snapshot.realized_pnl_total)
         daily_loss_usd = max(0.0, -pnl_reference)
 
         checks = (

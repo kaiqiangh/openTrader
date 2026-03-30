@@ -40,7 +40,7 @@ def test_portfolio_snapshot_engine_computes_total_and_unrealized_pnl() -> None:
     expected_unrealized = (110.0 - 100.0) * 1.0 + (40.0 - 50.0) * -2.0
     assert snapshot.unrealized_pnl == pytest.approx(expected_unrealized)
     assert snapshot.total_balance_usd == pytest.approx(1000.0 + 200.0 + expected_unrealized)
-    assert snapshot.realized_pnl_today == pytest.approx(7.0)
+    assert snapshot.realized_pnl_total == pytest.approx(7.0)
     assert snapshot.mode == "MOCK"
 
 
@@ -64,10 +64,10 @@ def test_portfolio_snapshot_engine_allows_realized_override() -> None:
         locked_balance_usd=0.0,
         positions=positions,
         mark_prices={},
-        realized_pnl_today=12.5,
+        realized_pnl_total=12.5,
     )
 
-    assert snapshot.realized_pnl_today == pytest.approx(12.5)
+    assert snapshot.realized_pnl_total == pytest.approx(12.5)
 
 
 def test_portfolio_snapshot_engine_requires_mark_price_for_open_positions() -> None:

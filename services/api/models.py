@@ -167,7 +167,7 @@ class PortfolioSnapshotResponse(BaseModel):
     available_balance_usd: float
     locked_balance_usd: float
     unrealized_pnl: float
-    realized_pnl_today: float
+    realized_pnl_total: float
 
 
 class PortfolioHistoryResponse(BaseModel):

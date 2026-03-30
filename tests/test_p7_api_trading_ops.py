@@ -81,7 +81,7 @@ def test_ops_endpoints_return_orders_positions_snapshot_and_risk_status() -> Non
             available_balance_usd=99500.0,
             locked_balance_usd=700.0,
             unrealized_pnl=200.0,
-            realized_pnl_today=10.0,
+            realized_pnl_total=10.0,
         )
     ]
     app = create_app(settings=settings, state=state)

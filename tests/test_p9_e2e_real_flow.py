@@ -202,7 +202,7 @@ async def test_p9_e2e_real_flow_market_to_reconciliation_with_exchange_fallback(
         locked_balance_usd=1_000.0,
         positions=(position,),
         mark_prices={symbol: reference_price},
-        realized_pnl_today=position.realized_pnl,
+        realized_pnl_total=position.realized_pnl,
     )
     assert snapshot.mode == "REAL"
     assert snapshot.total_balance_usd > 0.0
