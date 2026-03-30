@@ -42,15 +42,20 @@ require_admin = require_roles(UserRole.ADMIN)
 
 
 def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrincipal:
-    # Prefer RS256 with public key; fall back to HS256 for migration period.
-    # RS256 uses asymmetric keys — only the auth service signs, others verify
-    # with the public key. HS256 uses a symmetric secret key (legacy).
+    # SEC-026: When RS256 is configured (public key present), ONLY accept RS256.
+    # No HS256 fallback — prevents algorithm confusion attacks.
+    # HS256 path only runs when public key is absent AND secret key is set.
     if settings.jwt_public_key:
         algorithms = ["RS256"]
         key = settings.jwt_public_key
-    else:
+    elif settings.jwt_secret_key:
         algorithms = ["HS256"]
         key = settings.jwt_secret_key
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No JWT key configured",
+        )
     try:
         payload = jwt.decode(
             token,

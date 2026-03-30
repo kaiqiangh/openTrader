@@ -10,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -74,12 +74,12 @@ services:
       - ./:/app
     environment:
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       postgres_timescaledb:
         condition: service_healthy
@@ -161,12 +161,12 @@ services:
       API_READ_ONLY_MODE: ${API_READ_ONLY_MODE:-true}
       API_STRICT_DATABASE_MODE: ${API_STRICT_DATABASE_MODE:-true}
       API_CORS_ALLOWED_ORIGINS: ${API_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
@@ -239,12 +239,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
@@ -296,12 +296,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
@@ -346,12 +346,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
@@ -390,12 +390,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
@@ -436,12 +436,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}
@@ -483,12 +483,12 @@ services:
       PYTHONUNBUFFERED: "1"
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD:-change_me}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-open_trader}:${POSTGRES_PASSWORD}@postgres_timescaledb:5432/${POSTGRES_DB:-open_trader}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres_timescaledb}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-open_trader}
       POSTGRES_USER: ${POSTGRES_USER:-open_trader}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RUNTIME_BROKER_BACKEND: ${RUNTIME_BROKER_BACKEND:-rabbitmq_http}
       RUNTIME_RABBITMQ_HTTP_API_URL: ${RUNTIME_RABBITMQ_HTTP_API_URL:-http://rabbitmq:15672/api}
       RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS: ${RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS:-2.0}

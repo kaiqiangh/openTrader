@@ -80,7 +80,9 @@ def _build_database_url(source: Mapping[str, str]) -> str:
     port = source.get("POSTGRES_PORT", "5432").strip()
     db_name = source.get("POSTGRES_DB", "open_trader").strip()
     user = source.get("POSTGRES_USER", "open_trader").strip()
-    password = source.get("POSTGRES_PASSWORD", "change_me").strip()
+    password = source.get("POSTGRES_PASSWORD", "").strip()
+    if not password:
+        raise RuntimeError("POSTGRES_PASSWORD must be set (got empty or default)")
     if not host:
         raise RuntimeDatabaseConfigError("POSTGRES_HOST must be set when DATABASE_URL is not provided")
     if not db_name:
