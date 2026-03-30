@@ -86,8 +86,10 @@ class RabbitMQHTTPTopicBroker:
             "RUNTIME_RABBITMQ_HTTP_API_URL",
             os.getenv("NOTIFY_RABBITMQ_HTTP_API_URL", "http://rabbitmq:15672/api"),
         )
-        username = os.getenv("RABBITMQ_DEFAULT_USER", "guest")
-        password = os.getenv("RABBITMQ_DEFAULT_PASS", "guest")
+        username = os.getenv("RABBITMQ_DEFAULT_USER", "").strip()
+        password = os.getenv("RABBITMQ_DEFAULT_PASS", "").strip()
+        if not username or not password:
+            raise RuntimeError("RABBITMQ_DEFAULT_USER and RABBITMQ_DEFAULT_PASS must be set")
         timeout_seconds = float(os.getenv("RUNTIME_BROKER_HTTP_TIMEOUT_SECONDS", "2.0"))
         return cls(
             api_base_url=api_base,

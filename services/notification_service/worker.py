@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from urllib import parse
 import httpx
 import asyncio
+import logging
 import base64
 import json
 
@@ -301,7 +302,12 @@ async def run_worker_loop(
     worker = build_notification_worker_from_settings(settings=settings)
     idle_cycles = 0
     while True:
-        result = await worker.run_once()
+        try:
+            result = await worker.run_once()
+        except Exception:
+            logging.getLogger(__name__).error("notification_worker_error", exc_info=True)
+            await asyncio.sleep(1.0)
+            continue
         if result is None:
             idle_cycles += 1
             if once:

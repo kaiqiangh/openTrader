@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from datetime import datetime, timezone
 from typing import Any
 import importlib
 
@@ -85,7 +84,8 @@ class CCXTProOrderBookClient:
             try:
                 rows = await self._client.fetch_ohlcv(symbol, timeframe=interval, limit=limit)
                 if isinstance(rows, list):
-                    return tuple(_normalize_ohlcv_row(item) for item in rows)
+                    normalized = [_normalize_ohlcv_row(item) for item in rows]
+                    return tuple(r for r in normalized if r is not None)
             except Exception:
                 _logger.warning("ccxt_pro_fetch_ohlcv_fallback", exc_info=True)
         fallback = await self.fallback_rest_client.fetch_klines(symbol, interval=interval, limit=limit)
@@ -103,19 +103,9 @@ class CCXTProOrderBookClient:
             return
 
 
-def _normalize_ohlcv_row(row: Any) -> dict[str, Any]:
+def _normalize_ohlcv_row(row: Any) -> dict[str, Any] | None:
     if not isinstance(row, list) or len(row) < 6:
-        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-        return {
-            "open_time_ms": now_ms,
-            "open": 0.0,
-            "high": 0.0,
-            "low": 0.0,
-            "close": 0.0,
-            "volume": 0.0,
-            "quote_volume": 0.0,
-            "trades": 0,
-        }
+        return None
     open_time_ms = int(row[0])
     open_price = float(row[1])
     high_price = float(row[2])
