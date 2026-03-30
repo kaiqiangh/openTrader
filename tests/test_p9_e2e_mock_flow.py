@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from services.agent_orchestrator.contracts import StrategyConfig
@@ -75,9 +77,9 @@ def _to_lifecycle_event(envelope: dict[str, object]) -> LifecycleEvent:
     fill = ReconciliationFill(
         fill_id=str(envelope["idempotency_key"]),
         order_id=str(payload["order_id"]),
-        quantity=abs(float(payload.get("quantity", 0.0))),
-        price=float(fill_price),
-        fee=float(payload.get("fee_paid", payload.get("fee", 0.0))),
+        quantity=Decimal(str(abs(float(payload.get("quantity", 0.0))))),
+        price=Decimal(str(float(fill_price))),
+        fee=Decimal(str(float(payload.get("fee_paid", payload.get("fee", 0.0))))),
         source="queue",
     )
     return LifecycleEvent(event_type=event_type, fill=fill)
@@ -136,14 +138,14 @@ async def test_p9_e2e_mock_flow_market_to_portfolio_snapshot() -> None:
             order_id=order_id,
             symbol="BTC/USDT",
             mode="MOCK",
-            requested_quantity=requested_quantity,
+            requested_quantity=Decimal(str(requested_quantity)),
             status="OPEN",
         ),
         lifecycle_events=tuple(_to_lifecycle_event(event) for event in oms_events),
     )
 
     assert reconciliation.status == "FILLED"
-    assert reconciliation.filled_quantity == pytest.approx(requested_quantity)
+    assert reconciliation.filled_quantity == pytest.approx(Decimal(str(requested_quantity)))
     assert len(reconciliation.fills) == 1
 
     fill = reconciliation.fills[0]
@@ -165,12 +167,12 @@ async def test_p9_e2e_mock_flow_market_to_portfolio_snapshot() -> None:
 
     snapshot = PortfolioSnapshotEngine().build_snapshot(
         mode="MOCK",
-        available_balance_usd=10_000.0,
-        locked_balance_usd=500.0,
+        available_balance_usd=Decimal("10000.0"),
+        locked_balance_usd=Decimal("500.0"),
         positions=(position_update.current,),
-        mark_prices={"BTC/USDT": fill.price},
+        mark_prices={"BTC/USDT": float(fill.price)},
         realized_pnl_total=position_update.current.realized_pnl,
     )
     assert snapshot.mode == "MOCK"
-    assert snapshot.unrealized_pnl == pytest.approx(0.0)
-    assert snapshot.total_balance_usd == pytest.approx(10_500.0)
+    assert snapshot.unrealized_pnl == pytest.approx(Decimal("0"))
+    assert snapshot.total_balance_usd == pytest.approx(Decimal("10500.0"))

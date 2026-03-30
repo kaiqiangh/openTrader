@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, TypeVar
 import json
 import uuid
@@ -358,11 +359,11 @@ class ControlPlaneRepository:
             PortfolioSnapshot(
                 snapshot_time=str(row.get("snapshot_time", "")),
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
-                total_balance_usd=float(row.get("total_balance_usd", 0.0) or 0.0),
-                available_balance_usd=float(row.get("available_balance_usd", 0.0) or 0.0),
-                locked_balance_usd=float(row.get("locked_balance_usd", 0.0) or 0.0),
-                unrealized_pnl=float(row.get("unrealized_pnl", 0.0) or 0.0),
-                realized_pnl_total=float(row.get("realized_pnl_total", 0.0) or 0.0),
+                total_balance_usd=Decimal(str(float(row.get("total_balance_usd", 0.0) or 0.0))),
+                available_balance_usd=Decimal(str(float(row.get("available_balance_usd", 0.0) or 0.0))),
+                locked_balance_usd=Decimal(str(float(row.get("locked_balance_usd", 0.0) or 0.0))),
+                unrealized_pnl=Decimal(str(float(row.get("unrealized_pnl", 0.0) or 0.0))),
+                realized_pnl_total=Decimal(str(float(row.get("realized_pnl_total", 0.0) or 0.0))),
             )
             for row in reversed(rows)
         )
@@ -708,10 +709,10 @@ class ControlPlaneRepository:
                 order_id=str(row.get("order_id", "")),
                 symbol=str(row.get("symbol", "")),
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
-                requested_quantity=float(row.get("requested_quantity", 0.0) or 0.0),
+                requested_quantity=Decimal(str(float(row.get("requested_quantity", 0.0) or 0.0))),
                 status=str(row.get("status", "OPEN") or "OPEN"),
-                filled_quantity=float(row.get("filled_quantity", 0.0) or 0.0),
-                average_price=float(row["average_price"]) if row.get("average_price") is not None else None,
+                filled_quantity=Decimal(str(float(row.get("filled_quantity", 0.0) or 0.0))),
+                average_price=Decimal(str(row["average_price"])) if row.get("average_price") is not None else None,
             )
             for row in rows
         ]
@@ -732,9 +733,9 @@ class ControlPlaneRepository:
             PositionState(
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
                 symbol=str(row.get("symbol", "")),
-                quantity=float(row.get("quantity", 0.0) or 0.0),
-                average_entry_price=float(row.get("average_entry_price", 0.0) or 0.0),
-                realized_pnl=float(row.get("realized_pnl", 0.0) or 0.0),
+                quantity=Decimal(str(float(row.get("quantity", 0.0) or 0.0))),
+                average_entry_price=Decimal(str(float(row.get("average_entry_price", 0.0) or 0.0))),
+                realized_pnl=Decimal(str(float(row.get("realized_pnl", 0.0) or 0.0))),
                 status=str(row.get("status", "OPEN") or "OPEN"),
                 updated_at=str(row.get("updated_at", _utc_now_iso())),
             )
@@ -755,11 +756,11 @@ class ControlPlaneRepository:
             PortfolioSnapshot(
                 snapshot_time=str(row.get("snapshot_time", "")),
                 mode=str(row.get("mode", "MOCK") or "MOCK"),
-                total_balance_usd=float(row.get("total_balance_usd", 0.0) or 0.0),
-                available_balance_usd=float(row.get("available_balance_usd", 0.0) or 0.0),
-                locked_balance_usd=float(row.get("locked_balance_usd", 0.0) or 0.0),
-                unrealized_pnl=float(row.get("unrealized_pnl", 0.0) or 0.0),
-                realized_pnl_total=float(row.get("realized_pnl_total", 0.0) or 0.0),
+                total_balance_usd=Decimal(str(float(row.get("total_balance_usd", 0.0) or 0.0))),
+                available_balance_usd=Decimal(str(float(row.get("available_balance_usd", 0.0) or 0.0))),
+                locked_balance_usd=Decimal(str(float(row.get("locked_balance_usd", 0.0) or 0.0))),
+                unrealized_pnl=Decimal(str(float(row.get("unrealized_pnl", 0.0) or 0.0))),
+                realized_pnl_total=Decimal(str(float(row.get("realized_pnl_total", 0.0) or 0.0))),
             )
             for row in rows
         ]

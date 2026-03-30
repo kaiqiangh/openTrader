@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import base64
-from datetime import datetime, timedelta, timezone
-import hashlib
-import hmac
 import json
 
 from fastapi.testclient import TestClient
@@ -17,55 +13,24 @@ except ModuleNotFoundError:
 from services.api.app import create_app
 from services.api.repositories import ControlPlaneRepository
 from services.api.settings import APISettings
-
-
-def _b64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
-
-def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "sub": subject,
-        "role": role,
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
-    }
-    encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    encoded_payload = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    signature = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
-    return f"{encoded_header}.{encoded_payload}.{_b64url(signature)}"
-
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
-
 def _settings() -> APISettings:
-    return APISettings(
-        app_name="open-trader",
-        app_version="0.1.0",
-        default_mode="MOCK",
-        jwt_secret_key="test-secret-key",
-        jwt_issuer="open-trader-tests",
-        jwt_audience="open-trader-api",
-        read_only_mode=False,
-    )
-
+    return make_test_settings(read_only_mode=False)
 
 def _repository(tmp_path) -> ControlPlaneRepository:
     db_path = tmp_path / "runtime_truth.db"
     engine = create_engine(f"sqlite+pysqlite:///{db_path}", future=True)
     return ControlPlaneRepository(engine=engine)
 
-
 def test_control_mode_and_strategy_changes_are_restart_safe(tmp_path) -> None:
     settings = _settings()
     repo = _repository(tmp_path)
-    operator = _encode_jwt(subject="operator-user", role="operator", settings=settings)
-    viewer = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    operator = encode_jwt_rs256(subject="operator-user", role="operator", settings=settings)
+    viewer = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     app1 = create_app(settings=settings, repository=repo)
     client1 = TestClient(app1)
@@ -98,12 +63,11 @@ def test_control_mode_and_strategy_changes_are_restart_safe(tmp_path) -> None:
     assert btc["state"] == "DISABLED"
     assert btc["mode"] == "REAL"
 
-
 def test_notification_preferences_are_restart_safe(tmp_path) -> None:
     settings = _settings()
     repo = _repository(tmp_path)
-    admin = _encode_jwt(subject="admin-user", role="admin", settings=settings)
-    viewer = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    admin = encode_jwt_rs256(subject="admin-user", role="admin", settings=settings)
+    viewer = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     app1 = create_app(settings=settings, repository=repo)
     client1 = TestClient(app1)
@@ -132,11 +96,10 @@ def test_notification_preferences_are_restart_safe(tmp_path) -> None:
     assert len(listing.json()["items"]) == 1
     assert listing.json()["items"][0]["user_id"] == "ops-primary"
 
-
 def test_ops_market_and_history_endpoints_read_repository_data(tmp_path) -> None:
     settings = _settings()
     repo = _repository(tmp_path)
-    viewer = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    viewer = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
 
     with repo.engine.begin() as connection:
         connection.execute(

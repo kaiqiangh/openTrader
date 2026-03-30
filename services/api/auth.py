@@ -42,14 +42,20 @@ require_admin = require_roles(UserRole.ADMIN)
 
 
 def _decode_and_validate_token(*, token: str, settings: APISettings) -> AuthPrincipal:
-    # Use PyJWT for standard-compliant JWT decoding with HS256.
-    # This replaces the previous hand-rolled implementation to eliminate
-    # edge-case parsing vulnerabilities and ensure RFC 7519 compliance.
+    # Prefer RS256 with public key; fall back to HS256 for migration period.
+    # RS256 uses asymmetric keys — only the auth service signs, others verify
+    # with the public key. HS256 uses a symmetric secret key (legacy).
+    if settings.jwt_public_key:
+        algorithms = ["RS256"]
+        key = settings.jwt_public_key
+    else:
+        algorithms = ["HS256"]
+        key = settings.jwt_secret_key
     try:
         payload = jwt.decode(
             token,
-            settings.jwt_secret_key,
-            algorithms=["HS256"],
+            key,
+            algorithms=algorithms,
             issuer=settings.jwt_issuer,
             audience=settings.jwt_audience,
             options={

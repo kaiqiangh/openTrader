@@ -11,7 +11,7 @@ class APISettings:
     app_name: str
     app_version: str
     default_mode: str
-    jwt_secret_key: str
+    jwt_secret_key: str  # legacy: HS256 symmetric key (kept for backward compatibility)
     jwt_issuer: str
     jwt_audience: str
     cors_allowed_origins: tuple[str, ...] = ()
@@ -22,6 +22,8 @@ class APISettings:
     read_only_mode: bool = False
     strict_database_mode: bool = True
     jwt_max_lifetime_hours: int = 24
+    jwt_private_key: str = ""  # PEM-encoded RSA private key (RS256 signing)
+    jwt_public_key: str = ""  # PEM-encoded RSA public key (RS256 verification)
 
 
 def load_api_settings() -> APISettings:
@@ -31,8 +33,12 @@ def load_api_settings() -> APISettings:
         raise ValueError("EXECUTION_MODE_DEFAULT must be MOCK or REAL")
 
     jwt_secret_key = os.getenv("JWT_SECRET_KEY", "").strip()
-    if not jwt_secret_key:
-        raise ValueError("JWT_SECRET_KEY is required for API authentication")
+    jwt_private_key = os.getenv("JWT_PRIVATE_KEY", "").strip()
+    jwt_public_key = os.getenv("JWT_PUBLIC_KEY", "").strip()
+
+    # At least one key must be configured for authentication.
+    if not jwt_secret_key and not jwt_private_key:
+        raise ValueError("JWT_PRIVATE_KEY or JWT_SECRET_KEY is required for API authentication")
 
     return APISettings(
         app_name=os.getenv("APP_NAME", "open-trader").strip() or "open-trader",
@@ -60,6 +66,8 @@ def load_api_settings() -> APISettings:
             setting_name="API_STRICT_DATABASE_MODE",
         ),
         jwt_max_lifetime_hours=int(os.getenv("JWT_MAX_LIFETIME_HOURS", "24")),
+        jwt_private_key=jwt_private_key,
+        jwt_public_key=jwt_public_key,
     )
 
 

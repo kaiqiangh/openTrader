@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import base64
-from datetime import datetime, timedelta, timezone
-import hashlib
-import hmac
 import json
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -13,38 +10,10 @@ from services.api.settings import APISettings
 from services.api.state import build_default_state
 from services.shared.runtime.structured_logging import StructuredLogger
 from services.shared.runtime.trace_context import build_traceparent, parse_traceparent
-
-
-def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "sub": subject,
-        "role": role,
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
-    }
-    encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    encoded_payload = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    signature = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
-    return f"{encoded_header}.{encoded_payload}.{_b64url(signature)}"
-
-
-def _b64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
 def _settings() -> APISettings:
-    return APISettings(
-        app_name="open-trader",
-        app_version="0.1.0",
-        default_mode="MOCK",
-        jwt_secret_key="test-secret-key",
-        jwt_issuer="open-trader-tests",
-        jwt_audience="open-trader-api",
-    )
-
+    return make_test_settings()
 
 def test_structured_logger_emits_required_schema() -> None:
     captured: list[str] = []
@@ -69,10 +38,9 @@ def test_structured_logger_emits_required_schema() -> None:
     assert payload["mode"] == "MOCK"
     assert "timestamp" in payload
 
-
 def test_api_metrics_endpoint_and_trace_headers() -> None:
     settings = _settings()
-    token = _encode_jwt(subject="viewer-user", role="viewer", settings=settings)
+    token = encode_jwt_rs256(subject="viewer-user", role="viewer", settings=settings)
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 

@@ -529,9 +529,9 @@ def _order_model(item: ReconciliationOrder) -> OrderRecordResponse:
         symbol=item.symbol,
         mode=ExecutionMode(item.mode.strip().upper()),
         status=item.status,
-        requested_quantity=item.requested_quantity,
-        filled_quantity=item.filled_quantity,
-        average_price=item.average_price,
+        requested_quantity=float(item.requested_quantity),
+        filled_quantity=float(item.filled_quantity),
+        average_price=float(item.average_price) if item.average_price is not None else None,
     )
 
 
@@ -539,9 +539,9 @@ def _position_model(item: PositionState) -> PositionRecordResponse:
     return PositionRecordResponse(
         mode=ExecutionMode(item.mode.strip().upper()),
         symbol=item.symbol,
-        quantity=item.quantity,
-        average_entry_price=item.average_entry_price,
-        realized_pnl=item.realized_pnl,
+        quantity=float(item.quantity),
+        average_entry_price=float(item.average_entry_price),
+        realized_pnl=float(item.realized_pnl),
         status=item.status,
         updated_at=item.updated_at,
     )
@@ -551,11 +551,11 @@ def _snapshot_model(item: PortfolioSnapshot) -> PortfolioSnapshotResponse:
     return PortfolioSnapshotResponse(
         snapshot_time=item.snapshot_time,
         mode=ExecutionMode(item.mode.strip().upper()),
-        total_balance_usd=item.total_balance_usd,
-        available_balance_usd=item.available_balance_usd,
-        locked_balance_usd=item.locked_balance_usd,
-        unrealized_pnl=item.unrealized_pnl,
-        realized_pnl_total=item.realized_pnl_total,
+        total_balance_usd=float(item.total_balance_usd),
+        available_balance_usd=float(item.available_balance_usd),
+        locked_balance_usd=float(item.locked_balance_usd),
+        unrealized_pnl=float(item.unrealized_pnl),
+        realized_pnl_total=float(item.realized_pnl_total),
     )
 
 

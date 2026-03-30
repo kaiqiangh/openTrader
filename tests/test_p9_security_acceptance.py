@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import base64
 from datetime import datetime, timedelta, timezone
-import hashlib
-import hmac
-import json
 from pathlib import Path
 import re
 from fastapi.testclient import TestClient
@@ -14,38 +10,10 @@ from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
 from services.notification_service.settings import NotificationSettingsError, load_notification_worker_settings
-
-
-def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "sub": subject,
-        "role": role,
-        "iss": settings.jwt_issuer,
-        "aud": settings.jwt_audience,
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
-    }
-    encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    encoded_payload = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-    signature = hmac.new(settings.jwt_secret_key.encode("utf-8"), signing_input, hashlib.sha256).digest()
-    return f"{encoded_header}.{encoded_payload}.{_b64url(signature)}"
-
-
-def _b64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
+from tests.jwt_test_helpers import encode_jwt_rs256, make_test_settings
 
 def _settings() -> APISettings:
-    return APISettings(
-        app_name="open-trader",
-        app_version="0.1.0",
-        default_mode="MOCK",
-        jwt_secret_key="test-secret-key",
-        jwt_issuer="open-trader-tests",
-        jwt_audience="open-trader-api",
-    )
-
+    return make_test_settings()
 
 def _service_block(content: str, service_name: str) -> str:
     marker = f"  {service_name}:"
@@ -58,14 +26,13 @@ def _service_block(content: str, service_name: str) -> str:
         return remainder
     return remainder[: match.start()]
 
-
 def test_p9_security_acceptance_rbac_enforcement() -> None:
     settings = _settings()
     app = create_app(settings=settings, state=build_default_state(default_mode=settings.default_mode))
     client = TestClient(app)
 
-    viewer_token = _encode_jwt(subject="viewer", role="viewer", settings=settings)
-    operator_token = _encode_jwt(subject="operator", role="operator", settings=settings)
+    viewer_token = encode_jwt_rs256(subject="viewer", role="viewer", settings=settings)
+    operator_token = encode_jwt_rs256(subject="operator", role="operator", settings=settings)
 
     assert client.get("/metadata").status_code == 401
 
@@ -83,7 +50,6 @@ def test_p9_security_acceptance_rbac_enforcement() -> None:
     )
     assert operator_attempt.status_code == 200
     assert operator_attempt.json()["mode"] == "REAL"
-
 
 def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
@@ -109,7 +75,6 @@ def test_p9_security_acceptance_network_exposure_boundaries() -> None:
     postgres_block = _service_block(compose, "postgres_timescaledb")
     assert "ports:" in postgres_block
     assert "127.0.0.1:5432:5432" in postgres_block
-
 
 def test_p9_security_acceptance_secret_placeholder_rejection() -> None:
     base_env = {

@@ -309,7 +309,8 @@ async def test_news_worker_runner_uses_real_rss_mode_when_database_is_required(
     """
     monkeypatch.setenv("NEWS_SOURCE_MODE", "mock")
     monkeypatch.setenv("NEWS_RSS_FEEDS", "https://news.example.com/rss")
-    monkeypatch.setattr(runtime_main, "_http_get_text", lambda url, timeout_seconds: rss_xml)
+    from services.workers import helpers as _helpers
+    monkeypatch.setattr(_helpers, "_http_get_text", lambda url, timeout_seconds: rss_xml)
 
     settings = RuntimeWorkerSettings(
         worker="news",
@@ -474,7 +475,7 @@ def test_runtime_worker_main_fails_fast_when_database_is_unavailable(monkeypatch
     def _raise_runtime_db_error() -> None:
         raise RuntimeDatabaseConfigError("database unavailable")
 
-    monkeypatch.setattr(runtime_main, "create_runtime_engine_from_env", _raise_runtime_db_error)
+    monkeypatch.setattr("services.workers.settings._database.create_runtime_engine_from_env", _raise_runtime_db_error)
 
     exit_code = runtime_main.main(["--worker", "news", "--validate-only", "--broker-backend", "inmemory"])
 

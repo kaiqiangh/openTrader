@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from services.agent_orchestrator.contracts import StrategyConfig
@@ -153,7 +155,7 @@ async def test_p9_e2e_real_flow_market_to_reconciliation_with_exchange_fallback(
             order_id=order_id,
             symbol=symbol,
             mode="REAL",
-            requested_quantity=requested_quantity,
+            requested_quantity=Decimal(str(requested_quantity)),
             status="SUBMITTED",
         ),
         lifecycle_events=(
@@ -163,24 +165,24 @@ async def test_p9_e2e_real_flow_market_to_reconciliation_with_exchange_fallback(
                 fill=ReconciliationFill(
                     fill_id=f"{intent['idempotency_key']}:queue",
                     order_id=order_id,
-                    quantity=queue_fill_quantity,
-                    price=reference_price * 1.0005,
-                    fee=0.2,
+                    quantity=Decimal(str(queue_fill_quantity)),
+                    price=Decimal(str(reference_price * 1.0005)),
+                    fee=Decimal("0.2"),
                     source="queue",
                 ),
             ),
         ),
         exchange_snapshot=ExchangeOrderSnapshot(
             status="FILLED",
-            filled_quantity=requested_quantity,
-            average_price=reference_price * 1.0008,
+            filled_quantity=Decimal(str(requested_quantity)),
+            average_price=Decimal(str(reference_price * 1.0008)),
             fills=(
                 ReconciliationFill(
                     fill_id=f"{intent['idempotency_key']}:exchange",
                     order_id=order_id,
-                    quantity=exchange_fill_quantity,
-                    price=reference_price * 1.0010,
-                    fee=0.25,
+                    quantity=Decimal(str(exchange_fill_quantity)),
+                    price=Decimal(str(reference_price * 1.0010)),
+                    fee=Decimal("0.25"),
                     source="exchange",
                 ),
             ),
@@ -189,7 +191,7 @@ async def test_p9_e2e_real_flow_market_to_reconciliation_with_exchange_fallback(
 
     assert reconciliation.status == "FILLED"
     assert reconciliation.used_exchange_fallback is True
-    assert reconciliation.filled_quantity == pytest.approx(requested_quantity)
+    assert reconciliation.filled_quantity == pytest.approx(Decimal(str(requested_quantity)))
     assert len(reconciliation.fills) == 2
 
     position = _apply_fills_to_position(fills=reconciliation.fills, side=action, symbol=symbol)
@@ -198,11 +200,11 @@ async def test_p9_e2e_real_flow_market_to_reconciliation_with_exchange_fallback(
 
     snapshot = PortfolioSnapshotEngine().build_snapshot(
         mode="REAL",
-        available_balance_usd=5_000.0,
-        locked_balance_usd=1_000.0,
+        available_balance_usd=Decimal("5000.0"),
+        locked_balance_usd=Decimal("1000.0"),
         positions=(position,),
         mark_prices={symbol: reference_price},
         realized_pnl_total=position.realized_pnl,
     )
     assert snapshot.mode == "REAL"
-    assert snapshot.total_balance_usd > 0.0
+    assert snapshot.total_balance_usd > Decimal("0")

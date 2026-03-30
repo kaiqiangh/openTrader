@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from services.oms.portfolio_snapshot import PortfolioSnapshotEngine, PortfolioSnapshotEngineError
@@ -12,18 +14,18 @@ def test_portfolio_snapshot_engine_computes_total_and_unrealized_pnl() -> None:
         PositionState(
             mode="MOCK",
             symbol="BTC/USDT",
-            quantity=1.0,
-            average_entry_price=100.0,
-            realized_pnl=10.0,
+            quantity=Decimal("1.0"),
+            average_entry_price=Decimal("100.0"),
+            realized_pnl=Decimal("10.0"),
             status="OPEN",
             updated_at="2026-02-14T16:00:00Z",
         ),
         PositionState(
             mode="MOCK",
             symbol="ETH/USDT",
-            quantity=-2.0,
-            average_entry_price=50.0,
-            realized_pnl=-3.0,
+            quantity=Decimal("-2.0"),
+            average_entry_price=Decimal("50.0"),
+            realized_pnl=Decimal("-3.0"),
             status="OPEN",
             updated_at="2026-02-14T16:00:00Z",
         ),
@@ -31,8 +33,8 @@ def test_portfolio_snapshot_engine_computes_total_and_unrealized_pnl() -> None:
 
     snapshot = engine.build_snapshot(
         mode="MOCK",
-        available_balance_usd=1000.0,
-        locked_balance_usd=200.0,
+        available_balance_usd=Decimal("1000.0"),
+        locked_balance_usd=Decimal("200.0"),
         positions=positions,
         mark_prices={"BTC/USDT": 110.0, "ETH/USDT": 40.0},
     )
@@ -50,9 +52,9 @@ def test_portfolio_snapshot_engine_allows_realized_override() -> None:
         PositionState(
             mode="REAL",
             symbol="BTC/USDT",
-            quantity=0.0,
-            average_entry_price=0.0,
-            realized_pnl=999.0,
+            quantity=Decimal("0"),
+            average_entry_price=Decimal("0"),
+            realized_pnl=Decimal("999.0"),
             status="CLOSED",
             updated_at="2026-02-14T16:00:00Z",
         ),
@@ -60,11 +62,11 @@ def test_portfolio_snapshot_engine_allows_realized_override() -> None:
 
     snapshot = engine.build_snapshot(
         mode="REAL",
-        available_balance_usd=500.0,
-        locked_balance_usd=0.0,
+        available_balance_usd=Decimal("500.0"),
+        locked_balance_usd=Decimal("0"),
         positions=positions,
         mark_prices={},
-        realized_pnl_total=12.5,
+        realized_pnl_total=Decimal("12.5"),
     )
 
     assert snapshot.realized_pnl_total == pytest.approx(12.5)
@@ -76,9 +78,9 @@ def test_portfolio_snapshot_engine_requires_mark_price_for_open_positions() -> N
         PositionState(
             mode="REAL",
             symbol="ETH/USDT",
-            quantity=1.0,
-            average_entry_price=2000.0,
-            realized_pnl=0.0,
+            quantity=Decimal("1.0"),
+            average_entry_price=Decimal("2000.0"),
+            realized_pnl=Decimal("0"),
             status="OPEN",
             updated_at="2026-02-14T16:00:00Z",
         ),
@@ -87,8 +89,8 @@ def test_portfolio_snapshot_engine_requires_mark_price_for_open_positions() -> N
     with pytest.raises(PortfolioSnapshotEngineError):
         engine.build_snapshot(
             mode="REAL",
-            available_balance_usd=100.0,
-            locked_balance_usd=0.0,
+            available_balance_usd=Decimal("100.0"),
+            locked_balance_usd=Decimal("0"),
             positions=positions,
             mark_prices={},
         )
