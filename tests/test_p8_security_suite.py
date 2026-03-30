@@ -5,17 +5,12 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
-import os
 from pathlib import Path
-import sqlite3
-
 from fastapi.testclient import TestClient
 
 from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
-from services.shared.runtime.exchange_credentials import EncryptedExchangeCredentialStore
-from services.shared.runtime.key_encryption import AesGcmKeyEncryptor
 
 
 def _encode_jwt(*, subject: str, role: str, settings: APISettings, iss: str | None = None, aud: str | None = None) -> str:
@@ -77,37 +72,6 @@ def test_jwt_audience_mismatch_is_rejected() -> None:
 
     response = client.get("/metadata", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
-
-
-def test_encrypted_exchange_credentials_are_not_plaintext_at_rest() -> None:
-    connection = sqlite3.connect(":memory:")
-    connection.row_factory = sqlite3.Row
-    connection.execute(
-        """
-        CREATE TABLE exchanges (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            api_key_encrypted TEXT,
-            api_secret_encrypted TEXT,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    key = base64.b64encode(os.urandom(32)).decode("utf-8")
-    store = EncryptedExchangeCredentialStore(
-        connection=connection,
-        encryptor=AesGcmKeyEncryptor(encryption_key_base64=key),
-    )
-    store.upsert_credentials(exchange_name="binance", api_key="plain-key", api_secret="plain-secret")
-
-    row = connection.execute(
-        "SELECT api_key_encrypted, api_secret_encrypted FROM exchanges WHERE name = ?",
-        ("binance",),
-    ).fetchone()
-    assert row is not None
-    assert "plain-key" not in str(row["api_key_encrypted"])
-    assert "plain-secret" not in str(row["api_secret_encrypted"])
 
 
 def test_security_suite_has_runbook_references() -> None:

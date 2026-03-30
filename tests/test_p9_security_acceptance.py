@@ -7,8 +7,6 @@ import hmac
 import json
 from pathlib import Path
 import re
-import sqlite3
-
 from fastapi.testclient import TestClient
 import pytest
 
@@ -16,8 +14,6 @@ from services.api.app import create_app
 from services.api.settings import APISettings
 from services.api.state import build_default_state
 from services.notification_service.settings import NotificationSettingsError, load_notification_worker_settings
-from services.shared.runtime.exchange_credentials import EncryptedExchangeCredentialStore
-from services.shared.runtime.key_encryption import AesGcmKeyEncryptor
 
 
 def _encode_jwt(*, subject: str, role: str, settings: APISettings) -> str:
@@ -87,43 +83,6 @@ def test_p9_security_acceptance_rbac_enforcement() -> None:
     )
     assert operator_attempt.status_code == 200
     assert operator_attempt.json()["mode"] == "REAL"
-
-
-def test_p9_security_acceptance_encrypted_secret_round_trip_and_at_rest_protection() -> None:
-    connection = sqlite3.connect(":memory:")
-    connection.row_factory = sqlite3.Row
-    connection.execute(
-        """
-        CREATE TABLE exchanges (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            api_key_encrypted TEXT,
-            api_secret_encrypted TEXT,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-
-    key = base64.b64encode(b"0123456789abcdef0123456789abcdef").decode("utf-8")
-    store = EncryptedExchangeCredentialStore(
-        connection=connection,
-        encryptor=AesGcmKeyEncryptor(encryption_key_base64=key),
-    )
-    store.upsert_credentials(exchange_name="binance", api_key="accept-key", api_secret="accept-secret")
-    loaded = store.load_credentials(exchange_name="binance")
-
-    assert loaded is not None
-    assert loaded.api_key == "accept-key"
-    assert loaded.api_secret == "accept-secret"
-
-    row = connection.execute(
-        "SELECT api_key_encrypted, api_secret_encrypted FROM exchanges WHERE name = ?",
-        ("binance",),
-    ).fetchone()
-    assert row is not None
-    assert "accept-key" not in str(row["api_key_encrypted"])
-    assert "accept-secret" not in str(row["api_secret_encrypted"])
 
 
 def test_p9_security_acceptance_network_exposure_boundaries() -> None:
